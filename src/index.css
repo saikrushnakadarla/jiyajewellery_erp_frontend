@@ -1,0 +1,36 @@
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+code {
+  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
+    monospace;
+}
+
+/* Ensure consistency for all heading and text elements */
+h1, h2, h3, h4, h5, h6, p, span, div {
+  font-family: Montserrat, Arial, sans-serif;
+}
+
+/* Table heading row background color */
+table thead tr {
+  background-color: #a36e29;
+  color: white; /* Optional: Set text color for better contrast */
+}
+
+/* Optional: General table styling for consistency */
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+table th, table td {
+  padding: 8px;
+  text-align: left;
+  border: 1px solid #ddd; /* Add a border for better readability */
+}

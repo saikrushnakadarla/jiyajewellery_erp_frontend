@@ -1,0 +1,40 @@
+.suppliers-table-container {
+  max-width: 1500px;
+  margin: auto;
+  padding: 20px;
+  margin-top: 10px;
+  border-radius: 10px;
+  background-color: rgba(163, 110, 41, 0.08);
+
+
+  
+}
+@media only screen and (max-width: 768px) {
+  .create_but{
+    color: white;
+    background-color: #a36e29;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 16px;
+    width: 20%;
+  }
+
+}
+
+
+
+@media only screen and (max-width: 480px) {
+
+.create_but{
+  color: white;
+  background-color: #a36e29;
+  padding: 10px 20px;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 16px;
+  width: 30%;
+}
+}

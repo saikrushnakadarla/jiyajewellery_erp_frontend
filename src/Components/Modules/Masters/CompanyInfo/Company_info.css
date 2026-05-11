@@ -1,0 +1,88 @@
+/* 📱 Mobile Responsive Styles */
+
+.cus-submit-btn {
+  padding: 10px;
+  font-size: 14px;
+  color: white;
+  background-color: #a36e29;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  align-self: flex-start;
+  width: 100px; /* Ensures it doesn’t stretch too much on wider screens */
+  transition: background-color 0.3s ease, transform 0.2s ease;
+}
+
+.cus-submit-btn:hover {
+  background-color: #a36e29;
+  transform: scale(1.05); /* Subtle zoom effect on hover */
+}
+
+/* Styling for the "Back" button */
+.cus-back-btn {
+  background-color: grey; /* Red color for back button */
+  padding: 10px;
+  font-size: 14px;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  align-self: flex-start;
+  width: 100px; /* Ensures it doesn’t stretch too much on wider screens */
+  transition: background-color 0.3s ease, transform 0.2s ease;
+}
+
+.cus-back-btn:hover {
+  background-color: grey;
+  transform: scale(1.05); /* Subtle zoom effect on hover */
+}
+
+@media (max-width: 768px) {
+  .customer-master-container {
+    padding: 10px;
+  }
+
+  .customer-master-form {
+    padding: 15px !important;
+  }
+
+  /* Stack inputs vertically on small screens */
+  .row {
+    /* flex-direction: column !important; */
+    gap: 10px;
+  }
+
+  .col-md-2,
+  .col-md-3,
+  .col-md-4 {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  /* Buttons in form (Save / Cancel) */
+  .cus-submit-btn,
+  .cus-cancel-btn,
+  cus-back-btn {
+    width: 100%;
+    margin-bottom: 10px;
+  }
+
+  /* Card (each company info) spacing */
+  .customer-master-form div[style*="border: 1px solid #ddd"] {
+    padding: 15px !important;
+  }
+
+  /* Edit/Delete buttons — same row with gap */
+  .customer-master-form div[style*="text-align: right"] {
+    text-align: center !important;
+    display: flex !important;
+    justify-content: center !important;
+    gap: 10px !important;
+    margin-top: 10px !important;
+  }
+
+  .customer-master-form button {
+    flex: 1 !important;
+    min-width: 120px;
+  }
+}

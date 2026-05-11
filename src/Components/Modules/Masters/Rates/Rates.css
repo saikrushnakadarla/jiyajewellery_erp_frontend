@@ -1,0 +1,45 @@
+.rate-container {
+        width: 50%;
+        background-color: #f9f9f9;
+        border-radius: 8px;
+        padding: 20px;
+        margin: 25px auto;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+      }
+
+    
+
+
+.continue-btn {
+        width: 20%;
+        padding: 10px;
+        background-color: rgb(163, 110, 41);
+        border-color: rgb(163, 110, 41);
+                color: #fff;
+        border: none;
+        border-radius: 5px;
+        font-size: 1rem;
+        cursor: pointer;
+        transition: background-color 0.3s ease;
+      }
+
+
+
+      @media (max-width: 768px) {
+        .continue-btn {
+                width: 50%;
+        }
+      }
+
+
+      @media (max-width: 480px) {
+
+
+        .rate-container {
+                width: 95%;}
+        .continue-btn {
+                width: 50%;
+        }
+      }
+      
+    

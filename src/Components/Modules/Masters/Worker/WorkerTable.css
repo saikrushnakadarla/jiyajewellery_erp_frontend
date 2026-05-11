@@ -1,0 +1,49 @@
+.modal-content-grid {
+        margin-top: 20px;
+      }
+      
+      .modal-detail {
+        padding: 10px;
+        background-color: #f9f9f9;
+        margin-bottom: 10px;
+        border-radius: 5px;
+      }
+      
+      .modal-detail strong {
+        color: #333;
+      }
+      
+      .modal-header {
+        background-color: #f7f7f7;
+        border-bottom: 2px solid #ccc;
+      }
+      
+      .modal-title {
+        font-size: 1.5rem;
+        color: #a36e29;
+      }
+      
+      button.action-button {
+        background-color: transparent;
+        border: none;
+        cursor: pointer;
+        margin-right: 10px;
+      }
+      
+      button.view-button:hover {
+        color: #28a745;
+      }
+      
+      button.edit-button:hover {
+        color: #ffc107;
+      }
+      
+      button.delete-button:hover {
+        color: #dc3545;
+      }
+      
+      .modal-footer .btn {
+        background-color: #a36e29;
+        border-color: #a36e29;
+      }
+      

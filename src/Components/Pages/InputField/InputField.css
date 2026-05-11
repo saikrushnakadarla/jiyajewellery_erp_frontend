@@ -1,0 +1,35 @@
+.input-field-container {
+  position: relative;
+  margin-bottom: 20px;
+}
+
+.select-container {
+  position: relative;
+}
+
+.floating-label {
+  position: absolute;
+  top: -8px;
+  left: 10px;
+  background: white;
+  padding: 0 5px;
+  font-size: 14px;
+  color: #A26D2B;
+  z-index: 1000;
+}
+
+.input-label {
+  font-size: 14px;
+  color: #333;
+  margin-bottom: 5px;
+  display: block;
+}
+
+.styled-input {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid #A26D2B;
+  border-radius: 4px;
+  box-sizing: border-box;
+  font-size: 14px;
+}

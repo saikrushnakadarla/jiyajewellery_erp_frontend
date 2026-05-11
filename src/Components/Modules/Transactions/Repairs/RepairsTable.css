@@ -1,0 +1,17 @@
+.repairs-table-container {
+    max-width: 1500px;
+    margin: auto;
+    padding: 20px;
+    margin-top: 25px;
+    border-radius: 10px;
+    background-color: rgba(163, 110, 41, 0.08);
+  }
+  
+/* Custom CSS for the select dropdown */
+.custom-select {
+  height: 30px; /* Adjust the height */
+  padding: 5px 10px; /* Adjust the padding for height control */
+  font-size: 14px; /* Adjust the font size */
+}
+
+  

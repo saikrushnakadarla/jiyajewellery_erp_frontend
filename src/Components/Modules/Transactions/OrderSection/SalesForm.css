@@ -1,0 +1,63 @@
+.main-container {
+  padding: 20px;
+}
+
+.sales-form-container {
+  background-color: #fff;
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.sales-form {
+  display: flex;
+  gap: 20px;
+  margin-bottom: 20px;
+}
+
+.sales-form-left {
+  flex: 3;
+}
+
+.sales-form-right {
+  flex: 1;
+}
+
+.sales-form-section {
+  margin-bottom: 20px;
+  padding: 15px;
+  background-color: #f8f9fa;
+  border-radius: 4px;
+}
+
+.sales-form2 {
+  display: flex;
+  gap: 20px;
+}
+
+.sales-form-third,
+.sales-form-fourth {
+  flex: 1;
+}
+
+.form-check {
+  margin-bottom: 10px;
+}
+
+.cus-back-btn {
+  width: 100%;
+}
+
+@media (max-width: 768px) {
+  .sales-form,
+  .sales-form2 {
+    flex-direction: column;
+  }
+  
+  .sales-form-left,
+  .sales-form-right,
+  .sales-form-third,
+  .sales-form-fourth {
+    flex: 1;
+  }
+}

@@ -1,0 +1,40 @@
+.main-container {
+        padding: 20px;
+        font-family: Arial, sans-serif;
+      
+        h1 {
+          text-align: center;
+          margin-bottom: 20px;
+        }
+      
+        .loading,
+        .error {
+          text-align: center;
+          color: #ff0000;
+        }
+      
+        .rates-table {
+          width: 100%;
+          border-collapse: collapse;
+          margin: 0 auto;
+      
+          th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: center;
+          }
+      
+          th {
+            background-color: #f2f2f2;
+          }
+      
+          tr:hover {
+            background-color: #f9f9f9;
+          }
+      
+          td {
+            font-size: 14px;
+          }
+        }
+      }
+      

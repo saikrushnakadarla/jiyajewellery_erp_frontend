@@ -1,0 +1,99 @@
+.purchase-form-container {
+        max-width: 1500px;
+        margin: auto;
+        padding: 20px;
+        margin-top: 10px;
+        /* border: 1px solid #ddd; */
+        border-radius: 10px;
+        background-color: #f9f9f9;
+      }
+      
+      h2 {
+        text-align: center;
+        color: #333;
+      }
+      
+      .purchase-form {
+        display: flex;
+        gap: 10px;
+        margin-top: 5px;
+      }
+      
+      .purchase-form-left {
+        flex: 0 0 60%; /* 80% width */
+      }
+      
+      .purchase-form-right {
+        flex: 0 0 40%; /* 20% width */
+      }
+    
+      .urd-form-section {
+        margin-bottom: 10px;
+        padding: 15px;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        background-color: rgba(163, 110, 41, 0.08);
+      }
+      
+      .urd-form-row {
+        display: flex;
+        justify-content: space-between;
+        gap: 15px;
+      }
+      
+      .urd-form-row > * {
+        flex: 1;
+      }
+      
+      label {
+        font-weight: bold;
+        margin-bottom: 5px;
+      }
+      
+      input,
+      select {
+        padding: 10px;
+        border: 1px solid #ccc;
+        border-radius: 5px;
+      }
+      
+      .form-buttons {
+        display: flex;
+        gap: 5px; /* Adds 5px space between the buttons */
+      }
+      
+    
+      
+      
+      /* Responsive Design */
+      @media (max-width: 768px) {
+        .urd-form-row {
+          flex-direction: column;
+        }
+    
+        .purchase-form {
+          display: flex;
+          flex-direction: column;
+          gap: 10px;
+          margin-top: 5px;
+      }
+      }
+      
+    
+      .item-details-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 10px;
+      }
+      
+      .item-details-table th,
+      .item-details-table td {
+        border: 1px solid #ccc;
+        padding: 8px;
+        text-align: left;
+      }
+      
+      .item-details-table th {
+        background-color: #f4f4f4;
+      }
+      

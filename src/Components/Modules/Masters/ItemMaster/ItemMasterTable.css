@@ -1,0 +1,145 @@
+.itemmaster-table-container {
+  max-width: 1500px;
+  margin: auto;
+  padding: 20px;
+  margin-top: 25px;
+  border-radius: 10px;
+  background-color: rgba(163, 110, 41, 0.08);
+}
+
+  
+  .table-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+  }
+  
+  .entries-dropdown {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+  
+  .search-input {
+    width: 300px;
+    padding: 8px 12px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+  }
+  
+ 
+  
+  .repairs-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10px;
+  }
+  
+  .repairs-table th,
+  .repairs-table td {
+    border: 1px solid #ddd;
+    padding: 10px;
+    text-align: left;
+  }
+  
+  .repairs-table th {
+    background-color: #f4f4f4;
+    font-weight: bold;
+  }
+  
+  .repairs-table tr:nth-child(even) {
+    background-color: #f9f9f9;
+  }
+  
+  .action-button {
+    padding: 6px 8px;
+    margin-right: 5px;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+  }
+  
+  .edit-button {
+    background-color: #007bff;
+    color: white;
+  }
+  
+  .edit-button:hover {
+    background-color: #0056b3;
+  }
+  
+  .delete-button {
+    background-color: #dc3545;
+    color: white;
+  }
+  
+  .delete-button:hover {
+    background-color: #c82333;
+  }
+  
+  .pagination {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 20px;
+  }
+  
+  .pagination-controls button {
+    padding: 8px 12px;
+    margin: 0 5px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+  }
+  
+  .pagination-controls button:disabled {
+    background-color: #ccc;
+    cursor: not-allowed;
+  }
+  
+  .pagination-controls button:not(:disabled) {
+    background-color: #007bff;
+    color: white;
+  }
+  
+  .pagination-controls button:not(:disabled):hover {
+    background-color: #0056b3;
+  }
+  
+  .no-data {
+    text-align: center;
+    color: #888;
+  }
+  
+  .update-link {
+    color: #007bff;
+    cursor: pointer;
+    text-decoration: underline;
+  }
+  
+
+  .custom-modal-width .modal-dialog {
+    max-width: 80%; /* Adjust as needed */
+    width: 80%;
+  }
+  
+  .custom-modal-width .modal-content {
+    padding: 20px; /* Optional: Adjust padding for better layout */
+    width: 266%;
+    margin-left: -418px;
+  }
+  
+
+  .custom-tagentrymodal-width .modal-dialog {
+    max-width: 80%; /* Adjust as needed */
+    width: 80%;
+  }
+  
+  .custom-tagentrymodal-width .modal-content {
+    padding: 0px;
+    width: 160%;
+    margin-left: -248px;
+  }
+
+  

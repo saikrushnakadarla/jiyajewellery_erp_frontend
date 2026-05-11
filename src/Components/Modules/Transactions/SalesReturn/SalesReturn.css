@@ -1,0 +1,134 @@
+.main-container{
+    padding-top: 60px;
+  }
+  
+  .sales-form-container {
+    max-width: 1500px;
+    margin: auto;
+    padding: 20px;
+    margin-top: 10px;
+    padding-top: 50px;
+    border-radius: 10px;
+    background-color: #f9f9f9;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  }
+  
+  .sales-form {
+    display: flex;
+    gap: 10px;
+    margin-top: 10px; 
+  }
+  
+  .sales-form-left {
+    flex: 0 0 78%; /* 80% width */
+  }
+  
+  .sales-form-right {
+    flex: 0 0 22%; /* 20% width */
+  }
+  
+  .sales-form2 {
+    display: flex;
+    gap: 10px;
+    
+  }
+  
+  .sales-form-third {
+    flex: 0 0 60%; /* 80% width */
+  }
+  
+  .sales-form-fourth {
+    flex: 0 0 40%; /* 80% width */
+  }
+  
+  .sales-form-section {
+    margin-bottom: 10px;
+    padding: 15px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    background-color: rgba(163, 110, 41, 0.08);
+  }
+  
+  
+  
+  .form-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15px;
+  }
+  
+  .form-row > * {
+    flex: 1;
+    min-width: 120px; /* Prevent items from shrinking too small */
+  }
+  
+  input,
+  select {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    box-sizing: border-box;
+    font-size: 1rem;
+  }
+  
+  label {
+    display: block;
+    font-weight: bold;
+    margin-bottom: 5px;
+  }
+  
+  .form-buttons {
+    margin-top: 20px;
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  
+  
+  
+  @media (max-width: 768px) {
+    .sales-form-container {
+      margin-top: 10px;
+    }
+  
+    .sales-form {
+      flex-direction: column; /* Stack sections vertically on smaller screens */
+    }
+  
+    .sales-form2 {
+      flex-direction: column; /* Stack sections vertically */
+     
+    }
+  
+    .sales-form-left,
+    .sales-form-right,
+    .sales-form-third,
+    .sales-form-fourth {
+      flex: 1; /* Full width for all sections */
+    }
+  
+    .form-row > * {
+      min-width: 100%; /* Stack items vertically */
+    }
+  
+    button {
+      width: 100%;
+    }
+  }
+  
+  @media (max-width: 480px) {
+    h4 {
+      font-size: 1rem;
+    }
+  
+    input,
+    select {
+      font-size: 0.9rem;
+    }
+  
+    button {
+      font-size: 0.9rem;
+    }
+  }
+  
