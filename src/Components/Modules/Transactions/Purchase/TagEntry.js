@@ -8,11 +8,12 @@ import PurchaseStoneDetailsModal from "./PurchaseStoneDetailsModal";
 import { useNavigate } from "react-router-dom";
 import { AiOutlinePlus } from "react-icons/ai";
 import baseURL from "../../../../Url/NodeBaseURL";
+import baseURL2 from "../../../../Url/NodeBaseURL2";
 import "./TagEntry.css";
 import { Form, Row, Col, Table } from 'react-bootstrap';
 import * as XLSX from "xlsx";
 import { FaCamera, FaUpload, FaTrash, FaEdit, FaFileExcel, FaEye } from "react-icons/fa";
-import { Modal, Button, Dropdown, DropdownButton } from "react-bootstrap";  // Add this import
+import { Modal, Button, Dropdown, DropdownButton } from "react-bootstrap";
 import { jsPDF } from "jspdf";
 import QRCode from "qrcode";
 import Webcam from "react-webcam";
@@ -41,7 +42,6 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
         invoice: selectedProduct.invoice,
         sub_category: "",
         subcategory_id: "",
-        // subcategory_id: "SBI001",
         product_Name: "",
         design_master: "",
         Pricing: selectedProduct.Pricing,
@@ -49,8 +49,7 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
         clarity: "",
         color: "",
         Tag_ID: "",
-        Prefix: "", // Default value
-        // Category: selectedProduct.metal_type,
+        Prefix: "",
         Purity: "",
         metal_type: selectedProduct.metal_type,
         PCode_BarCode: "",
@@ -120,7 +119,6 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
         setSelectedRow(null);
     };
 
-
     const [stoneDetails, setStoneDetails] = useState({
         stoneName: "",
         cut: "",
@@ -148,7 +146,6 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
                 };
                 setRates(newRates);
 
-                // Update form data based on metal type
                 const metalType = formData.metal_type?.toLowerCase();
 
                 setFormData((prev) => ({
@@ -162,7 +159,6 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
 
         fetchCurrentRates();
     }, [formData.metal_type]);
-
 
     const handleAddStone = () => {
         let newStoneList = [...stoneList];
@@ -261,7 +257,6 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
         localStorage.setItem("tagPurStoneDetails", JSON.stringify(updatedList));
         window.dispatchEvent(new Event("storage"));
     };
-
 
     const isByFixed = formData.Pricing === "By fixed";
     const [isGeneratePDF, setIsGeneratePDF] = useState(true);
@@ -385,10 +380,6 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
         const purMakingCharges = parseFloat(formData.pur_Making_Charges) || 0;
         const purRate = parseFloat(formData.pur_rate_cut) || 0;
 
-        /* ======================
-           SELLING MAKING CHARGES
-        ====================== */
-
         if (formData.Making_Charges_On === "MC / Gram") {
             const calculatedMakingCharges = totalWeight * mcPerGram;
 
@@ -408,7 +399,6 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
             }));
 
         } else if (formData.Making_Charges_On === "MC %") {
-            // rateAmount = rate × total weight
             const rateAmount = rate * totalWeight;
 
             const calculatedMakingCharges =
@@ -419,10 +409,6 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
                 Making_Charges: calculatedMakingCharges.toFixed(2),
             }));
         }
-
-        /* ======================
-           PURCHASE MAKING CHARGES
-        ====================== */
 
         if (formData.pur_Making_Charges_On === "MC / Gram") {
             const calculatedMakingCharges =
@@ -456,25 +442,19 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
         }
     };
 
-
     useEffect(() => {
         const rate = parseFloat(formData.rate) || 0;
         const weight = parseFloat(formData.TotalWeight_AW) || 0;
         const stonesPrice = parseFloat(formData.Stones_Price) || 0;
         const makingCharges = parseFloat(formData.Making_Charges) || 0;
 
-        // Step 1: Base amount
         const baseAmount =
             rate * weight + stonesPrice + makingCharges;
 
-        // Step 2: Extract tax percentage from string like "03% GST"
         const taxPercent = parseFloat(formData.tax) || 0;
 
-
-        // Step 3: Calculate tax amount
         const taxAmt = (baseAmount * taxPercent) / 100;
 
-        // Step 4: Final total
         const totalPrice = baseAmount + taxAmt;
 
         setFormData((prev) => ({
@@ -489,8 +469,6 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
         formData.Making_Charges,
         formData.tax,
     ]);
-
-
 
     useEffect(() => {
         handleMakingChargesCalculation();
@@ -517,7 +495,6 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
             .catch((error) => console.error("Error fetching products:", error));
     }, []);
 
-
     const isGoldCategory = formData.category &&
         ["gold", "diamond", "others"].some((metal) => formData.category.toLowerCase().includes(metal));
 
@@ -529,7 +506,7 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
                 ...prevData,
                 Making_Charges_On: "MC %",
                 MC_Per_Gram_Label: "MC%",
-                Making_Charges: "", // Reset field when hidden
+                Making_Charges: "",
             }));
         } else if (isSilverCategory) {
             setFormData((prevData) => ({
@@ -551,7 +528,7 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
                 ...prevData,
                 pur_Making_Charges_On: "MC %",
                 pur_MC_Per_Gram_Label: "MC%",
-                pur_Making_Charges: "", // Reset field when hidden
+                pur_Making_Charges: "",
             }));
         } else if (isSilverCategory) {
             setFormData((prevData) => ({
@@ -594,8 +571,8 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
 
     useEffect(() => {
         if (formData.pur_Purity && formData.metal_type) {
-            const normalizedValue = formData.pur_Purity.toLowerCase(); // Normalize case
-            const metalType = formData.metal_type.toLowerCase(); // Normalize metal type
+            const normalizedValue = formData.pur_Purity.toLowerCase();
+            const metalType = formData.metal_type.toLowerCase();
             let newRate = "";
 
             if (metalType === "silver") {
@@ -623,7 +600,6 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
         }
     }, [formData.pur_Purity, formData.metal_type, rates]);
 
-
     useEffect(() => {
         if (!formData.Purity) {
             setFormData((prev) => ({
@@ -634,7 +610,7 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
         }
 
         const purityValue = parseFloat(formData.Purity);
-        const baseRate = parseFloat(formData.rate_24k); // 24K base rate
+        const baseRate = parseFloat(formData.rate_24k);
 
         if (!isNaN(purityValue) && !isNaN(baseRate)) {
             const calculatedRate = ((purityValue / 100) * baseRate).toFixed(2);
@@ -651,16 +627,12 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
         }
     }, [formData.Purity, formData.rate_24k]);
 
-
-
     const handleChange = async (fieldOrEvent, valueArg) => {
-
         let field, value;
         if (fieldOrEvent && fieldOrEvent.target) {
             field = fieldOrEvent.target.name;
             value = fieldOrEvent.target.value;
 
-            // Handle file input
             if (fieldOrEvent.target.type === "file") {
                 const file = fieldOrEvent.target.files[0];
                 if (file) {
@@ -668,8 +640,8 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
                     reader.onloadend = () => {
                         setFormData((prev) => ({
                             ...prev,
-                            productImage: file, // Store actual file
-                            imagePreview: reader.result, // Store preview for display
+                            productImage: file,
+                            imagePreview: reader.result,
                         }));
                     };
                     reader.readAsDataURL(file);
@@ -687,26 +659,24 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
             );
 
             if (selectedCategory) {
-                const newPrefix = selectedCategory.prefix;
-
                 try {
                     const response = await axios.get(`${baseURL}/getNextPCodeBarCode`, {
-                        params: { prefix: newPrefix },
+                        params: { prefix: selectedCategory.prefix },
                     });
 
-                    const nextPCodeBarCode = response.data.nextPCodeBarCode; // e.g., GRN002
+                    const nextPCodeBarCode = response.data.nextPCodeBarCode;
 
                     setFormData((prevData) => ({
                         ...prevData,
                         sub_category: selectedCategory.sub_category_name,
                         subcategory_id: selectedCategory.subcategory_id,
-                        item_prefix: newPrefix,
-                        Prefix: newPrefix,
+                        item_prefix: selectedCategory.prefix,
+                        Prefix: selectedCategory.prefix,
                         PCode_BarCode: nextPCodeBarCode,
-                        suffix: nextPCodeBarCode.replace(newPrefix, ""),
-                        Purity: selectedCategory.selling_purity || "", // Set empty if undefined/null
-                        pur_Purity: selectedCategory.purity || "", // Set empty if undefined/null
-                        printing_purity: selectedCategory.printing_purity || "", // Set empty if undefined/null
+                        suffix: nextPCodeBarCode.replace(selectedCategory.prefix, ""),
+                        Purity: selectedCategory.selling_purity || "",
+                        pur_Purity: selectedCategory.purity || "",
+                        printing_purity: selectedCategory.printing_purity || "",
                     }));
                 } catch (error) {
                     console.error("Error fetching PCode_BarCode:", error);
@@ -731,8 +701,6 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
             }));
         }
 
-
-
         setFormData((prevData) => {
             let updatedData = { ...prevData, [field]: value };
 
@@ -740,12 +708,11 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
                 updatedData.pur_Gross_Weight = value;
             }
 
-            // Update MC field only if Making_Charges_On is "MC / Gram" or "MC / Piece"
             if (field === "Making_Charges_On") {
                 if (value === "MC / Gram" || value === "MC / Piece") {
                     updatedData.Making_Charges = prevData.Making_Charges || "";
                 } else {
-                    updatedData.Making_Charges = ""; // Hide field
+                    updatedData.Making_Charges = "";
                 }
             }
 
@@ -753,13 +720,12 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
                 if (value === "MC / Gram" || value === "MC / Piece") {
                     updatedData.pur_Making_Charges = prevData.pur_Making_Charges || "";
                 } else {
-                    updatedData.pur_Making_Charges = ""; // Hide field
+                    updatedData.pur_Making_Charges = "";
                 }
             }
 
-            // Update MC_Per_Gram_Label when Making_Charges_On changes
             if (field === "Making_Charges_On") {
-                let newLabel = "MC/Gm"; // Default
+                let newLabel = "MC/Gm";
                 if (value === "MC %") newLabel = "MC%";
                 else if (value === "MC / Gram") newLabel = "MC/Gm";
                 else if (value === "MC / Piece") newLabel = "MC/Gm";
@@ -768,7 +734,7 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
             }
 
             if (field === "pur_Making_Charges_On") {
-                let newLabel = "MC/Gm"; // Default
+                let newLabel = "MC/Gm";
                 if (value === "MC %") newLabel = "MC%";
                 else if (value === "MC / Gram") newLabel = "MC/Gm";
                 else if (value === "MC / Piece") newLabel = "MC/Gm";
@@ -776,7 +742,6 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
                 updatedData.pur_MC_Per_Gram_Label = newLabel;
             }
 
-            // --- Calculate Stones Price ---
             if (field === "Stones_Weight" || field === "stone_price_per_carat") {
                 const stoneWeight =
                     parseFloat(
@@ -815,7 +780,6 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
                 }
             }
 
-            // --- Recalculate Weight BW ---
             if (
                 field === "Gross_Weight" ||
                 field === "Stones_Weight" ||
@@ -824,7 +788,6 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
                 field === "pur_Stones_Weight" ||
                 field === "pur_deduct_st_Wt"
             ) {
-                // For normal weight calculation
                 const grossWt = parseFloat(updatedData.Gross_Weight) || 0;
                 const stonesWt = parseFloat(updatedData.Stones_Weight) || 0;
                 const deductOption = updatedData.deduct_st_Wt
@@ -837,7 +800,6 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
                     updatedData.Weight_BW = grossWt.toFixed(2);
                 }
 
-                // For purchase weight calculation
                 const purGrossWt = parseFloat(updatedData.pur_Gross_Weight) || 0;
                 const purStonesWt = parseFloat(updatedData.pur_Stones_Weight) || 0;
                 const purDeductOption = updatedData.pur_deduct_st_Wt
@@ -851,16 +813,11 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
                 }
             }
 
-            // Update MRP Price and Total Pcs Cost when Pricing is "By fixed"
             if (field === "pieace_cost" || field === "tax_percent") {
                 const taxPercent = parseFloat(field === "tax_percent" ? value : prevData.tax_percent) || 0;
                 const pieaceCost = parseFloat(field === "pieace_cost" ? value : prevData.pieace_cost) || 0;
                 const mrpPrice = (pieaceCost * taxPercent / 100) + pieaceCost;
                 updatedData.mrp_price = mrpPrice.toFixed(2);
-
-
-                // updatedData.mrp_price = ((pieaceCost / (100 + taxPercent)) * 100).toFixed(2);
-
             }
 
             if (field === "pieace_cost" || field === "pcs") {
@@ -869,23 +826,19 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
                 updatedData.total_pcs_cost = (pcs * pieaceCost).toFixed(2);
             }
 
-            // If user enters MRP Price, update pieace_cost and total_pcs_cost
             if (field === "mrp_price") {
                 const mrpPrice = parseFloat(value) || 0;
                 const taxPercent = parseFloat(prevData.tax_percent) || 0;
 
-                // Calculate Pieace Cost
                 const pieaceCost = ((mrpPrice / (100 + taxPercent)) * 100);
                 updatedData.pieace_cost = pieaceCost.toFixed(2);
 
-                // Update Total Pcs Cost
                 const pcs = parseFloat(prevData.pcs) || 0;
                 updatedData.total_pcs_cost = (pcs * pieaceCost).toFixed(2);
             }
             return updatedData;
         });
 
-        // --- Handle Category Change ---
         if (field === "category") {
             setFormData((prevData) => ({
                 ...prevData,
@@ -895,22 +848,18 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
         }
     };
 
-    const isSilverOrGold = /silver|gold/i.test(formData.category);
-
-
-    const isGeneratePDFRef = useRef(isGeneratePDF); // Create a ref to track latest state
+    const isGeneratePDFRef = useRef(isGeneratePDF);
 
     useEffect(() => {
-        isGeneratePDFRef.current = isGeneratePDF; // Update ref whenever state changes
+        isGeneratePDFRef.current = isGeneratePDF;
     }, [isGeneratePDF]);
 
     useEffect(() => {
         const handleKeyPress = (event) => {
             if (event.altKey && event.key.toLowerCase() === "s") {
-                event.preventDefault(); // Prevent default behavior
+                event.preventDefault();
                 console.log("Alt + S detected, submitting form...");
 
-                // Ensure latest values are used
                 const pcsValue = parseFloat(formData.pcs) || 0;
                 const grossWeightValue = parseFloat(formData.Gross_Weight) || 0;
 
@@ -941,7 +890,7 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
                     return;
                 }
 
-                handleSubmit(); // Call submit function after validations
+                handleSubmit();
             }
         };
 
@@ -951,32 +900,12 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
         };
     }, [formData]);
 
-    // const captureImage = () => {
-    //     if (webcamRef.current) {
-    //         const imageSrc = webcamRef.current.getScreenshot();
-    //         setFormData((prev) => ({
-    //             ...prev,
-    //             imagePreview: imageSrc,
-    //             productImage: imageSrc,
-    //         }));
-    //         setShowWebcam(false);
-    //     }
-    // };
-
-    // const clearImage = () => {
-    //     setFormData((prev) => ({
-    //         ...prev,
-    //         productImage: null,
-    //         imagePreview: null,
-    //     }));
-    // };
-
     const handleImageChange = (e) => {
         const file = e.target.files[0];
         if (file) {
             const reader = new FileReader();
             reader.onloadend = () => {
-                setImage(reader.result); // Convert image to base64 and update state
+                setImage(reader.result);
             };
             reader.readAsDataURL(file);
         }
@@ -1012,20 +941,17 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
             const response = await axios.post(`${baseURL}/designmaster`, {
                 category: newDesign.category || formData.category,
                 design_name: newDesign.design_name,
-                metal: newDesign.metal || formData.metal_type,  // Storing metal type in the DB
+                metal: newDesign.metal || formData.metal_type,
             });
 
             if (response.status === 201 || response.status === 200) {
                 alert("Product Design Name added successfully!");
 
-                // Close modal and reset form
                 handleCloseDesignModal();
                 setNewDesign({ design_name: "", metal: formData.metal_type, category: formData.category });
 
-                // Refresh design list
                 await fetchDesignMaster();
 
-                // Fetch updated design list
                 const updatedResponse = await axios.get(`${baseURL}/designmaster`);
                 const updatedDesignMasters = updatedResponse.data.map((item) => ({
                     value: item.design_name,
@@ -1035,14 +961,13 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
 
                 setdesignOptions(updatedDesignMasters);
 
-                // Find and auto-select the newly added design
                 const addedDesign = updatedDesignMasters.find(design => design.value === newDesign.design_name);
 
                 if (addedDesign) {
                     setFormData((prevData) => ({
                         ...prevData,
-                        design_master: addedDesign.value, // Store selected design name
-                        design_id: addedDesign.id, // Store the design ID
+                        design_master: addedDesign.value,
+                        design_id: addedDesign.id,
                     }));
                 }
             }
@@ -1052,361 +977,404 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
         }
     };
 
-    const handleSubmit = async (e) => {
-        if (e) e.preventDefault();
+    // Updated handleSubmit to send data to both APIs and generate QR codes for both
+const handleSubmit = async (e) => {
+    if (e) e.preventDefault();
 
-        if (formData.Pricing === "By fixed") {
-            if (pcs <= 0) {
-                alert("The product's PCS must be greater than zero to submit the form.");
-                return;
-            }
-            if (!formData.pieace_cost || parseFloat(formData.pieace_cost) <= 0) {
-                alert("Please enter a Piece Cost.");
-                return;
-            }
-        } else {
-            if (pcs <= 0 || grossWeight <= 0) {
-                alert("The product's PCS and Gross Weight must be greater than zero to submit the form.");
-                return;
-            }
-        }
-
-        if (!formData.sub_category || !formData.subcategory_id) {
-            alert("Please select a valid sub-category before submitting.");
+    if (formData.Pricing === "By fixed") {
+        if (pcs <= 0) {
+            alert("The product's PCS must be greater than zero to submit the form.");
             return;
         }
-
-        if (formData.Pricing === "By Weight" && !formData.Gross_Weight) {
-            alert("Please add Gross Weight");
+        if (!formData.pieace_cost || parseFloat(formData.pieace_cost) <= 0) {
+            alert("Please enter a Piece Cost.");
             return;
         }
+    } else {
+        if (pcs <= 0 || grossWeight <= 0) {
+            alert("The product's PCS and Gross Weight must be greater than zero to submit the form.");
+            return;
+        }
+    }
 
-        // **Check if Gross Weight exceeds the limit**
-        if (parseFloat(formData.Gross_Weight) > parseFloat(grossWeight)) {
-            const diff = (parseFloat(formData.Gross_Weight) - parseFloat(grossWeight)).toFixed(3);
-            const confirmSubmit = window.confirm(`The tag gross weight exceeds by ${diff} of balance Gross Weight. Do you want to proceed?`);
-            if (!confirmSubmit) {
-                return; // Stop submission if user clicks "No"
-            }
+    if (!formData.sub_category || !formData.subcategory_id) {
+        alert("Please select a valid sub-category before submitting.");
+        return;
+    }
+
+    if (formData.Pricing === "By Weight" && !formData.Gross_Weight) {
+        alert("Please add Gross Weight");
+        return;
+    }
+
+    if (parseFloat(formData.Gross_Weight) > parseFloat(grossWeight)) {
+        const diff = (parseFloat(formData.Gross_Weight) - parseFloat(grossWeight)).toFixed(3);
+        const confirmSubmit = window.confirm(`The tag gross weight exceeds by ${diff} of balance Gross Weight. Do you want to proceed?`);
+        if (!confirmSubmit) {
+            return;
+        }
+    }
+
+    try {
+        const updatedData = { ...formData, image };
+
+        // Prepare data for both APIs
+        const requestData = {
+            ...updatedData,
+            stone_details: stoneList,
+            purchase_stone_details: purchaseStoneList
+        };
+
+        let apiURL = `${baseURL}/post/opening-tags-entry`;
+        let apiURL2 = `${baseURL2}/post/product`;
+        
+        let method = "POST";
+        let method2 = "POST";
+        
+        let isUpdating = false;
+        let response1, response2;
+
+        if (formData.opentag_id) {
+            apiURL = `${baseURL}/update/opening-tags-entry/${formData.opentag_id}`;
+            method = "PUT";
+            isUpdating = true;
         }
 
-        try {
-            const updatedData = { ...formData, image };
-
-            let apiURL = `${baseURL}/post/opening-tags-entry`; // Default: Add new entry
-            let method = "POST";
-            let isUpdating = false;
-
-            if (formData.opentag_id) {
-                apiURL = `${baseURL}/update/opening-tags-entry/${formData.opentag_id}`;
-                method = "PUT";
-                isUpdating = true;
-            }
-
-            await axios({
+        // Send data to both APIs simultaneously
+        [response1, response2] = await Promise.all([
+            axios({
                 method: method,
                 url: apiURL,
-                data: updatedData,
+                data: requestData,
                 headers: { "Content-Type": "application/json" },
-            });
+            }),
+            axios({
+                method: method2,
+                url: apiURL2,
+                data: {
+                    // Map TagEntry data to ProductForm compatible format
+                    product_name: formData.sub_category || "",
+                    category_id: formData.subcategory_id || "",
+                    barcode: formData.PCode_BarCode || "",
+                    metal_type_id: "",
+                    metal_type: formData.metal_type || "",
+                    purity_id: "",
+                    purity: formData.Purity || "",
+                    design_id: "",
+                    design: formData.design_master || "",
+                    gross_wt: formData.Gross_Weight || "0",
+                    stone_wt: formData.Stones_Weight || "0",
+                    net_wt: formData.Weight_BW || "0",
+                    stone_price: formData.Stones_Price || "0",
+                    pricing: formData.Pricing || "By Weight",
+                    va_on: formData.Wastage_On || "Gross Weight",
+                    va_percent: formData.Wastage_Percentage || "0",
+                    wastage_weight: formData.WastageWeight || "0",
+                    total_weight_av: formData.TotalWeight_AW || "0",
+                    mc_on: formData.Making_Charges_On || "MC %",
+                    mc_per_gram: formData.MC_Per_Gram || "0",
+                    making_charges: formData.Making_Charges || "0",
+                    rate: formData.rate || "0",
+                    rate_amt: "",
+                    hm_charges: "60.00",
+                    tax_percent: formData.tax || "0.9% GST",
+                    tax_amt: formData.tax_amt || "0",
+                    total_price: formData.total_price || "0",
+                    pieace_cost: formData.pieace_cost || "0",
+                    disscount_percentage: "",
+                    disscount: "",
+                    qty: formData.pcs || "1",
+                    huid_no: formData.HUID_No || "",
+                    stock_point: formData.Stock_Point || "Display Floor1",
+                    product_image: image || null
+                },
+                headers: { "Content-Type": "application/json" },
+            })
+        ]);
 
-            alert(isUpdating ? "Stock updated successfully!" : "Stock added successfully!");
-            fetchData(); // Refresh data
+        if (response1.status === 200 || response1.status === 201) {
+            console.log("Tag Entry saved successfully to ERP:", response1.data);
+        }
 
-            setIsEditMode(false); // Exit edit mode
-
-            if (isGeneratePDFRef.current) {
-                generateAndDownloadPDF(updatedData);
-            }
-
-            localStorage.removeItem("tagStoneDetails");
-            localStorage.removeItem("tagPurStoneDetails");
-
-            setStoneList([]);
-            setPurchaseStoneList([]);
-
-            if (isUpdating) {
-                // **Reset FormData completely after update**
-                setTimeout(() => {
-                    setFormData((prevData) => ({
-                        PCode_BarCode: "",
-                        suffix: "",
-                        tag_id: selectedProduct?.tag_id || "",
-                        product_id: selectedProduct?.product_id || "",
-                        category: selectedProduct?.category || "",
-                        Pricing: selectedProduct?.Pricing || "",
-                        metal_type: selectedProduct?.metal_type || "",
-                        account_name: selectedProduct?.account_name || "",
-                        invoice: selectedProduct?.invoice || "",
-                        Gross_Weight: "",
-                        Stones_Weight: "",
-                        Stones_Price: "",
-                        deduct_st_Wt: "Yes",
-                        Weight_BW: "",
-                        Wastage_On: "Gross Weight",
-                        WastageWeight: "",
-                        // sub_category: prevData.sub_category,
-                        Purity: "",
-                        printing_purity: "",
-                        pur_Purity: "",
-                        HUID_No: prevData.HUID_No,
-                        Stock_Point: prevData.Stock_Point,
-                        design_master: prevData.design_master,
-                        Making_Charges_On: prevData.Making_Charges_On,
-                        pur_Making_Charges_On: prevData.pur_Making_Charges_On,
-                        MC_Per_Gram_Label: prevData.MC_Per_Gram_Label,
-                        pur_MC_Per_Gram_Label: prevData.MC_Per_Gram_Label,
-                        Status: "Available",
-                        Source: "Purchase",
-                        pur_Gross_Weight: "",
-                        pur_Stones_Weight: "",
-                        pur_Stones_Price: "",
-                        pur_deduct_st_Wt: "Yes",
-                        pur_Weight_BW: "",
-                        pur_WastageWeight: "",
-                        pur_Wastage_On: "Gross Weight",
-                        pcs: "1",
-                        pieace_cost: "",
-                        mrp_price: "",
-                        total_pcs_cost: "",
-                    }));
-                    setImage(null);
-                    fetchTagData();
-                }, 100); // Small delay ensures React updates state correctly
-            } else {
-                // **Handle nextPCodeBarCode fetch for new entries**
-                try {
-                    const response = await axios.get(`${baseURL}/getNextPCodeBarCode`, {
-                        params: { prefix: formData.item_prefix },
-                    });
-                    const nextPCodeBarCode = response.data.nextPCodeBarCode;
-
-                    setFormData((prevData) => ({
-                        ...prevData, // Keep previous values
-                        PCode_BarCode: nextPCodeBarCode,
-                        suffix: nextPCodeBarCode.replace(formData.item_prefix, ""),
-                        tag_id: selectedProduct?.tag_id || "",
-                        product_id: selectedProduct?.product_id || "",
-                        category: selectedProduct?.category || "",
-                        Pricing: selectedProduct?.Pricing || "",
-                        metal_type: selectedProduct?.metal_type || "",
-                        Gross_Weight: "",
-                        Stones_Weight: "",
-                        Stones_Price: "",
-                        deduct_st_Wt: "Yes",
-                        Weight_BW: "",
-                        Wastage_On: "Gross Weight",
-                        WastageWeight: "",
-                        Making_Charges_On: prevData.Making_Charges_On,
-                        pur_Making_Charges_On: prevData.pur_Making_Charges_On,
-                        MC_Per_Gram_Label: prevData.MC_Per_Gram_Label,
-                        pur_MC_Per_Gram_Label: prevData.MC_Per_Gram_Label,
-                        Status: "Available",
-                        Source: "Purchase",
-                        pur_Gross_Weight: "",
-                        pur_Stones_Weight: "",
-                        pur_Stones_Price: "",
-                        pur_deduct_st_Wt: "Yes",
-                        pur_Weight_BW: "",
-                        pur_WastageWeight: "",
-                        pur_Wastage_On: "Gross Weight",
-                        pcs: "1",
-                        pieace_cost: "",
-                        mrp_price: "",
-                        total_pcs_cost: "",
-                    }));
-                    setImage(null);
-                    fetchTagData();
-                } catch (error) {
-                    console.error("Error fetching PCode_BarCode:", error);
+        if (response2.status === 200 || response2.status === 201) {
+            console.log("Product saved successfully to Normal Jewelry App:", response2.data);
+            
+            // Get the product_id from the response to update QR status
+            const productId = response2.data.product_id;
+            
+            // Generate and save QR code to BOTH servers if checkbox is checked
+            if (isGeneratePDFRef.current && !isUpdating) {
+                // Generate QR code PDF once
+                const pdfBlob = await generateQRCodePDF(updatedData);
+                
+                if (pdfBlob) {
+                    // Save to ERP server
+                    await handleSavePDFToServer(pdfBlob, updatedData.PCode_BarCode, baseURL);
+                    
+                    // Save to Jewellery Application server
+                    await handleSavePDFToServer(pdfBlob, updatedData.PCode_BarCode, baseURL2);
+                    
+                    // Update QR status in Jewellery Application
+                    try {
+                        await axios.put(`${baseURL2}/update-product-qr/${productId}`, {
+                            qr_generated: true
+                        });
+                        console.log("QR status updated in Jewellery App");
+                    } catch (qrError) {
+                        console.error("Error updating QR status:", qrError);
+                    }
                 }
             }
-
-
-            setIsGeneratePDF(true);
-
-        } catch (error) {
-            console.error(error);
-            alert("An error occurred. Please try again.");
         }
-    };
 
-    // const generateAndDownloadPDF = async (data) => {
-    //     const doc = new jsPDF({
-    //         orientation: "landscape",
-    //         unit: "mm",
-    //         format: [65, 16],
-    //     });
+        alert(isUpdating ? "Stock updated successfully in both applications!" : "Stock added successfully in both applications!");
+        
+        if (fetchBalance) {
+            fetchData();
+            fetchBalance();
+        }
 
-    //     let textContent = [];
+        setIsEditMode(false);
 
-    //     if (data.Pricing === "By Weight") {
-    //         textContent = [
-    //             `Tag: ${data.PCode_BarCode}`,
-    //             `Purity: ${data.printing_purity}`,
-    //             `Net Wt: ${data.TotalWeight_AW}`,
-    //             `MRP: ${data.total_price}`,
-    //         ];
-    //     } else {
-    //         textContent = [
-    //             `Tag: ${data.PCode_BarCode}`,
-    //             `MRP: ${data.total_price}`,
-    //         ];
-    //     }
+        localStorage.removeItem("tagStoneDetails");
+        localStorage.removeItem("tagPurStoneDetails");
 
-    //     try {
-    //         const qrImageData = await QRCode.toDataURL(textContent.join("\n"), {
-    //             margin: 0,
-    //         });
+        setStoneList([]);
+        setPurchaseStoneList([]);
 
-    //         /* ---------- TEXT (LEFT) ---------- */
-    //         doc.setFontSize(4.6);
+        if (isUpdating) {
+            setTimeout(() => {
+                setFormData((prevData) => ({
+                    PCode_BarCode: "",
+                    suffix: "",
+                    tag_id: selectedProduct?.tag_id || "",
+                    product_id: selectedProduct?.product_id || "",
+                    category: selectedProduct?.category || "",
+                    Pricing: selectedProduct?.Pricing || "",
+                    metal_type: selectedProduct?.metal_type || "",
+                    account_name: selectedProduct?.account_name || "",
+                    invoice: selectedProduct?.invoice || "",
+                    Gross_Weight: "",
+                    Stones_Weight: "",
+                    Stones_Price: "",
+                    deduct_st_Wt: "Yes",
+                    Weight_BW: "",
+                    Wastage_On: "Gross Weight",
+                    WastageWeight: "",
+                    Purity: "",
+                    printing_purity: "",
+                    pur_Purity: "",
+                    HUID_No: prevData.HUID_No,
+                    Stock_Point: prevData.Stock_Point,
+                    design_master: prevData.design_master,
+                    Making_Charges_On: prevData.Making_Charges_On,
+                    pur_Making_Charges_On: prevData.pur_Making_Charges_On,
+                    MC_Per_Gram_Label: prevData.MC_Per_Gram_Label,
+                    pur_MC_Per_Gram_Label: prevData.MC_Per_Gram_Label,
+                    Status: "Available",
+                    Source: "Purchase",
+                    pur_Gross_Weight: "",
+                    pur_Stones_Weight: "",
+                    pur_Stones_Price: "",
+                    pur_deduct_st_Wt: "Yes",
+                    pur_Weight_BW: "",
+                    pur_WastageWeight: "",
+                    pur_Wastage_On: "Gross Weight",
+                    pcs: "1",
+                    pieace_cost: "",
+                    mrp_price: "",
+                    total_pcs_cost: "",
+                }));
+                setImage(null);
+                fetchTagData();
+            }, 100);
+        } else {
+            try {
+                const response = await axios.get(`${baseURL}/getNextPCodeBarCode`, {
+                    params: { prefix: formData.item_prefix },
+                });
+                const nextPCodeBarCode = response.data.nextPCodeBarCode;
 
-    //         doc.text(textContent, 2, 4, {
-    //             lineHeightFactor: 2, // 🔥 THIS reduces vertical gap
-    //         });
+                setFormData((prevData) => ({
+                    ...prevData,
+                    PCode_BarCode: nextPCodeBarCode,
+                    suffix: nextPCodeBarCode.replace(formData.item_prefix, ""),
+                    tag_id: selectedProduct?.tag_id || "",
+                    product_id: selectedProduct?.product_id || "",
+                    category: selectedProduct?.category || "",
+                    Pricing: selectedProduct?.Pricing || "",
+                    metal_type: selectedProduct?.metal_type || "",
+                    Gross_Weight: "",
+                    Stones_Weight: "",
+                    Stones_Price: "",
+                    deduct_st_Wt: "Yes",
+                    Weight_BW: "",
+                    Wastage_On: "Gross Weight",
+                    WastageWeight: "",
+                    Making_Charges_On: prevData.Making_Charges_On,
+                    pur_Making_Charges_On: prevData.pur_Making_Charges_On,
+                    MC_Per_Gram_Label: prevData.MC_Per_Gram_Label,
+                    pur_MC_Per_Gram_Label: prevData.MC_Per_Gram_Label,
+                    Status: "Available",
+                    Source: "Purchase",
+                    pur_Gross_Weight: "",
+                    pur_Stones_Weight: "",
+                    pur_Stones_Price: "",
+                    pur_deduct_st_Wt: "Yes",
+                    pur_Weight_BW: "",
+                    pur_WastageWeight: "",
+                    pur_Wastage_On: "Gross Weight",
+                    pcs: "1",
+                    pieace_cost: "",
+                    mrp_price: "",
+                    total_pcs_cost: "",
+                }));
+                setImage(null);
+                fetchTagData();
+            } catch (error) {
+                console.error("Error fetching PCode_BarCode:", error);
+            }
+        }
 
-    //         /* ---------- QR (RIGHT) ---------- */
-    //         doc.addImage(qrImageData, "PNG", 49, 2, 12, 12);
+        setIsGeneratePDF(true);
 
-    //         const pdfBlob = doc.output("blob");
-    //         await handleSavePDFToServer(pdfBlob, data.PCode_BarCode);
+    } catch (error) {
+        console.error("Error in submission:", error);
+        if (error.response) {
+            console.error("Response error:", error.response.data);
+            alert(`Error: ${error.response.data.message || "An error occurred. Please try again."}`);
+        } else if (error.request) {
+            console.error("No response received:", error.request);
+            alert("No response from server. Please check your connection.");
+        } else {
+            console.error("Error:", error.message);
+            alert(`Error: ${error.message}`);
+        }
+    }
+};
 
-    //     } catch (error) {
-    //         console.error("PDF Error:", error);
-    //     }
-    // };
+// New function to generate QR Code PDF and return blob
+const generateQRCodePDF = async (data) => {
+    const doc = new jsPDF({
+        orientation: "landscape",
+        unit: "mm",
+        format: [65, 16],
+    });
 
-    const generateAndDownloadPDF = async (data) => {
-        const doc = new jsPDF({
-            orientation: "landscape",
-            unit: "mm",
-            format: [65, 16],
-        });
+    const isByWeight = data.Pricing === "By Weight";
 
-        const isByWeight = data.Pricing === "By Weight";
+    try {
+        const qrImageData = await QRCode.toDataURL(
+            [
+                `TAG: ${data.PCode_BarCode}`,
+                `TOPS ${data.printing_purity}`,
+                `NT WT: ${data.TotalWeight_AW}`,
+                `MRP: ${data.total_price}`,
+            ].join("\n"),
+            { margin: 0 }
+        );
 
-        try {
-            const qrImageData = await QRCode.toDataURL(
-                [
-                    `TAG: ${data.PCode_BarCode}`,
-                    `TOPS ${data.printing_purity}`,
-                    `NT WT: ${data.TotalWeight_AW}`,
-                    `MRP: ${data.total_price}`,
-                ].join("\n"),
-                { margin: 0 }
-            );
+        let startX = 2;
+        let startY = 4;
+        let lineGap = 3.2;
+        let currentY = startY;
 
-            /* ---------- LEFT PRODUCT DETAILS ---------- */
-            let startX = 2;
-            let startY = 4;
-            let lineGap = 3.2;
-            let currentY = startY;
+        doc.setFont("helvetica", "bold");
 
-            doc.setFont("helvetica", "bold");
+        doc.setFontSize(8.0);
+        doc.text(`TAG: ${data.PCode_BarCode}`, startX, currentY);
+        currentY += lineGap;
 
-            // TAG
-            doc.setFontSize(8.0);
-            doc.text(`TAG: ${data.PCode_BarCode}`, startX, currentY);
+        if (isByWeight) {
+            doc.text(`${data.sub_category}`, startX, currentY);
             currentY += lineGap;
 
-            if (isByWeight) {
-                // TOPS
-                doc.text(`${data.sub_category}`, startX, currentY);
-                // doc.text(`${data.sub_category} ${data.printing_purity}`, startX, currentY);
-                currentY += lineGap;
-
-                // 🔽 NT WT (slightly smaller)
-                doc.setFontSize(8.0);
-                doc.text("NT WT:", startX, currentY);
-                doc.text(`${data.TotalWeight_AW}`, startX + 12, currentY); // move value right
-                currentY += lineGap;
-            }
-
-            // 🔥 MRP (bigger)
             doc.setFontSize(8.0);
-            doc.text("MRP:", startX, currentY);
-            doc.text(`${data.total_price}`, startX + 11, currentY); // move value right
-
-
-            /* ---------- QR CODE (RIGHT TOP) ---------- */
-            const qrX = 35;
-            const qrY = 2;
-            const qrSize = 7;
-
-            // ➡️ Move everything to the right by this amount
-            const moveRight = 6; // adjust: 4, 6, 8 etc.
-
-            // QR Image
-            doc.addImage(
-                qrImageData,
-                "PNG",
-                qrX + moveRight,
-                qrY,
-                qrSize,
-                qrSize
-            );
-
-            /* ---------- TEXT BELOW QR ---------- */
-            doc.setFont("helvetica", "bold");
-
-            // O/N text (keeps alignment with QR)
-            doc.setFontSize(4.2);
-            doc.text(
-                "O/N:",
-                qrX + moveRight,
-                qrY + qrSize + 2
-            );
-
-
-            // 🔼 Shop name – move left
-            doc.setFontSize(6.0);
-            doc.text(
-                "NEW FRIENDS JEWELLERS",
-                qrX - 2,              // ⬅️ move left (adjust 2–6 if needed)
-                qrY + qrSize + 4.5
-            );
-
-
-
-            /* ---------- SAVE ---------- */
-            const pdfBlob = doc.output("blob");
-            await handleSavePDFToServer(pdfBlob, data.PCode_BarCode);
-
-        } catch (error) {
-            console.error("PDF Error:", error);
+            doc.text("NT WT:", startX, currentY);
+            doc.text(`${data.TotalWeight_AW}`, startX + 12, currentY);
+            currentY += lineGap;
         }
-    };
 
-    const handleSavePDFToServer = async (pdfBlob, pcode) => {
-        const formData = new FormData();
-        formData.append("invoice", pdfBlob, `${pcode}.pdf`);
+        doc.setFontSize(8.0);
+        doc.text("MRP:", startX, currentY);
+        doc.text(`${data.total_price}`, startX + 11, currentY);
 
-        try {
-            const response = await fetch(`${baseURL}/upload-invoice`, {
-                method: "POST",
-                body: formData,
-            });
+        const qrX = 35;
+        const qrY = 2;
+        const qrSize = 7;
+        const moveRight = 6;
 
-            if (!response.ok) {
-                throw new Error("Failed to upload invoice");
-            }
+        doc.addImage(
+            qrImageData,
+            "PNG",
+            qrX + moveRight,
+            qrY,
+            qrSize,
+            qrSize
+        );
 
-            console.log(`Tag PDF ${pcode} saved on server`);
-        } catch (error) {
-            console.error("Error uploading tag PDF:", error);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(4.2);
+        doc.text("O/N:", qrX + moveRight, qrY + qrSize + 2);
+        doc.setFontSize(6.0);
+        doc.text("NEW FRIENDS JEWELLERS", qrX - 2, qrY + qrSize + 4.5);
+
+        return doc.output("blob");
+    } catch (error) {
+        console.error("PDF Error:", error);
+        return null;
+    }
+};
+
+// Updated handleSavePDFToServer to accept baseURL parameter
+const handleSavePDFToServer = async (pdfBlob, pcode, serverBaseURL) => {
+    const formData = new FormData();
+    formData.append("invoice", pdfBlob, `${pcode}.pdf`);
+
+    try {
+        const response = await fetch(`${serverBaseURL}/upload-invoice`, {
+            method: "POST",
+            body: formData,
+        });
+
+        if (!response.ok) {
+            throw new Error("Failed to upload invoice");
         }
-    };
+
+        console.log(`Tag PDF ${pcode} saved on server ${serverBaseURL}`);
+        return true;
+    } catch (error) {
+        console.error("Error uploading tag PDF:", error);
+        return false;
+    }
+};
+
+// Keep the original generateAndDownloadPDF function for backward compatibility
+const generateAndDownloadPDF = async (data) => {
+    const pdfBlob = await generateQRCodePDF(data);
+    if (pdfBlob) {
+        await handleSavePDFToServer(pdfBlob, data.PCode_BarCode, baseURL);
+        // Download to client
+        const url = URL.createObjectURL(pdfBlob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `QR_${data.PCode_BarCode}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+    }
+};
 
     useEffect(() => {
         const getLastPcode = async () => {
             try {
                 const response = await axios.get(`${baseURL}/last-pbarcode`);
-                const suffix = response.data.lastPCode_BarCode || "001"; // Fallback to "001" if no value is fetched
+                const suffix = response.data.lastPCode_BarCode || "001";
                 setFormData((prev) => ({
                     ...prev,
-                    suffix, // Store the fetched suffix
-                    PCode_BarCode: `${prev.item_prefix || ""}${suffix}`, // Combine prefix with fetched suffix
+                    suffix,
+                    PCode_BarCode: `${prev.item_prefix || ""}${suffix}`,
                 }));
             } catch (error) {
                 console.error("Error fetching last PCode_BarCode:", error);
@@ -1428,7 +1396,6 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
     const handleModalChange = (e) => {
         let { name, value } = e.target;
 
-        // Capitalize all letters if the field is "name" or "prefix"
         if (name === "name" || name === "prefix") {
             value = value.toUpperCase();
         }
@@ -1446,8 +1413,6 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
         }
     };
 
-
-
     useEffect(() => {
         if (selectedProduct) {
             console.log("Product ID:", selectedProduct.product_id);
@@ -1464,7 +1429,7 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
         try {
             const data = {
                 category_id: selectedProduct.product_id,
-                subcategory_id: 1, // Assuming this is a static value or comes from somewhere else
+                subcategory_id: 1,
                 sub_category_name: newSubCategory.name,
                 category: newSubCategory.category || formData.category,
                 prefix: newSubCategory.prefix,
@@ -1474,21 +1439,17 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
                 printing_purity: newSubCategory.printing_purity,
             };
 
-            // Make POST request to the API
             const response = await axios.post(`${baseURL}/post/subcategory`, data);
 
-            if (response.status === 201) { // Use 201 instead of 200 for created status
+            if (response.status === 201) {
                 console.log('Subcategory added successfully');
                 alert("Subcategory added successfully");
 
-                // Close modal and clear form
                 handleCloseModal();
                 setNewSubCategory({ name: '', prefix: '', category: '', purity: '', selling_purity: '', printing_purity: '' });
 
-                // Refresh subcategories and auto-select the new one
-                await fetchSubCategories(); // Ensure categories are updated first
+                await fetchSubCategories();
 
-                // Find the newly added subcategory
                 const updatedSubCategories = await axios.get(`${baseURL}/get/subcategories`);
                 const filteredSubCategories = updatedSubCategories.data.filter(
                     (subCategory) => subCategory.category_id === selectedProduct.product_id
@@ -1497,14 +1458,12 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
                 const addedSubCategory = filteredSubCategories.find(sub => sub.sub_category_name === newSubCategory.name);
 
                 if (addedSubCategory) {
-                    // Fetch next PCode_BarCode
                     const response = await axios.get(`${baseURL}/getNextPCodeBarCode`, {
                         params: { prefix: addedSubCategory.prefix },
                     });
 
                     const nextPCodeBarCode = response.data.nextPCodeBarCode;
 
-                    // Auto-select the new subcategory and update form data
                     setFormData((prevData) => ({
                         ...prevData,
                         sub_category: addedSubCategory.sub_category_name,
@@ -1513,7 +1472,6 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
                         Prefix: addedSubCategory.prefix,
                         PCode_BarCode: nextPCodeBarCode,
                         suffix: nextPCodeBarCode.replace(addedSubCategory.prefix, ""),
-                        // Purity: addedSubCategory.purity,
                         Purity: addedSubCategory.selling_purity,
                         pur_Purity: addedSubCategory.purity,
                         printing_purity: addedSubCategory.printing_purity
@@ -1535,36 +1493,12 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
             );
             setSubCategories(filteredSubCategories);
             console.log("filteredSubCategories=", filteredSubCategories);
-            return filteredSubCategories; // Return the updated list
+            return filteredSubCategories;
         } catch (error) {
             console.error("Error fetching subcategories:", error);
             return [];
         }
     };
-
-    // const fetchSubCategories = async () => {
-    //     try {
-    //         const response = await axios.get(`${baseURL}/get/subcategories`);
-
-    //         // Convert selectedProduct.metal_type to lowercase for case-insensitive comparison
-    //         const selectedMetalType = selectedProduct.metal_type?.toLowerCase();
-
-    //         // Apply filtering logic based on metal_type
-    //         const filteredSubCategories = response.data.filter((subCategory) => {
-    //             const subCategoryMetalType = subCategory.metal_type?.toLowerCase();
-    //             if (selectedMetalType === "gold" || selectedMetalType === "diamond") {
-    //                 return subCategoryMetalType === "gold";
-    //             } else if (selectedMetalType === "silver") {
-    //                 return subCategoryMetalType === "silver";
-    //             }
-    //             return false; // If none of the conditions match, return false
-    //         });
-
-    //         setSubCategories(filteredSubCategories); 
-    //     } catch (error) {
-    //         console.error("Error fetching subcategories:", error);
-    //     }
-    // };
 
     useEffect(() => {
         if (selectedProduct?.product_id) {
@@ -1578,7 +1512,7 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
         try {
             const response = await axios.get(`${baseURL}/designmaster`);
             const designMasters = response.data.map((item) => {
-                console.log('Design ID:', item.design_id); // Log design_id
+                console.log('Design ID:', item.design_id);
                 return {
                     value: item.design_name,
                     label: item.design_name,
@@ -1617,69 +1551,21 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
 
     useEffect(() => {
         fetchData();
-    }, [selectedProduct.product_id, selectedProduct.tag_id]); // Re-run when either changes
-
-
-    // useEffect(() => {
-    //     const fetchPurity = async () => {
-    //         try {
-    //             const response = await axios.get(`${baseURL}/purity`);
-    //             const filteredPurity = response.data.filter(
-    //                 (item) =>
-    //                     item.metal.toLowerCase() === formData.metal_type.toLowerCase() ||
-    //                     (["diamond", "others"].includes(formData.metal_type.toLowerCase()) && item.metal.toLowerCase() === "gold")
-    //             );
-
-    //             setPurityOptions(filteredPurity);
-
-    //             console.log("Purity Options:", filteredPurity);
-
-    //             let defaultOption = null;
-
-    //             if (["gold", "diamond", "others"].includes(formData.metal_type.toLowerCase())) {
-    //                 defaultOption = filteredPurity.find((option) =>
-    //                     option.name.toLowerCase().includes("22")
-    //                 );
-    //             } else if (formData.metal_type.toLowerCase() === "silver") {
-    //                 defaultOption = filteredPurity.find((option) =>
-    //                     option.name.toLowerCase().includes("92.5")
-    //                 );
-    //             }
-
-    //             if (defaultOption) {
-    //                 const defaultPurityValue = `${defaultOption.name} | ${defaultOption.purity}`;
-    //                 console.log("Setting default purity:", defaultPurityValue);
-
-    //                 setFormData((prevFormData) => ({
-    //                     ...prevFormData,
-    //                     Purity: defaultPurityValue,
-    //                     pur_Purity: defaultPurityValue, // Ensure exact match
-    //                 }));
-    //             }
-    //         } catch (error) {
-    //             console.error("Error fetching data:", error);
-    //         }
-    //     };
-
-    //     if (formData.metal_type) {
-    //         fetchPurity();
-    //     }
-    // }, [formData.metal_type]);
+    }, [selectedProduct.product_id, selectedProduct.tag_id]);
 
     const [data, setData] = useState([]);
     const [loading, setLoading] = useState(true);
 
-    const [isEditMode, setIsEditMode] = useState(false); // State to toggle form visibility
+    const [isEditMode, setIsEditMode] = useState(false);
 
     const fetchTagData = async () => {
         try {
             const response = await fetch(`${baseURL}/get/opening-tags-entry`);
             const jsonData = await response.json();
 
-            console.log("Fetched Data:", jsonData); // Log the entire response
+            console.log("Fetched Data:", jsonData);
 
             if (jsonData.result && Array.isArray(jsonData.result)) {
-                // Filter data based on selectedProduct conditions
                 const filteredData = jsonData.result.filter(
                     (item) =>
                         item.invoice === selectedProduct.invoice &&
@@ -1698,6 +1584,7 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
             setLoading(false);
         }
     };
+    
     useEffect(() => {
         fetchTagData();
     }, [selectedProduct]);
@@ -1707,7 +1594,6 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
         setIsEditMode(true);
         setImage(rowData.image || "");
 
-        // Check Making_Charges_On value and set MC_Per_Gram_Label accordingly
         if (rowData.Making_Charges_On === "MC %") {
             setFormData((prevData) => ({
                 ...prevData,
@@ -1721,13 +1607,11 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
         }
     };
 
-
     const handleDelete = async (id) => {
-        console.log("Deleting ID:", id); // Confirming ID before sending request
+        console.log("Deleting ID:", id);
         const url = `${baseURL}/delete/opening-tags-entry/${id}`;
         console.log("DELETE Request URL:", url);
 
-        // Confirm before proceeding
         if (!window.confirm("Are you sure you want to delete this record?")) {
             return;
         }
@@ -1736,7 +1620,6 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
             const response = await axios.delete(url);
             alert(response.data.message);
 
-            // Fetch updated data after successful deletion
             fetchData();
             fetchTagData();
         } catch (error) {
@@ -1746,7 +1629,7 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
     };
 
     const exportToExcel = (event) => {
-        event.preventDefault(); // Prevent form submission if inside a form
+        event.preventDefault();
 
         if (data.length === 0) {
             alert("No data available to export.");
@@ -1774,7 +1657,6 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
 
         const worksheet = XLSX.utils.json_to_sheet(worksheetData);
 
-        // Auto-adjust column width
         const columnWidths = Object.keys(worksheetData[0]).map((key) => ({
             wch: Math.max(
                 key.length,
@@ -1807,7 +1689,6 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
                             <div className="stock-entry-form">
                                 <h4 className="mb-3" style={{ marginTop: '-16px' }}>Stock Entry</h4>
                                 <Row className="stock-form-section">
-                                    {/* Always visible fields */}
                                     <Col xs={12} md={2}>
                                         <InputField
                                             label="Supplier Name"
@@ -1817,27 +1698,6 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
                                             readOnly
                                         />
                                     </Col>
-                                    {/* <Col xs={12} md={2}>
-                                        <InputField
-                                            label="Invoice"
-                                            value={formData.invoice || ""} // Ensures no undefined issue
-                                            onChange={(e) => {
-                                                const input = e.target;
-                                                const start = input.selectionStart; // Capture cursor position
-                                                const transformedValue = input.value.toUpperCase();
-
-                                                setFormData((prevState) => ({
-                                                    ...prevState,
-                                                    invoice: transformedValue,
-                                                }));
-
-                                                // Restore cursor position after transformation
-                                                requestAnimationFrame(() => {
-                                                    input.setSelectionRange(start, start);
-                                                });
-                                            }}
-                                        />
-                                    </Col> */}
                                     <Col xs={12} md={2}>
                                         <InputField
                                             label="Category"
@@ -1883,7 +1743,7 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
                                         <AiOutlinePlus
                                             size={20}
                                             color="black"
-                                            onClick={handleOpenDesignModal} // Ensure this function is appropriate for handling this modal
+                                            onClick={handleOpenDesignModal}
                                             style={{ marginLeft: "10px", cursor: "pointer", marginBottom: "20px" }}
                                         />
                                     </Col>
@@ -1897,19 +1757,6 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
                                             readOnly
                                         />
                                     </Col>
-                                    {/* <Col xs={12} md={2}>
-                                        <InputField
-                                            label="Pricing"
-                                            name="Pricing"
-                                            type="select"
-                                            value={formData.Pricing}
-                                            onChange={handleChange}
-                                            options={[
-                                                { value: "By Weight", label: "By Weight" },
-                                                { value: "By fixed", label: "By fixed" },
-                                            ]}
-                                        />
-                                    </Col> */}
                                     {isByFixed ? (
                                         <>
                                             <Col xs={12} md={2}>
@@ -1919,7 +1766,7 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
                                                 <InputField
                                                     label="Printing Purity"
                                                     name="Purity"
-                                                    value={formData.printing_purity} // Ensure correct value
+                                                    value={formData.printing_purity}
                                                     onChange={handleChange}
                                                 />
                                             </Col>
@@ -1960,27 +1807,8 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
                                                 <InputField
                                                     label="Printing Purity"
                                                     name="Purity"
-                                                    // type="select"
-                                                    value={formData.printing_purity} // Ensure correct value
+                                                    value={formData.printing_purity}
                                                     onChange={handleChange}
-                                                // options={[
-                                                //     { value: selectedCategory?.purity, label: selectedCategory?.purity }, // Show subcategory purity
-                                                //     ...purityOptions.map((option) => ({
-                                                //         value: `${option.name} | ${option.purity}`,
-                                                //         label: `${option.name} | ${option.purity}`,
-                                                //     })),
-                                                // ]}
-                                                // options={[
-                                                //     ...(formData.printing_purity
-                                                //         ? [{ value: selectedCategory?.printing_purity, label: selectedCategory?.printing_purity }]
-                                                //         : []),
-                                                //     ...purityOptions
-                                                //         .filter(option => option.name && option.purity) // Remove undefined values
-                                                //         .map(option => ({
-                                                //             value: `${option.name} | ${option.purity}`,
-                                                //             label: `${option.name} | ${option.purity}`,
-                                                //         })),
-                                                // ]}
                                                 />
                                             </Col>
                                             <Col xs={12} md={2}>
@@ -1996,7 +1824,6 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
 
                                             <Col xs={12} md={2}>
                                                 <div className="image-upload-container">
-                                                    {/* Dropdown Button for Upload Options */}
                                                     <Dropdown>
                                                         <Dropdown.Toggle id="dropdown-basic-button">Upload Image</Dropdown.Toggle>
 
@@ -2010,8 +1837,6 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
                                                         </Dropdown.Menu>
                                                     </Dropdown>
 
-
-                                                    {/* Hidden file input */}
                                                     <input
                                                         type="file"
                                                         accept="image/*"
@@ -2020,7 +1845,6 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
                                                         style={{ display: "none" }}
                                                     />
 
-                                                    {/* Webcam Modal */}
                                                     {isCameraOpen && (
                                                         <div className="webcam-container mt-2">
                                                             <Webcam
@@ -2040,7 +1864,6 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
                                                         </div>
                                                     )}
 
-                                                    {/* Image Preview with Delete Icon */}
                                                     {image && (
                                                         <div style={{ position: "relative", display: "inline-block", marginTop: "10px" }}>
                                                             <img src={image} alt="Selected"
@@ -2074,7 +1897,6 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
                                             <div className="purchase-form-left">
                                                 <Col className="tag-urd-form1-section">
                                                     <h4 className="mb-3" style={{ marginTop: '-10px' }}>Sales</h4>
-                                                    {/* New Row for Weight Fields */}
                                                     <Row className="mt-3">
                                                         <Col xs={12} md={3}>
                                                             <InputField label="Gross Wt" name="Gross_Weight" value={formData.Gross_Weight} onChange={handleChange} />
@@ -2109,14 +1931,6 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
                                                                 ]}
                                                             />
                                                         </Col>
-                                                        {/* <Col xs={12} md={4}>
-                                                            <InputField
-                                                                label="Stone Price/Carat"
-                                                                name="stone_price_per_carat"
-                                                                value={formData.stone_price_per_carat}
-                                                                onChange={handleChange}
-                                                            />
-                                                        </Col> */}
                                                         <Col xs={12} md={3}>
                                                             <InputField
                                                                 label="Stones Price"
@@ -2129,27 +1943,8 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
                                                             <InputField
                                                                 label="Selling Purity"
                                                                 name="Purity"
-                                                                // type="select"
                                                                 value={formData.Purity}
                                                                 onChange={handleChange}
-                                                            // options={[
-                                                            //     { value: selectedCategory?.purity, label: selectedCategory?.purity }, // Show subcategory purity
-                                                            //     ...purityOptions.map((option) => ({
-                                                            //         value: `${option.name} | ${option.purity}`,
-                                                            //         label: `${option.name} | ${option.purity}`,
-                                                            //     })),
-                                                            // ]}
-                                                            // options={[
-                                                            //     ...(formData.Purity
-                                                            //         ? [{ value: selectedCategory?.selling_purity, label: selectedCategory?.selling_purity }]
-                                                            //         : []),
-                                                            //     ...purityOptions
-                                                            //         .filter(option => option.name && option.purity) // Remove undefined values
-                                                            //         .map(option => ({
-                                                            //             value: `${option.name} | ${option.purity}`,
-                                                            //             label: `${option.name} | ${option.purity}`,
-                                                            //         })),
-                                                            // ]}
                                                             />
                                                         </Col>
                                                         <Col xs={12} md={2}>
@@ -2207,8 +2002,6 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
                                                             />
                                                         </Col>
 
-                                                        {/* Show Making_Charges field only when Making_Charges_On is "MC / Gram" or "MC / Piece" */}
-                                                        {/* {(formData.Making_Charges_On === "MC / Gram" || formData.Making_Charges_On === "MC / Piece") && ( */}
                                                         <Col xs={12} md={3}>
                                                             <InputField
                                                                 label="MC"
@@ -2217,35 +2010,20 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
                                                                 onChange={handleChange}
                                                             />
                                                         </Col>
-                                                        {/* )} */}
-
-
 
                                                         <Col xs={12} md={3}>
                                                             <InputField label="Tax%" name="tax" value={formData.tax} onChange={handleChange} />
                                                         </Col>
 
-                                                        {/* <Col xs={12} md={3}>
-                                                            <InputField label="Tax Amt" name="tax_amt" value={formData.tax_amt} onChange={handleChange} />
-                                                        </Col> */}
-
                                                         <Col xs={12} md={3}>
                                                             <InputField label="Total Amt" name="total_price" value={formData.total_price} onChange={handleChange} />
                                                         </Col>
-
-                                                        {/* <Col xs={12} md={2}>
-                                                            <InputField label="Tag Wt" name="tag_weight" value={formData.tag_weight} onChange={handleChange} />
-                                                        </Col>
-                                                        <Col xs={12} md={2}>
-                                                            <InputField label="Size" name="size" value={formData.size} onChange={handleChange} />
-                                                        </Col> */}
                                                     </Row>
                                                 </Col>
                                             </div>
                                             <div className="purchase-form-right">
                                                 <Col className="tag-urd-form2-section">
                                                     <h4 className="mb-3" style={{ marginTop: '-10px' }}>Purchase</h4>
-                                                    {/* New Row for Weight Fields */}
                                                     <Row className="mt-3">
                                                         <Col xs={12} md={3}>
                                                             <InputField label="Gross Wt" name="pur_Gross_Weight" value={formData.pur_Gross_Weight} onChange={handleChange} />
@@ -2280,14 +2058,6 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
                                                                 ]}
                                                             />
                                                         </Col>
-                                                        {/* <Col xs={12} md={4}>
-                                                            <InputField
-                                                                label="Stone Price/Carat"
-                                                                name="pur_stone_price_per_carat"
-                                                                value={formData.pur_stone_price_per_carat}
-                                                                onChange={handleChange}
-                                                            />
-                                                        </Col> */}
                                                         <Col xs={12} md={3}>
                                                             <InputField
                                                                 label="Stones Price"
@@ -2303,19 +2073,12 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
                                                                 type="select"
                                                                 value={formData.pur_Purity}
                                                                 onChange={(e) => handleChange("pur_Purity", e.target.value)}
-                                                                // options={[
-                                                                //     ...purityOptions.map((option) => ({
-                                                                //         value: `${option.name} | ${option.purity}`,
-                                                                //         label: `${option.name} | ${option.purity}`,
-                                                                //     })),
-                                                                //     { value: "Manual", label: "Manual" } // Correct placement of Manual option
-                                                                // ]}
                                                                 options={[
                                                                     ...(formData.Purity
                                                                         ? [{ value: selectedCategory?.purity, label: selectedCategory?.purity }]
                                                                         : []),
                                                                     ...purityOptions
-                                                                        .filter(option => option.name && option.purity) // Remove undefined values
+                                                                        .filter(option => option.name && option.purity)
                                                                         .map(option => ({
                                                                             value: `${option.name} | ${option.purity}`,
                                                                             label: `${option.name} | ${option.purity}`,
@@ -2328,10 +2091,8 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
                                                             <Col xs={12} md={4}>
                                                                 <InputField
                                                                     label="Custom Purity %"
-                                                                    // type="number"
                                                                     name="pur_purityPercentage"
                                                                     value={formData.pur_purityPercentage || ""}
-
                                                                     onChange={(e) => handleChange("pur_purityPercentage", e.target.value)}
                                                                 />
                                                             </Col>
@@ -2387,8 +2148,6 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
                                                             />
                                                         </Col>
 
-                                                        {/* Show Making_Charges field only when Making_Charges_On is "MC / Gram" or "MC / Piece" */}
-                                                        {/* {(formData.pur_Making_Charges_On === "MC / Gram" || formData.pur_Making_Charges_On === "MC / Piece") && ( */}
                                                         <Col xs={12} md={3}>
                                                             <InputField
                                                                 label="MC"
@@ -2397,9 +2156,6 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
                                                                 onChange={handleChange}
                                                             />
                                                         </Col>
-                                                        {/* )} */}
-
-
 
                                                         <Col xs={12} md={3}>
                                                             <InputField
@@ -2434,7 +2190,6 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
                                             </Col>
                                             <Col xs={12} md={4}>
                                                 <div className="image-upload-container">
-                                                    {/* Dropdown Button for Upload Options */}
                                                     <Dropdown>
                                                         <Dropdown.Toggle id="dropdown-basic-button">Upload Image</Dropdown.Toggle>
 
@@ -2448,7 +2203,6 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
                                                         </Dropdown.Menu>
                                                     </Dropdown>
 
-                                                    {/* Hidden file input */}
                                                     <input
                                                         type="file"
                                                         accept="image/*"
@@ -2457,7 +2211,6 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
                                                         style={{ display: "none" }}
                                                     />
 
-                                                    {/* Webcam Modal */}
                                                     {isCameraOpen && (
                                                         <div className="webcam-container mt-2">
                                                             <Webcam
@@ -2477,7 +2230,6 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
                                                         </div>
                                                     )}
 
-                                                    {/* Image Preview with Delete Icon */}
                                                     {image && (
                                                         <div style={{ position: "relative", display: "inline-block", marginTop: "10px" }}>
                                                             <img src={image} alt="Selected"
@@ -2512,14 +2264,6 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
                                 </Row>
                             </div>
                             <div className="d-flex justify-content-between align-items-center">
-                                {/* <label>
-                                    <input
-                                        type="checkbox"
-                                        checked={isGeneratePDF}
-                                        onChange={(e) => setIsGeneratePDF(e.target.checked)}
-                                    />
-                                    Generate PDF
-                                </label> */}
                                 <label className="checkbox-label" htmlFor="tcs">
                                     <input
                                         type="checkbox"
@@ -2551,10 +2295,7 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
                                 </div>
                             </div>
 
-
-                            {/* <OpeningTagsTable /> */}
                             <div className="container mt-2" style={{ overflowX: "auto", maxWidth: "100%" }}>
-                                {/* Excel Export Button */}
                                 <button
                                     onClick={exportToExcel}
                                     style={{
@@ -2580,9 +2321,6 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
                                             <th>Sub Category</th>
                                             <th>Design Name</th>
                                             <th>Gross Wt</th>
-                                            {/* <th>Stone Wt</th>
-                                            <th>Wt BW</th>
-                                            <th>W.Wt</th> */}
                                             <th>Net Wt</th>
                                             <th>MC</th>
                                             <th>Rate</th>
@@ -2602,9 +2340,6 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
                                                     <td>{item.sub_category}</td>
                                                     <td>{item.design_master}</td>
                                                     <td>{item.Gross_Weight}</td>
-                                                    {/* <td>{item.Stones_Weight}</td>
-                                                    <td>{item.Weight_BW}</td>
-                                                    <td>{item.WastageWeight}</td> */}
                                                     <td>{item.TotalWeight_AW}</td>
                                                     <td>{item.Making_Charges}</td>
                                                     <td>{item.rate}</td>
@@ -2652,7 +2387,7 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
                                                             style={{ cursor: "pointer", color: "blue" }}
                                                             onClick={() => {
                                                                 handleEdit(item);
-                                                                setTimeout(() => handleEdit(item), 1); // trigger again
+                                                                setTimeout(() => handleEdit(item), 1);
                                                             }}
                                                         />
                                                         <FaTrash
@@ -2669,9 +2404,7 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
                                         )}
                                     </tbody>
                                 </Table>
-
                             </div>
-
                         </Form>
                     </div>
                 </div>
@@ -2845,7 +2578,6 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
                 <Modal.Body>
                     {selectedRow ? (
                         <>
-
                             <Row >
                                 <Col md={3} style={{ whiteSpace: "nowrap" }}>
                                     <p><strong>Supplier:</strong> {selectedRow.account_name}</p>
@@ -2861,9 +2593,7 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
                                 </Col>
                             </Row>
 
-                            {/* Second Row: Pricing, Barcode, HUID No, Stock Point */}
                             <Row >
-
                                 <Col md={3}>
                                     <p><strong>Pricing:</strong> {selectedRow.Pricing}</p>
                                 </Col>
@@ -2879,8 +2609,6 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
                             </Row>
 
                             <Row>
-
-
                                 <Col md={3}>
                                     <p><strong>Gross Weight:</strong> {selectedRow.Gross_Weight}</p>
                                     <p><strong>Stone Weight:</strong> {selectedRow.Stones_Weight}</p>
@@ -2893,14 +2621,10 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
                                 </Col>
 
                                 <Col md={3}>
-                                    {/* <p><strong>Prefix:</strong> {selectedRow.Prefix}</p> */}
                                     <p><strong>Wastage On:</strong> {selectedRow.Wastage_On}</p>
                                     <p><strong>Wastage Weight:</strong> {selectedRow.WastageWeight}</p>
                                     <p><strong>MC Per Gram:</strong> {selectedRow.MC_Per_Gram}</p>
                                     <p><strong>Making Charges On:</strong> {selectedRow.Making_Charges_On}</p>
-                                    {/* <p><strong>Source:</strong> {selectedRow.Source}</p> */}
-                                    {/* <p><strong>QR Status:</strong> {selectedRow.qr_status}</p> */}
-                                    {/* <p><strong>Added At:</strong> {new Date(selectedRow.added_at).toLocaleString()}</p> */}
                                     <p><strong>Deduct Stone Wt:</strong> {selectedRow.deduct_st_Wt}</p>
                                     <p><strong>Size:</strong> {selectedRow.size}</p>
                                     <p><strong>Tag ID:</strong> {selectedRow.tag_id}</p>
@@ -2917,18 +2641,12 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
                                     <p><strong>Pur. Wastage %:</strong> {selectedRow.pur_Wastage_Percentage}</p>
                                     <p><strong>Pur. Wastage Weight:</strong> {selectedRow.pur_WastageWeight}</p>
                                     <p><strong>Pur. Total Weight:</strong> {selectedRow.pur_TotalWeight_AW}</p>
-
-
-
                                 </Col>
 
                                 <Col md={3}>
                                     <p><strong>Pur. MC / Gram:</strong> {selectedRow.pur_MC_Per_Gram}</p>
                                     <p><strong>Pur. MC Charges:</strong> {selectedRow.pur_Making_Charges}</p>
-                                    {/* <p><strong>Invoice:</strong> {selectedRow.invoice}</p> */}
                                     <p><strong>Stone Price / Carat:</strong> {selectedRow.stone_price_per_carat}</p>
-                                    {/* <p><strong>Product ID:</strong> {selectedRow.product_id}</p>
-          <p><strong>Subcategory ID:</strong> {selectedRow.subcategory_id}</p> */}
                                     <p><strong>Pcs:</strong> {selectedRow.pcs}</p>
                                     <p><strong>Piece Cost:</strong> {selectedRow.pieace_cost}</p>
                                     <p><strong>Selling Price:</strong> {selectedRow.selling_price}</p>
@@ -2949,7 +2667,6 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
                     </Button>
                 </Modal.Footer>
             </Modal>
-
         </div>
     );
 };
