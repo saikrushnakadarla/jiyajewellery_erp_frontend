@@ -1254,6 +1254,7 @@ const handleSubmit = async (e) => {
 };
 
 // New function to generate QR Code PDF and return blob
+// New function to generate QR Code PDF with barcode-friendly format
 const generateQRCodePDF = async (data) => {
     const doc = new jsPDF({
         orientation: "landscape",
@@ -1264,15 +1265,19 @@ const generateQRCodePDF = async (data) => {
     const isByWeight = data.Pricing === "By Weight";
 
     try {
-        const qrImageData = await QRCode.toDataURL(
-            [
-                `TAG: ${data.PCode_BarCode}`,
-                `TOPS ${data.printing_purity}`,
-                `NT WT: ${data.TotalWeight_AW}`,
-                `MRP: ${data.total_price}`,
-            ].join("\n"),
-            { margin: 0 }
-        );
+        // Generate QR content in a format that can be parsed by EstimateForm
+        // Format: JSON with barcode field
+        const qrContent = JSON.stringify({
+            barcode: data.PCode_BarCode,
+            product_name: data.sub_category || "",
+            purity: data.printing_purity || "",
+            gross_weight: data.Gross_Weight || "0",
+            net_weight: data.TotalWeight_AW || "0",
+            mrp: data.total_price || "0",
+            pricing: data.Pricing || "By Weight"
+        });
+
+        const qrImageData = await QRCode.toDataURL(qrContent, { margin: 0 });
 
         let startX = 2;
         let startY = 4;
