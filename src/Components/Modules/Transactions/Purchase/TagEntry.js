@@ -100,6 +100,7 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
         pcs: "1",
         MC_Per_Gram_Label: "",
         printing_purity: '',
+        source_from: "ERP"  // NEW: Source for ERP table
     });
     const [show, setShow] = useState(false);
     const [showPurchase, setShowPurchase] = useState(false);
@@ -382,65 +383,35 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
 
         if (formData.Making_Charges_On === "MC / Gram") {
             const calculatedMakingCharges = totalWeight * mcPerGram;
-
-            setFormData((prev) => ({
-                ...prev,
-                Making_Charges: calculatedMakingCharges.toFixed(2),
-            }));
-
+            setFormData((prev) => ({ ...prev, Making_Charges: calculatedMakingCharges.toFixed(2) }));
         } else if (formData.Making_Charges_On === "MC / Piece") {
-            const calculatedMcPerGram = totalWeight
-                ? makingCharges / totalWeight
-                : 0;
-
-            setFormData((prev) => ({
-                ...prev,
-                MC_Per_Gram: calculatedMcPerGram.toFixed(2),
-            }));
-
+            const calculatedMcPerGram = totalWeight ? makingCharges / totalWeight : 0;
+            setFormData((prev) => ({ ...prev, MC_Per_Gram: calculatedMcPerGram.toFixed(2) }));
         } else if (formData.Making_Charges_On === "MC %") {
             const rateAmount = rate * totalWeight;
-
-            const calculatedMakingCharges =
-                (mcPerGram * rateAmount) / 100;
-
-            setFormData((prev) => ({
-                ...prev,
-                Making_Charges: calculatedMakingCharges.toFixed(2),
-            }));
+            const calculatedMakingCharges = (mcPerGram * rateAmount) / 100;
+            setFormData((prev) => ({ ...prev, Making_Charges: calculatedMakingCharges.toFixed(2) }));
         }
 
         if (formData.pur_Making_Charges_On === "MC / Gram") {
-            const calculatedMakingCharges =
-                purTotalWeight * purMcPerGram;
-
-            setFormData((prev) => ({
-                ...prev,
-                pur_Making_Charges: calculatedMakingCharges.toFixed(2),
-            }));
-
+            const calculatedMakingCharges = purTotalWeight * purMcPerGram;
+            setFormData((prev) => ({ ...prev, pur_Making_Charges: calculatedMakingCharges.toFixed(2) }));
         } else if (formData.pur_Making_Charges_On === "MC / Piece") {
-            const calculatedMcPerGram = purTotalWeight
-                ? purMakingCharges / purTotalWeight
-                : 0;
-
-            setFormData((prev) => ({
-                ...prev,
-                pur_MC_Per_Gram: calculatedMcPerGram.toFixed(2),
-            }));
-
+            const calculatedMcPerGram = purTotalWeight ? purMakingCharges / purTotalWeight : 0;
+            setFormData((prev) => ({ ...prev, pur_MC_Per_Gram: calculatedMcPerGram.toFixed(2) }));
         } else if (formData.pur_Making_Charges_On === "MC %") {
             const rateAmount = purRate * purTotalWeight;
-
-            const calculatedMakingCharges =
-                (purMcPerGram * rateAmount) / 100;
-
-            setFormData((prev) => ({
-                ...prev,
-                pur_Making_Charges: calculatedMakingCharges.toFixed(2),
-            }));
+            const calculatedMakingCharges = (purMcPerGram * rateAmount) / 100;
+            setFormData((prev) => ({ ...prev, pur_Making_Charges: calculatedMakingCharges.toFixed(2) }));
         }
     };
+
+    useEffect(() => {
+        handleMakingChargesCalculation();
+    }, [
+        formData.Making_Charges_On, formData.MC_Per_Gram, formData.Making_Charges, formData.TotalWeight_AW,
+        formData.pur_Making_Charges_On, formData.pur_MC_Per_Gram, formData.pur_Making_Charges, formData.pur_TotalWeight_AW,
+    ]);
 
     useEffect(() => {
         const rate = parseFloat(formData.rate) || 0;
@@ -448,13 +419,9 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
         const stonesPrice = parseFloat(formData.Stones_Price) || 0;
         const makingCharges = parseFloat(formData.Making_Charges) || 0;
 
-        const baseAmount =
-            rate * weight + stonesPrice + makingCharges;
-
+        const baseAmount = rate * weight + stonesPrice + makingCharges;
         const taxPercent = parseFloat(formData.tax) || 0;
-
         const taxAmt = (baseAmount * taxPercent) / 100;
-
         const totalPrice = baseAmount + taxAmt;
 
         setFormData((prev) => ({
@@ -462,26 +429,7 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
             tax_amt: taxAmt.toFixed(2),
             total_price: totalPrice.toFixed(2),
         }));
-    }, [
-        formData.rate,
-        formData.TotalWeight_AW,
-        formData.Stones_Price,
-        formData.Making_Charges,
-        formData.tax,
-    ]);
-
-    useEffect(() => {
-        handleMakingChargesCalculation();
-    }, [
-        formData.Making_Charges_On,
-        formData.MC_Per_Gram,
-        formData.Making_Charges,
-        formData.TotalWeight_AW,
-        formData.pur_Making_Charges_On,
-        formData.pur_MC_Per_Gram,
-        formData.pur_Making_Charges,
-        formData.pur_TotalWeight_AW,
-    ]);
+    }, [formData.rate, formData.TotalWeight_AW, formData.Stones_Price, formData.Making_Charges, formData.tax]);
 
     useEffect(() => {
         axios.get(`${baseURL}/get/products`)
@@ -593,19 +541,13 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
                 }
             }
 
-            setFormData((prev) => ({
-                ...prev,
-                pur_rate_cut: newRate,
-            }));
+            setFormData((prev) => ({ ...prev, pur_rate_cut: newRate }));
         }
     }, [formData.pur_Purity, formData.metal_type, rates]);
 
     useEffect(() => {
         if (!formData.Purity) {
-            setFormData((prev) => ({
-                ...prev,
-                rate: "",
-            }));
+            setFormData((prev) => ({ ...prev, rate: "" }));
             return;
         }
 
@@ -614,16 +556,9 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
 
         if (!isNaN(purityValue) && !isNaN(baseRate)) {
             const calculatedRate = ((purityValue / 100) * baseRate).toFixed(2);
-
-            setFormData((prev) => ({
-                ...prev,
-                rate: calculatedRate,
-            }));
+            setFormData((prev) => ({ ...prev, rate: calculatedRate }));
         } else {
-            setFormData((prev) => ({
-                ...prev,
-                rate: "",
-            }));
+            setFormData((prev) => ({ ...prev, rate: "" }));
         }
     }, [formData.Purity, formData.rate_24k]);
 
@@ -638,11 +573,7 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
                 if (file) {
                     const reader = new FileReader();
                     reader.onloadend = () => {
-                        setFormData((prev) => ({
-                            ...prev,
-                            productImage: file,
-                            imagePreview: reader.result,
-                        }));
+                        setFormData((prev) => ({ ...prev, productImage: file, imagePreview: reader.result }));
                     };
                     reader.readAsDataURL(file);
                 }
@@ -695,10 +626,7 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
                 }));
             }
         } else {
-            setFormData((prevData) => ({
-                ...prevData,
-                [field]: value,
-            }));
+            setFormData((prevData) => ({ ...prevData, [field]: value }));
         }
 
         setFormData((prevData) => {
@@ -729,7 +657,6 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
                 if (value === "MC %") newLabel = "MC%";
                 else if (value === "MC / Gram") newLabel = "MC/Gm";
                 else if (value === "MC / Piece") newLabel = "MC/Gm";
-
                 updatedData.MC_Per_Gram_Label = newLabel;
             }
 
@@ -738,21 +665,12 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
                 if (value === "MC %") newLabel = "MC%";
                 else if (value === "MC / Gram") newLabel = "MC/Gm";
                 else if (value === "MC / Piece") newLabel = "MC/Gm";
-
                 updatedData.pur_MC_Per_Gram_Label = newLabel;
             }
 
             if (field === "Stones_Weight" || field === "stone_price_per_carat") {
-                const stoneWeight =
-                    parseFloat(
-                        field === "Stones_Weight" ? value : prevData.Stones_Weight
-                    ) || 0;
-                const stonePricePerCarat =
-                    parseFloat(
-                        field === "stone_price_per_carat"
-                            ? value
-                            : prevData.stone_price_per_carat
-                    ) || 0;
+                const stoneWeight = parseFloat(field === "Stones_Weight" ? value : prevData.Stones_Weight) || 0;
+                const stonePricePerCarat = parseFloat(field === "stone_price_per_carat" ? value : prevData.stone_price_per_carat) || 0;
                 if (stoneWeight > 0 && stonePricePerCarat > 0) {
                     const calculatedStonePrice = (stoneWeight / 0.20) * stonePricePerCarat;
                     updatedData.Stones_Price = calculatedStonePrice.toFixed(2);
@@ -762,16 +680,8 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
             }
 
             if (field === "pur_Stones_Weight" || field === "pur_stone_price_per_carat") {
-                const stoneWeight =
-                    parseFloat(
-                        field === "pur_Stones_Weight" ? value : prevData.pur_Stones_Weight
-                    ) || 0;
-                const stonePricePerCarat =
-                    parseFloat(
-                        field === "pur_stone_price_per_carat"
-                            ? value
-                            : prevData.pur_stone_price_per_carat
-                    ) || 0;
+                const stoneWeight = parseFloat(field === "pur_Stones_Weight" ? value : prevData.pur_Stones_Weight) || 0;
+                const stonePricePerCarat = parseFloat(field === "pur_stone_price_per_carat" ? value : prevData.pur_stone_price_per_carat) || 0;
                 if (stoneWeight > 0 && stonePricePerCarat > 0) {
                     const calculatedStonePrice = (stoneWeight / 0.20) * stonePricePerCarat;
                     updatedData.pur_Stones_Price = calculatedStonePrice.toFixed(2);
@@ -780,19 +690,11 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
                 }
             }
 
-            if (
-                field === "Gross_Weight" ||
-                field === "Stones_Weight" ||
-                field === "deduct_st_Wt" ||
-                field === "pur_Gross_Weight" ||
-                field === "pur_Stones_Weight" ||
-                field === "pur_deduct_st_Wt"
-            ) {
+            if (field === "Gross_Weight" || field === "Stones_Weight" || field === "deduct_st_Wt" ||
+                field === "pur_Gross_Weight" || field === "pur_Stones_Weight" || field === "pur_deduct_st_Wt") {
                 const grossWt = parseFloat(updatedData.Gross_Weight) || 0;
                 const stonesWt = parseFloat(updatedData.Stones_Weight) || 0;
-                const deductOption = updatedData.deduct_st_Wt
-                    ? updatedData.deduct_st_Wt.toLowerCase()
-                    : "";
+                const deductOption = updatedData.deduct_st_Wt ? updatedData.deduct_st_Wt.toLowerCase() : "";
 
                 if (deductOption === "yes") {
                     updatedData.Weight_BW = (grossWt - stonesWt).toFixed(2);
@@ -802,9 +704,7 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
 
                 const purGrossWt = parseFloat(updatedData.pur_Gross_Weight) || 0;
                 const purStonesWt = parseFloat(updatedData.pur_Stones_Weight) || 0;
-                const purDeductOption = updatedData.pur_deduct_st_Wt
-                    ? updatedData.pur_deduct_st_Wt.toLowerCase()
-                    : "";
+                const purDeductOption = updatedData.pur_deduct_st_Wt ? updatedData.pur_deduct_st_Wt.toLowerCase() : "";
 
                 if (purDeductOption === "yes") {
                     updatedData.pur_Weight_BW = (purGrossWt - purStonesWt).toFixed(2);
@@ -829,10 +729,8 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
             if (field === "mrp_price") {
                 const mrpPrice = parseFloat(value) || 0;
                 const taxPercent = parseFloat(prevData.tax_percent) || 0;
-
                 const pieaceCost = ((mrpPrice / (100 + taxPercent)) * 100);
                 updatedData.pieace_cost = pieaceCost.toFixed(2);
-
                 const pcs = parseFloat(prevData.pcs) || 0;
                 updatedData.total_pcs_cost = (pcs * pieaceCost).toFixed(2);
             }
@@ -840,10 +738,7 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
         });
 
         if (field === "category") {
-            setFormData((prevData) => ({
-                ...prevData,
-                category: value,
-            }));
+            setFormData((prevData) => ({ ...prevData, category: value }));
             return;
         }
     };
@@ -858,12 +753,8 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
         const handleKeyPress = (event) => {
             if (event.altKey && event.key.toLowerCase() === "s") {
                 event.preventDefault();
-                console.log("Alt + S detected, submitting form...");
-
                 const pcsValue = parseFloat(formData.pcs) || 0;
                 const grossWeightValue = parseFloat(formData.Gross_Weight) || 0;
-
-                console.log("PCS:", pcsValue, "Gross Weight:", grossWeightValue);
 
                 if (formData.Pricing === "By fixed" && pcsValue <= 0) {
                     alert("The product's PCS must be greater than zero to submit the form.");
@@ -895,18 +786,14 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
         };
 
         window.addEventListener("keydown", handleKeyPress);
-        return () => {
-            window.removeEventListener("keydown", handleKeyPress);
-        };
+        return () => window.removeEventListener("keydown", handleKeyPress);
     }, [formData]);
 
     const handleImageChange = (e) => {
         const file = e.target.files[0];
         if (file) {
             const reader = new FileReader();
-            reader.onloadend = () => {
-                setImage(reader.result);
-            };
+            reader.onloadend = () => setImage(reader.result);
             reader.readAsDataURL(file);
         }
     };
@@ -917,9 +804,7 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
         setIsCameraOpen(false);
     };
 
-    const clearImage = () => {
-        setImage(null);
-    };
+    const clearImage = () => setImage(null);
 
     const [showDesignModal, setShowDesignModal] = useState(false);
     const [newDesign, setNewDesign] = useState({ design_name: "", design_prefix: "", category: formData.category });
@@ -946,23 +831,17 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
 
             if (response.status === 201 || response.status === 200) {
                 alert("Product Design Name added successfully!");
-
                 handleCloseDesignModal();
                 setNewDesign({ design_name: "", metal: formData.metal_type, category: formData.category });
-
                 await fetchDesignMaster();
-
                 const updatedResponse = await axios.get(`${baseURL}/designmaster`);
                 const updatedDesignMasters = updatedResponse.data.map((item) => ({
                     value: item.design_name,
                     label: item.design_name,
                     id: item.design_id,
                 }));
-
                 setdesignOptions(updatedDesignMasters);
-
                 const addedDesign = updatedDesignMasters.find(design => design.value === newDesign.design_name);
-
                 if (addedDesign) {
                     setFormData((prevData) => ({
                         ...prevData,
@@ -977,399 +856,367 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
         }
     };
 
-    // Updated handleSubmit to send data to both APIs and generate QR codes for both
-const handleSubmit = async (e) => {
-    if (e) e.preventDefault();
+    // Generate QR Code PDF for ERP tag - returns blob
+    const generateQRCodePDF = async (data) => {
+        const doc = new jsPDF({
+            orientation: "landscape",
+            unit: "mm",
+            format: [65, 16],
+        });
 
-    if (formData.Pricing === "By fixed") {
-        if (pcs <= 0) {
-            alert("The product's PCS must be greater than zero to submit the form.");
+        const isByWeight = data.Pricing === "By Weight";
+
+        try {
+            const qrContent = JSON.stringify({
+                barcode: data.PCode_BarCode,
+                product_name: data.sub_category || "",
+                purity: data.printing_purity || "",
+                gross_weight: data.Gross_Weight || "0",
+                net_weight: data.TotalWeight_AW || "0",
+                mrp: data.total_price || "0",
+                pricing: data.Pricing || "By Weight"
+            });
+
+            const qrImageData = await QRCode.toDataURL(qrContent, { margin: 0 });
+
+            let startX = 2;
+            let startY = 4;
+            let lineGap = 3.2;
+            let currentY = startY;
+
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(8.0);
+            doc.text(`TAG: ${data.PCode_BarCode}`, startX, currentY);
+            currentY += lineGap;
+
+            if (isByWeight) {
+                doc.text(`${data.sub_category}`, startX, currentY);
+                currentY += lineGap;
+                doc.setFontSize(8.0);
+                doc.text("NT WT:", startX, currentY);
+                doc.text(`${data.TotalWeight_AW}`, startX + 12, currentY);
+                currentY += lineGap;
+            }
+
+            doc.setFontSize(8.0);
+            doc.text("MRP:", startX, currentY);
+            doc.text(`${data.total_price}`, startX + 11, currentY);
+
+            const qrX = 35;
+            const qrY = 2;
+            const qrSize = 7;
+            const moveRight = 6;
+
+            doc.addImage(qrImageData, "PNG", qrX + moveRight, qrY, qrSize, qrSize);
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(4.2);
+            doc.text("O/N:", qrX + moveRight, qrY + qrSize + 2);
+            doc.setFontSize(6.0);
+            doc.text("NEW FRIENDS JEWELLERS", qrX - 2, qrY + qrSize + 4.5);
+
+            return doc.output("blob");
+        } catch (error) {
+            console.error("PDF Error:", error);
+            return null;
+        }
+    };
+
+    // Save PDF to server with baseURL parameter
+    const handleSavePDFToServer = async (pdfBlob, pcode, serverBaseURL) => {
+        const formData = new FormData();
+        formData.append("invoice", pdfBlob, `${pcode}.pdf`);
+
+        try {
+            const response = await fetch(`${serverBaseURL}/upload-invoice`, {
+                method: "POST",
+                body: formData,
+            });
+
+            if (!response.ok) {
+                throw new Error("Failed to upload invoice");
+            }
+
+            console.log(`Tag PDF ${pcode} saved on server ${serverBaseURL}`);
+            return true;
+        } catch (error) {
+            console.error("Error uploading tag PDF:", error);
+            return false;
+        }
+    };
+
+    // Main Submit Handler - Sends to both ERP and Jewellery Application
+    const handleSubmit = async (e) => {
+        if (e) e.preventDefault();
+
+        const pcs = parseFloat(formData.pcs) || 0;
+        const grossWeight = parseFloat(formData.Gross_Weight) || 0;
+
+        if (formData.Pricing === "By fixed") {
+            if (pcs <= 0) {
+                alert("The product's PCS must be greater than zero to submit the form.");
+                return;
+            }
+            if (!formData.pieace_cost || parseFloat(formData.pieace_cost) <= 0) {
+                alert("Please enter a Piece Cost.");
+                return;
+            }
+        } else {
+            if (pcs <= 0 || grossWeight <= 0) {
+                alert("The product's PCS and Gross Weight must be greater than zero to submit the form.");
+                return;
+            }
+        }
+
+        if (!formData.sub_category || !formData.subcategory_id) {
+            alert("Please select a valid sub-category before submitting.");
             return;
         }
-        if (!formData.pieace_cost || parseFloat(formData.pieace_cost) <= 0) {
-            alert("Please enter a Piece Cost.");
+
+        if (formData.Pricing === "By Weight" && !formData.Gross_Weight) {
+            alert("Please add Gross Weight");
             return;
         }
-    } else {
-        if (pcs <= 0 || grossWeight <= 0) {
-            alert("The product's PCS and Gross Weight must be greater than zero to submit the form.");
-            return;
-        }
-    }
 
-    if (!formData.sub_category || !formData.subcategory_id) {
-        alert("Please select a valid sub-category before submitting.");
-        return;
-    }
+        try {
+            const updatedData = { ...formData, image };
 
-    if (formData.Pricing === "By Weight" && !formData.Gross_Weight) {
-        alert("Please add Gross Weight");
-        return;
-    }
+            const requestData = {
+                ...updatedData,
+                stone_details: stoneList,
+                purchase_stone_details: purchaseStoneList,
+                source_from: "ERP"  // Explicitly set source for ERP
+            };
 
-    if (parseFloat(formData.Gross_Weight) > parseFloat(grossWeight)) {
-        const diff = (parseFloat(formData.Gross_Weight) - parseFloat(grossWeight)).toFixed(3);
-        const confirmSubmit = window.confirm(`The tag gross weight exceeds by ${diff} of balance Gross Weight. Do you want to proceed?`);
-        if (!confirmSubmit) {
-            return;
-        }
-    }
-
-    try {
-        const updatedData = { ...formData, image };
-
-        // Prepare data for both APIs
-        const requestData = {
-            ...updatedData,
-            stone_details: stoneList,
-            purchase_stone_details: purchaseStoneList
-        };
-
-        let apiURL = `${baseURL}/post/opening-tags-entry`;
-        let apiURL2 = `${baseURL2}/post/product`;
-        
-        let method = "POST";
-        let method2 = "POST";
-        
-        let isUpdating = false;
-        let response1, response2;
-
-        if (formData.opentag_id) {
-            apiURL = `${baseURL}/update/opening-tags-entry/${formData.opentag_id}`;
-            method = "PUT";
-            isUpdating = true;
-        }
-
-        // Send data to both APIs simultaneously
-        [response1, response2] = await Promise.all([
-            axios({
-                method: method,
-                url: apiURL,
-                data: requestData,
-                headers: { "Content-Type": "application/json" },
-            }),
-            axios({
-                method: method2,
-                url: apiURL2,
-                data: {
-                    // Map TagEntry data to ProductForm compatible format
-                    product_name: formData.sub_category || "",
-                    category_id: formData.subcategory_id || "",
-                    barcode: formData.PCode_BarCode || "",
-                    metal_type_id: "",
-                    metal_type: formData.metal_type || "",
-                    purity_id: "",
-                    purity: formData.Purity || "",
-                    design_id: "",
-                    design: formData.design_master || "",
-                    gross_wt: formData.Gross_Weight || "0",
-                    stone_wt: formData.Stones_Weight || "0",
-                    net_wt: formData.Weight_BW || "0",
-                    stone_price: formData.Stones_Price || "0",
-                    pricing: formData.Pricing || "By Weight",
-                    va_on: formData.Wastage_On || "Gross Weight",
-                    va_percent: formData.Wastage_Percentage || "0",
-                    wastage_weight: formData.WastageWeight || "0",
-                    total_weight_av: formData.TotalWeight_AW || "0",
-                    mc_on: formData.Making_Charges_On || "MC %",
-                    mc_per_gram: formData.MC_Per_Gram || "0",
-                    making_charges: formData.Making_Charges || "0",
-                    rate: formData.rate || "0",
-                    rate_amt: "",
-                    hm_charges: "60.00",
-                    tax_percent: formData.tax || "0.9% GST",
-                    tax_amt: formData.tax_amt || "0",
-                    total_price: formData.total_price || "0",
-                    pieace_cost: formData.pieace_cost || "0",
-                    disscount_percentage: "",
-                    disscount: "",
-                    qty: formData.pcs || "1",
-                    huid_no: formData.HUID_No || "",
-                    stock_point: formData.Stock_Point || "Display Floor1",
-                    product_image: image || null
-                },
-                headers: { "Content-Type": "application/json" },
-            })
-        ]);
-
-        if (response1.status === 200 || response1.status === 201) {
-            console.log("Tag Entry saved successfully to ERP:", response1.data);
-        }
-
-        if (response2.status === 200 || response2.status === 201) {
-            console.log("Product saved successfully to Normal Jewelry App:", response2.data);
+            let apiURL = `${baseURL}/post/opening-tags-entry`;
+            let apiURL2 = `${baseURL2}/post/product`;
             
-            // Get the product_id from the response to update QR status
-            const productId = response2.data.product_id;
-            
-            // Generate and save QR code to BOTH servers if checkbox is checked
-            if (isGeneratePDFRef.current && !isUpdating) {
-                // Generate QR code PDF once
-                const pdfBlob = await generateQRCodePDF(updatedData);
+            let method = "POST";
+            let method2 = "POST";
+            let isUpdating = false;
+            let response1, response2;
+
+            if (formData.opentag_id) {
+                apiURL = `${baseURL}/update/opening-tags-entry/${formData.opentag_id}`;
+                method = "PUT";
+                isUpdating = true;
+            }
+
+            // Prepare product data for Jewellery Application
+            // IMPORTANT: source is set to "Order Management" for Jewellery App
+            const productDataForJewelleryApp = {
+                product_name: formData.sub_category || "",
+                category_id: formData.subcategory_id || "",
+                barcode: formData.PCode_BarCode || "",
+                metal_type_id: "",
+                metal_type: formData.metal_type || "",
+                purity_id: "",
+                purity: formData.Purity || "",
+                design_id: "",
+                design: formData.design_master || "",
+                gross_wt: formData.Gross_Weight || "0",
+                stone_wt: formData.Stones_Weight || "0",
+                net_wt: formData.Weight_BW || "0",
+                stone_price: formData.Stones_Price || "0",
+                pricing: formData.Pricing || "By Weight",
+                va_on: formData.Wastage_On || "Gross Weight",
+                va_percent: formData.Wastage_Percentage || "0",
+                wastage_weight: formData.WastageWeight || "0",
+                total_weight_av: formData.TotalWeight_AW || "0",
+                mc_on: formData.Making_Charges_On || "MC %",
+                mc_per_gram: formData.MC_Per_Gram || "0",
+                making_charges: formData.Making_Charges || "0",
+                rate: formData.rate || "0",
+                rate_amt: "",
+                hm_charges: "60.00",
+                tax_percent: formData.tax || "0.9% GST",
+                tax_amt: formData.tax_amt || "0",
+                total_price: formData.total_price || "0",
+                pieace_cost: formData.pieace_cost || "0",
+                disscount_percentage: "",
+                disscount: "",
+                qty: formData.pcs || "1",
+                huid_no: formData.HUID_No || "",
+                stock_point: formData.Stock_Point || "Display Floor1",
+                product_image: image || null,
+                source: "Order Management"  // KEY: Source set to "Order Management" for Jewellery App
+            };
+
+            // Send data to both APIs
+            [response1, response2] = await Promise.all([
+                axios({
+                    method: method,
+                    url: apiURL,
+                    data: requestData,
+                    headers: { "Content-Type": "application/json" },
+                }),
+                axios({
+                    method: method2,
+                    url: apiURL2,
+                    data: productDataForJewelleryApp,
+                    headers: { "Content-Type": "application/json" },
+                })
+            ]);
+
+            if (response1.status === 200 || response1.status === 201) {
+                console.log("Tag Entry saved successfully to ERP:", response1.data);
+            }
+
+            if (response2.status === 200 || response2.status === 201) {
+                console.log("Product saved successfully to Jewellery App:", response2.data);
                 
-                if (pdfBlob) {
-                    // Save to ERP server
-                    await handleSavePDFToServer(pdfBlob, updatedData.PCode_BarCode, baseURL);
+                const productId = response2.data.product_id;
+                
+                // Generate QR Code and save to BOTH servers
+                if (isGeneratePDFRef.current && !isUpdating && formData.PCode_BarCode) {
+                    const pdfBlob = await generateQRCodePDF(updatedData);
                     
-                    // Save to Jewellery Application server
-                    await handleSavePDFToServer(pdfBlob, updatedData.PCode_BarCode, baseURL2);
-                    
-                    // Update QR status in Jewellery Application
-                    try {
-                        await axios.put(`${baseURL2}/update-product-qr/${productId}`, {
-                            qr_generated: true
-                        });
-                        console.log("QR status updated in Jewellery App");
-                    } catch (qrError) {
-                        console.error("Error updating QR status:", qrError);
+                    if (pdfBlob) {
+                        // Save to ERP server
+                        await handleSavePDFToServer(pdfBlob, formData.PCode_BarCode, baseURL);
+                        // Save to Jewellery Application server
+                        await handleSavePDFToServer(pdfBlob, formData.PCode_BarCode, baseURL2);
+                        
+                        // Update QR status in Jewellery Application
+                        try {
+                            await axios.put(`${baseURL2}/update-product-qr/${productId}`, {
+                                qr_generated: true
+                            });
+                            console.log("QR status updated in Jewellery App");
+                        } catch (qrError) {
+                            console.error("Error updating QR status:", qrError);
+                        }
                     }
                 }
             }
-        }
 
-        alert(isUpdating ? "Stock updated successfully in both applications!" : "Stock added successfully in both applications!");
-        
-        if (fetchBalance) {
-            fetchData();
-            fetchBalance();
-        }
+            alert(isUpdating ? "Stock updated successfully in both applications!" : "Stock added successfully in both applications!");
+            
+            if (fetchBalance) {
+                fetchData();
+                fetchBalance();
+            }
 
-        setIsEditMode(false);
+            setIsEditMode(false);
 
-        localStorage.removeItem("tagStoneDetails");
-        localStorage.removeItem("tagPurStoneDetails");
+            localStorage.removeItem("tagStoneDetails");
+            localStorage.removeItem("tagPurStoneDetails");
 
-        setStoneList([]);
-        setPurchaseStoneList([]);
+            setStoneList([]);
+            setPurchaseStoneList([]);
 
-        if (isUpdating) {
-            setTimeout(() => {
-                setFormData((prevData) => ({
-                    PCode_BarCode: "",
-                    suffix: "",
-                    tag_id: selectedProduct?.tag_id || "",
-                    product_id: selectedProduct?.product_id || "",
-                    category: selectedProduct?.category || "",
-                    Pricing: selectedProduct?.Pricing || "",
-                    metal_type: selectedProduct?.metal_type || "",
-                    account_name: selectedProduct?.account_name || "",
-                    invoice: selectedProduct?.invoice || "",
-                    Gross_Weight: "",
-                    Stones_Weight: "",
-                    Stones_Price: "",
-                    deduct_st_Wt: "Yes",
-                    Weight_BW: "",
-                    Wastage_On: "Gross Weight",
-                    WastageWeight: "",
-                    Purity: "",
-                    printing_purity: "",
-                    pur_Purity: "",
-                    HUID_No: prevData.HUID_No,
-                    Stock_Point: prevData.Stock_Point,
-                    design_master: prevData.design_master,
-                    Making_Charges_On: prevData.Making_Charges_On,
-                    pur_Making_Charges_On: prevData.pur_Making_Charges_On,
-                    MC_Per_Gram_Label: prevData.MC_Per_Gram_Label,
-                    pur_MC_Per_Gram_Label: prevData.MC_Per_Gram_Label,
-                    Status: "Available",
-                    Source: "Purchase",
-                    pur_Gross_Weight: "",
-                    pur_Stones_Weight: "",
-                    pur_Stones_Price: "",
-                    pur_deduct_st_Wt: "Yes",
-                    pur_Weight_BW: "",
-                    pur_WastageWeight: "",
-                    pur_Wastage_On: "Gross Weight",
-                    pcs: "1",
-                    pieace_cost: "",
-                    mrp_price: "",
-                    total_pcs_cost: "",
-                }));
-                setImage(null);
-                fetchTagData();
-            }, 100);
-        } else {
-            try {
-                const response = await axios.get(`${baseURL}/getNextPCodeBarCode`, {
-                    params: { prefix: formData.item_prefix },
-                });
-                const nextPCodeBarCode = response.data.nextPCodeBarCode;
+            if (isUpdating) {
+                setTimeout(() => {
+                    setFormData((prevData) => ({
+                        ...prevData,
+                        PCode_BarCode: "",
+                        suffix: "",
+                        tag_id: selectedProduct?.tag_id || "",
+                        product_id: selectedProduct?.product_id || "",
+                        category: selectedProduct?.category || "",
+                        Pricing: selectedProduct?.Pricing || "",
+                        metal_type: selectedProduct?.metal_type || "",
+                        account_name: selectedProduct?.account_name || "",
+                        invoice: selectedProduct?.invoice || "",
+                        Gross_Weight: "",
+                        Stones_Weight: "",
+                        Stones_Price: "",
+                        deduct_st_Wt: "Yes",
+                        Weight_BW: "",
+                        Wastage_On: "Gross Weight",
+                        WastageWeight: "",
+                        Purity: "",
+                        printing_purity: "",
+                        pur_Purity: "",
+                        HUID_No: prevData.HUID_No,
+                        Stock_Point: prevData.Stock_Point,
+                        design_master: prevData.design_master,
+                        Making_Charges_On: prevData.Making_Charges_On,
+                        pur_Making_Charges_On: prevData.pur_Making_Charges_On,
+                        MC_Per_Gram_Label: prevData.MC_Per_Gram_Label,
+                        pur_MC_Per_Gram_Label: prevData.MC_Per_Gram_Label,
+                        Status: "Available",
+                        Source: "Purchase",
+                        pur_Gross_Weight: "",
+                        pur_Stones_Weight: "",
+                        pur_Stones_Price: "",
+                        pur_deduct_st_Wt: "Yes",
+                        pur_Weight_BW: "",
+                        pur_WastageWeight: "",
+                        pur_Wastage_On: "Gross Weight",
+                        pcs: "1",
+                        pieace_cost: "",
+                        mrp_price: "",
+                        total_pcs_cost: "",
+                        source_from: "ERP"
+                    }));
+                    setImage(null);
+                    fetchTagData();
+                }, 100);
+            } else {
+                try {
+                    const response = await axios.get(`${baseURL}/getNextPCodeBarCode`, {
+                        params: { prefix: formData.item_prefix },
+                    });
+                    const nextPCodeBarCode = response.data.nextPCodeBarCode;
 
-                setFormData((prevData) => ({
-                    ...prevData,
-                    PCode_BarCode: nextPCodeBarCode,
-                    suffix: nextPCodeBarCode.replace(formData.item_prefix, ""),
-                    tag_id: selectedProduct?.tag_id || "",
-                    product_id: selectedProduct?.product_id || "",
-                    category: selectedProduct?.category || "",
-                    Pricing: selectedProduct?.Pricing || "",
-                    metal_type: selectedProduct?.metal_type || "",
-                    Gross_Weight: "",
-                    Stones_Weight: "",
-                    Stones_Price: "",
-                    deduct_st_Wt: "Yes",
-                    Weight_BW: "",
-                    Wastage_On: "Gross Weight",
-                    WastageWeight: "",
-                    Making_Charges_On: prevData.Making_Charges_On,
-                    pur_Making_Charges_On: prevData.pur_Making_Charges_On,
-                    MC_Per_Gram_Label: prevData.MC_Per_Gram_Label,
-                    pur_MC_Per_Gram_Label: prevData.MC_Per_Gram_Label,
-                    Status: "Available",
-                    Source: "Purchase",
-                    pur_Gross_Weight: "",
-                    pur_Stones_Weight: "",
-                    pur_Stones_Price: "",
-                    pur_deduct_st_Wt: "Yes",
-                    pur_Weight_BW: "",
-                    pur_WastageWeight: "",
-                    pur_Wastage_On: "Gross Weight",
-                    pcs: "1",
-                    pieace_cost: "",
-                    mrp_price: "",
-                    total_pcs_cost: "",
-                }));
-                setImage(null);
-                fetchTagData();
-            } catch (error) {
-                console.error("Error fetching PCode_BarCode:", error);
+                    setFormData((prevData) => ({
+                        ...prevData,
+                        PCode_BarCode: nextPCodeBarCode,
+                        suffix: nextPCodeBarCode.replace(formData.item_prefix, ""),
+                        tag_id: selectedProduct?.tag_id || "",
+                        product_id: selectedProduct?.product_id || "",
+                        category: selectedProduct?.category || "",
+                        Pricing: selectedProduct?.Pricing || "",
+                        metal_type: selectedProduct?.metal_type || "",
+                        Gross_Weight: "",
+                        Stones_Weight: "",
+                        Stones_Price: "",
+                        deduct_st_Wt: "Yes",
+                        Weight_BW: "",
+                        Wastage_On: "Gross Weight",
+                        WastageWeight: "",
+                        Making_Charges_On: prevData.Making_Charges_On,
+                        pur_Making_Charges_On: prevData.pur_Making_Charges_On,
+                        MC_Per_Gram_Label: prevData.MC_Per_Gram_Label,
+                        pur_MC_Per_Gram_Label: prevData.MC_Per_Gram_Label,
+                        Status: "Available",
+                        Source: "Purchase",
+                        pur_Gross_Weight: "",
+                        pur_Stones_Weight: "",
+                        pur_Stones_Price: "",
+                        pur_deduct_st_Wt: "Yes",
+                        pur_Weight_BW: "",
+                        pur_WastageWeight: "",
+                        pur_Wastage_On: "Gross Weight",
+                        pcs: "1",
+                        pieace_cost: "",
+                        mrp_price: "",
+                        total_pcs_cost: "",
+                        source_from: "ERP"
+                    }));
+                    setImage(null);
+                    fetchTagData();
+                } catch (error) {
+                    console.error("Error fetching PCode_BarCode:", error);
+                }
+            }
+
+            setIsGeneratePDF(true);
+
+        } catch (error) {
+            console.error("Error in submission:", error);
+            if (error.response) {
+                console.error("Response error:", error.response.data);
+                alert(`Error: ${error.response.data.message || "An error occurred. Please try again."}`);
+            } else if (error.request) {
+                console.error("No response received:", error.request);
+                alert("No response from server. Please check your connection.");
+            } else {
+                console.error("Error:", error.message);
+                alert(`Error: ${error.message}`);
             }
         }
-
-        setIsGeneratePDF(true);
-
-    } catch (error) {
-        console.error("Error in submission:", error);
-        if (error.response) {
-            console.error("Response error:", error.response.data);
-            alert(`Error: ${error.response.data.message || "An error occurred. Please try again."}`);
-        } else if (error.request) {
-            console.error("No response received:", error.request);
-            alert("No response from server. Please check your connection.");
-        } else {
-            console.error("Error:", error.message);
-            alert(`Error: ${error.message}`);
-        }
-    }
-};
-
-// New function to generate QR Code PDF and return blob
-// New function to generate QR Code PDF with barcode-friendly format
-const generateQRCodePDF = async (data) => {
-    const doc = new jsPDF({
-        orientation: "landscape",
-        unit: "mm",
-        format: [65, 16],
-    });
-
-    const isByWeight = data.Pricing === "By Weight";
-
-    try {
-        // Generate QR content in a format that can be parsed by EstimateForm
-        // Format: JSON with barcode field
-        const qrContent = JSON.stringify({
-            barcode: data.PCode_BarCode,
-            product_name: data.sub_category || "",
-            purity: data.printing_purity || "",
-            gross_weight: data.Gross_Weight || "0",
-            net_weight: data.TotalWeight_AW || "0",
-            mrp: data.total_price || "0",
-            pricing: data.Pricing || "By Weight"
-        });
-
-        const qrImageData = await QRCode.toDataURL(qrContent, { margin: 0 });
-
-        let startX = 2;
-        let startY = 4;
-        let lineGap = 3.2;
-        let currentY = startY;
-
-        doc.setFont("helvetica", "bold");
-
-        doc.setFontSize(8.0);
-        doc.text(`TAG: ${data.PCode_BarCode}`, startX, currentY);
-        currentY += lineGap;
-
-        if (isByWeight) {
-            doc.text(`${data.sub_category}`, startX, currentY);
-            currentY += lineGap;
-
-            doc.setFontSize(8.0);
-            doc.text("NT WT:", startX, currentY);
-            doc.text(`${data.TotalWeight_AW}`, startX + 12, currentY);
-            currentY += lineGap;
-        }
-
-        doc.setFontSize(8.0);
-        doc.text("MRP:", startX, currentY);
-        doc.text(`${data.total_price}`, startX + 11, currentY);
-
-        const qrX = 35;
-        const qrY = 2;
-        const qrSize = 7;
-        const moveRight = 6;
-
-        doc.addImage(
-            qrImageData,
-            "PNG",
-            qrX + moveRight,
-            qrY,
-            qrSize,
-            qrSize
-        );
-
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(4.2);
-        doc.text("O/N:", qrX + moveRight, qrY + qrSize + 2);
-        doc.setFontSize(6.0);
-        doc.text("NEW FRIENDS JEWELLERS", qrX - 2, qrY + qrSize + 4.5);
-
-        return doc.output("blob");
-    } catch (error) {
-        console.error("PDF Error:", error);
-        return null;
-    }
-};
-
-// Updated handleSavePDFToServer to accept baseURL parameter
-const handleSavePDFToServer = async (pdfBlob, pcode, serverBaseURL) => {
-    const formData = new FormData();
-    formData.append("invoice", pdfBlob, `${pcode}.pdf`);
-
-    try {
-        const response = await fetch(`${serverBaseURL}/upload-invoice`, {
-            method: "POST",
-            body: formData,
-        });
-
-        if (!response.ok) {
-            throw new Error("Failed to upload invoice");
-        }
-
-        console.log(`Tag PDF ${pcode} saved on server ${serverBaseURL}`);
-        return true;
-    } catch (error) {
-        console.error("Error uploading tag PDF:", error);
-        return false;
-    }
-};
-
-// Keep the original generateAndDownloadPDF function for backward compatibility
-const generateAndDownloadPDF = async (data) => {
-    const pdfBlob = await generateQRCodePDF(data);
-    if (pdfBlob) {
-        await handleSavePDFToServer(pdfBlob, data.PCode_BarCode, baseURL);
-        // Download to client
-        const url = URL.createObjectURL(pdfBlob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `QR_${data.PCode_BarCode}.pdf`;
-        document.body.appendChild(a);
-        a.click();
-        URL.revokeObjectURL(url);
-        document.body.removeChild(a);
-    }
-};
+    };
 
     useEffect(() => {
         const getLastPcode = async () => {
@@ -1400,21 +1247,12 @@ const generateAndDownloadPDF = async (data) => {
 
     const handleModalChange = (e) => {
         let { name, value } = e.target;
-
         if (name === "name" || name === "prefix") {
             value = value.toUpperCase();
         }
-
-        setNewSubCategory((prev) => ({
-            ...prev,
-            [name]: value,
-        }));
-
+        setNewSubCategory((prev) => ({ ...prev, [name]: value }));
         if (name === "prefix") {
-            setFormData((prev) => ({
-                ...prev,
-                Prefix: value,
-            }));
+            setFormData((prev) => ({ ...prev, Prefix: value }));
         }
     };
 
@@ -1449,26 +1287,19 @@ const generateAndDownloadPDF = async (data) => {
             if (response.status === 201) {
                 console.log('Subcategory added successfully');
                 alert("Subcategory added successfully");
-
                 handleCloseModal();
                 setNewSubCategory({ name: '', prefix: '', category: '', purity: '', selling_purity: '', printing_purity: '' });
-
                 await fetchSubCategories();
-
                 const updatedSubCategories = await axios.get(`${baseURL}/get/subcategories`);
                 const filteredSubCategories = updatedSubCategories.data.filter(
                     (subCategory) => subCategory.category_id === selectedProduct.product_id
                 );
-
                 const addedSubCategory = filteredSubCategories.find(sub => sub.sub_category_name === newSubCategory.name);
-
                 if (addedSubCategory) {
                     const response = await axios.get(`${baseURL}/getNextPCodeBarCode`, {
                         params: { prefix: addedSubCategory.prefix },
                     });
-
                     const nextPCodeBarCode = response.data.nextPCodeBarCode;
-
                     setFormData((prevData) => ({
                         ...prevData,
                         sub_category: addedSubCategory.sub_category_name,
@@ -1497,7 +1328,6 @@ const generateAndDownloadPDF = async (data) => {
                 (subCategory) => subCategory.category_id === selectedProduct.product_id
             );
             setSubCategories(filteredSubCategories);
-            console.log("filteredSubCategories=", filteredSubCategories);
             return filteredSubCategories;
         } catch (error) {
             console.error("Error fetching subcategories:", error);
@@ -1516,14 +1346,11 @@ const generateAndDownloadPDF = async (data) => {
     const fetchDesignMaster = async () => {
         try {
             const response = await axios.get(`${baseURL}/designmaster`);
-            const designMasters = response.data.map((item) => {
-                console.log('Design ID:', item.design_id);
-                return {
-                    value: item.design_name,
-                    label: item.design_name,
-                    id: item.design_id,
-                };
-            });
+            const designMasters = response.data.map((item) => ({
+                value: item.design_name,
+                label: item.design_name,
+                id: item.design_id,
+            }));
             setdesignOptions(designMasters);
         } catch (error) {
             console.error('Error fetching design masters:', error);
@@ -1534,21 +1361,18 @@ const generateAndDownloadPDF = async (data) => {
         fetchDesignMaster();
     }, []);
 
-    const [pcs, setPcs] = useState(null);
-    const [grossWeight, setGrossWeight] = useState(null);
+    const [pcsBalance, setPcsBalance] = useState(null);
+    const [grossWeightBalance, setGrossWeightBalance] = useState(null);
 
     const fetchData = async () => {
         if (!selectedProduct.product_id || !selectedProduct.tag_id) return;
 
         try {
             const response = await fetch(`${baseURL}/entry/${selectedProduct.product_id}/${selectedProduct.tag_id}`);
-            if (!response.ok) {
-                throw new Error("Entry not found or server error");
-            }
+            if (!response.ok) throw new Error("Entry not found or server error");
             const data = await response.json();
-            console.log("Fetched data:", data);
-            setPcs(data.bal_pcs);
-            setGrossWeight(data.bal_gross_weight);
+            setPcsBalance(data.bal_pcs);
+            setGrossWeightBalance(data.bal_gross_weight);
         } catch (error) {
             console.error("Error fetching data:", error);
         }
@@ -1560,7 +1384,6 @@ const generateAndDownloadPDF = async (data) => {
 
     const [data, setData] = useState([]);
     const [loading, setLoading] = useState(true);
-
     const [isEditMode, setIsEditMode] = useState(false);
 
     const fetchTagData = async () => {
@@ -1568,15 +1391,10 @@ const generateAndDownloadPDF = async (data) => {
             const response = await fetch(`${baseURL}/get/opening-tags-entry`);
             const jsonData = await response.json();
 
-            console.log("Fetched Data:", jsonData);
-
             if (jsonData.result && Array.isArray(jsonData.result)) {
                 const filteredData = jsonData.result.filter(
-                    (item) =>
-                        item.invoice === selectedProduct.invoice &&
-                        item.category === selectedProduct.category
+                    (item) => item.invoice === selectedProduct.invoice && item.category === selectedProduct.category
                 );
-
                 setData(filteredData);
             } else {
                 console.error("Unexpected API response format:", jsonData);
@@ -1598,24 +1416,15 @@ const generateAndDownloadPDF = async (data) => {
         setFormData(rowData);
         setIsEditMode(true);
         setImage(rowData.image || "");
-
         if (rowData.Making_Charges_On === "MC %") {
-            setFormData((prevData) => ({
-                ...prevData,
-                MC_Per_Gram_Label: "MC%",
-            }));
+            setFormData((prevData) => ({ ...prevData, MC_Per_Gram_Label: "MC%" }));
         } else if (rowData.Making_Charges_On === "MC / Gram" || rowData.Making_Charges_On === "MC / Piece") {
-            setFormData((prevData) => ({
-                ...prevData,
-                MC_Per_Gram_Label: "MC/Gm",
-            }));
+            setFormData((prevData) => ({ ...prevData, MC_Per_Gram_Label: "MC/Gm" }));
         }
     };
 
     const handleDelete = async (id) => {
-        console.log("Deleting ID:", id);
         const url = `${baseURL}/delete/opening-tags-entry/${id}`;
-        console.log("DELETE Request URL:", url);
 
         if (!window.confirm("Are you sure you want to delete this record?")) {
             return;
@@ -1624,7 +1433,6 @@ const generateAndDownloadPDF = async (data) => {
         try {
             const response = await axios.delete(url);
             alert(response.data.message);
-
             fetchData();
             fetchTagData();
         } catch (error) {
@@ -1661,19 +1469,13 @@ const generateAndDownloadPDF = async (data) => {
         }));
 
         const worksheet = XLSX.utils.json_to_sheet(worksheetData);
-
         const columnWidths = Object.keys(worksheetData[0]).map((key) => ({
-            wch: Math.max(
-                key.length,
-                ...worksheetData.map(row => row[key] ? row[key].toString().length : 0)
-            ) + 2
+            wch: Math.max(key.length, ...worksheetData.map(row => row[key] ? row[key].toString().length : 0)) + 2
         }));
-
         worksheet["!cols"] = columnWidths;
 
         const workbook = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(workbook, worksheet, "Sheet1");
-
         XLSX.writeFile(workbook, "TagDetails.xlsx");
     };
 
@@ -1684,8 +1486,8 @@ const generateAndDownloadPDF = async (data) => {
     return (
         <div style={{ paddingTop: "0px" }}>
             <div style={{ display: "flex", gap: "20px", alignItems: "center" }}>
-                <h4 style={{ margin: "0" }}>Pieces: {pcs !== null ? pcs : "0"}</h4>
-                <h4 style={{ margin: "0" }}>Gross Weight: {grossWeight !== null ? grossWeight : "0"}</h4>
+                <h4 style={{ margin: "0" }}>Pieces: {pcsBalance !== null ? pcsBalance : "0"}</h4>
+                <h4 style={{ margin: "0" }}>Gross Weight: {grossWeightBalance !== null ? grossWeightBalance : "0"}</h4>
             </div>
             <div className="container mb-4">
                 <div className="row mt-1">
@@ -1801,7 +1603,6 @@ const generateAndDownloadPDF = async (data) => {
                                                     { value: "Strong room", label: "Strong room" },
                                                 ]} />
                                             </Col>
-
                                         </>
                                     ) : (
                                         <>
@@ -1831,67 +1632,25 @@ const generateAndDownloadPDF = async (data) => {
                                                 <div className="image-upload-container">
                                                     <Dropdown>
                                                         <Dropdown.Toggle id="dropdown-basic-button">Upload Image</Dropdown.Toggle>
-
                                                         <Dropdown.Menu style={{ zIndex: 1050, position: "absolute" }}>
-                                                            <Dropdown.Item onClick={() => fileInputRef.current.click()}>
-                                                                Select Image
-                                                            </Dropdown.Item>
-                                                            <Dropdown.Item onClick={() => setIsCameraOpen(true)}>
-                                                                Capture Image
-                                                            </Dropdown.Item>
+                                                            <Dropdown.Item onClick={() => fileInputRef.current.click()}>Select Image</Dropdown.Item>
+                                                            <Dropdown.Item onClick={() => setIsCameraOpen(true)}>Capture Image</Dropdown.Item>
                                                         </Dropdown.Menu>
                                                     </Dropdown>
-
-                                                    <input
-                                                        type="file"
-                                                        accept="image/*"
-                                                        ref={fileInputRef}
-                                                        onChange={handleImageChange}
-                                                        style={{ display: "none" }}
-                                                    />
-
+                                                    <input type="file" accept="image/*" ref={fileInputRef} onChange={handleImageChange} style={{ display: "none" }} />
                                                     {isCameraOpen && (
                                                         <div className="webcam-container mt-2">
-                                                            <Webcam
-                                                                audio={false}
-                                                                ref={webcamRef}
-                                                                screenshotFormat="image/jpeg"
-                                                                className="img-thumbnail"
-                                                            />
+                                                            <Webcam audio={false} ref={webcamRef} screenshotFormat="image/jpeg" className="img-thumbnail" />
                                                             <div className="d-flex gap-2 mt-2">
-                                                                <Button onClick={captureImage} variant="primary">
-                                                                    Capture
-                                                                </Button>
-                                                                <Button onClick={() => setIsCameraOpen(false)} variant="danger">
-                                                                    Cancel
-                                                                </Button>
+                                                                <Button onClick={captureImage} variant="primary">Capture</Button>
+                                                                <Button onClick={() => setIsCameraOpen(false)} variant="danger">Cancel</Button>
                                                             </div>
                                                         </div>
                                                     )}
-
                                                     {image && (
                                                         <div style={{ position: "relative", display: "inline-block", marginTop: "10px" }}>
-                                                            <img src={image} alt="Selected"
-                                                                style={{
-                                                                    width: "100px",
-                                                                    height: "100px",
-                                                                    borderRadius: "8px",
-                                                                }} />
-                                                            <button
-                                                                type="button"
-                                                                onClick={clearImage}
-                                                                style={{
-                                                                    position: "absolute",
-                                                                    top: "5px",
-                                                                    right: "5px",
-                                                                    background: "transparent",
-                                                                    border: "none",
-                                                                    color: "red",
-                                                                    fontSize: "16px",
-                                                                    cursor: "pointer",
-                                                                    zIndex: 10,
-                                                                }}
-                                                            >
+                                                            <img src={image} alt="Selected" style={{ width: "100px", height: "100px", borderRadius: "8px" }} />
+                                                            <button type="button" onClick={clearImage} style={{ position: "absolute", top: "5px", right: "5px", background: "transparent", border: "none", color: "red", fontSize: "16px", cursor: "pointer", zIndex: 10 }}>
                                                                 <FaTrash />
                                                             </button>
                                                         </div>
@@ -1910,64 +1669,24 @@ const generateAndDownloadPDF = async (data) => {
                                                             <InputField label="Stones Wt" name="Stones_Weight" value={formData.Stones_Weight} onChange={handleChange} />
                                                         </Col>
                                                         <Col xs={12} md="2">
-                                                            <Button variant="primary"
-                                                                onClick={handleShow}
-                                                                style={{
-                                                                    backgroundColor: '#a36e29',
-                                                                    borderColor: '#a36e29',
-                                                                    fontSize: '0.8rem',
-                                                                    marginLeft: '-20px',
-                                                                    whiteSpace: 'nowrap'
-                                                                }}
-                                                            >
+                                                            <Button variant="primary" onClick={handleShow} style={{ backgroundColor: '#a36e29', borderColor: '#a36e29', fontSize: '0.8rem', marginLeft: '-20px', whiteSpace: 'nowrap' }}>
                                                                 Stone Details
                                                             </Button>
                                                         </Col>
                                                         <Col xs={12} md={4}>
-                                                            <InputField
-                                                                label="Deduct St Wt"
-                                                                name="deduct_st_Wt"
-                                                                type="select"
-                                                                value={formData.deduct_st_Wt || ""}
-                                                                onChange={(e) => handleChange("deduct_st_Wt", e.target.value)}
-                                                                options={[
-                                                                    { value: "Yes", label: "Yes" },
-                                                                    { value: "No", label: "No" },
-                                                                ]}
-                                                            />
+                                                            <InputField label="Deduct St Wt" name="deduct_st_Wt" type="select" value={formData.deduct_st_Wt || ""} onChange={(e) => handleChange("deduct_st_Wt", e.target.value)} options={[{ value: "Yes", label: "Yes" }, { value: "No", label: "No" }]} />
                                                         </Col>
                                                         <Col xs={12} md={3}>
-                                                            <InputField
-                                                                label="Stones Price"
-                                                                name="Stones_Price"
-                                                                value={formData.Stones_Price}
-                                                                onChange={handleChange}
-                                                            />
+                                                            <InputField label="Stones Price" name="Stones_Price" value={formData.Stones_Price} onChange={handleChange} />
                                                         </Col>
                                                         <Col xs={12} md={3}>
-                                                            <InputField
-                                                                label="Selling Purity"
-                                                                name="Purity"
-                                                                value={formData.Purity}
-                                                                onChange={handleChange}
-                                                            />
+                                                            <InputField label="Selling Purity" name="Purity" value={formData.Purity} onChange={handleChange} />
                                                         </Col>
                                                         <Col xs={12} md={2}>
                                                             <InputField label="Wt BW" name="Weight_BW" value={formData.Weight_BW} onChange={handleChange} readOnly />
                                                         </Col>
-
                                                         <Col xs={12} md={4}>
-                                                            <InputField
-                                                                label="Wastage On"
-                                                                name="Wastage_On"
-                                                                type="select"
-                                                                value={formData.Wastage_On}
-                                                                onChange={handleChange}
-                                                                options={[
-                                                                    { value: "Gross Weight", label: "Gross Weight" },
-                                                                    { value: "Weight BW", label: "Weight BW" },
-                                                                ]}
-                                                            />
+                                                            <InputField label="Wastage On" name="Wastage_On" type="select" value={formData.Wastage_On} onChange={handleChange} options={[{ value: "Gross Weight", label: "Gross Weight" }, { value: "Weight BW", label: "Weight BW" }]} />
                                                         </Col>
                                                         <Col xs={12} md={3}>
                                                             <InputField label="Wastage %" name="Wastage_Percentage" value={formData.Wastage_Percentage} onChange={handleChange} />
@@ -1978,48 +1697,21 @@ const generateAndDownloadPDF = async (data) => {
                                                         <Col xs={12} md={3}>
                                                             <InputField label="Total Wt" name="TotalWeight_AW" value={formData.TotalWeight_AW} onChange={handleChange} readOnly />
                                                         </Col>
-
                                                         <Col xs={12} md={3}>
                                                             <InputField label="Rate" name="rate" value={formData.rate} onChange={handleChange} />
                                                         </Col>
-
                                                         <Col xs={12} md={4}>
-                                                            <InputField
-                                                                label="MC On"
-                                                                name="Making_Charges_On"
-                                                                type="select"
-                                                                value={formData.Making_Charges_On}
-                                                                onChange={handleChange}
-                                                                options={[
-                                                                    { value: "MC / Gram", label: "MC / Gram" },
-                                                                    { value: "MC / Piece", label: "MC / Piece" },
-                                                                    { value: "MC %", label: "MC %" },
-                                                                ]}
-                                                            />
+                                                            <InputField label="MC On" name="Making_Charges_On" type="select" value={formData.Making_Charges_On} onChange={handleChange} options={[{ value: "MC / Gram", label: "MC / Gram" }, { value: "MC / Piece", label: "MC / Piece" }, { value: "MC %", label: "MC %" }]} />
                                                         </Col>
-
                                                         <Col xs={12} md={2}>
-                                                            <InputField
-                                                                label={formData.MC_Per_Gram_Label}
-                                                                name="MC_Per_Gram"
-                                                                value={formData.MC_Per_Gram}
-                                                                onChange={handleChange}
-                                                            />
+                                                            <InputField label={formData.MC_Per_Gram_Label} name="MC_Per_Gram" value={formData.MC_Per_Gram} onChange={handleChange} />
                                                         </Col>
-
                                                         <Col xs={12} md={3}>
-                                                            <InputField
-                                                                label="MC"
-                                                                name="Making_Charges"
-                                                                value={formData.Making_Charges}
-                                                                onChange={handleChange}
-                                                            />
+                                                            <InputField label="MC" name="Making_Charges" value={formData.Making_Charges} onChange={handleChange} />
                                                         </Col>
-
                                                         <Col xs={12} md={3}>
                                                             <InputField label="Tax%" name="tax" value={formData.tax} onChange={handleChange} />
                                                         </Col>
-
                                                         <Col xs={12} md={3}>
                                                             <InputField label="Total Amt" name="total_price" value={formData.total_price} onChange={handleChange} />
                                                         </Col>
@@ -2037,87 +1729,29 @@ const generateAndDownloadPDF = async (data) => {
                                                             <InputField label="Stones Wt" name="pur_Stones_Weight" value={formData.pur_Stones_Weight} onChange={handleChange} />
                                                         </Col>
                                                         <Col xs={12} md="2">
-                                                            <Button variant="primary"
-                                                                onClick={handleShowPurchase}
-                                                                style={{
-                                                                    backgroundColor: '#a36e29',
-                                                                    borderColor: '#a36e29',
-                                                                    fontSize: '0.8rem',
-                                                                    marginLeft: '-20px',
-                                                                    whiteSpace: 'nowrap'
-                                                                }}
-                                                            >
+                                                            <Button variant="primary" onClick={handleShowPurchase} style={{ backgroundColor: '#a36e29', borderColor: '#a36e29', fontSize: '0.8rem', marginLeft: '-20px', whiteSpace: 'nowrap' }}>
                                                                 Stone Details
                                                             </Button>
                                                         </Col>
                                                         <Col xs={12} md={4}>
-                                                            <InputField
-                                                                label="Deduct St Wt"
-                                                                name="pur_deduct_st_Wt"
-                                                                type="select"
-                                                                value={formData.pur_deduct_st_Wt || ""}
-                                                                onChange={(e) => handleChange("pur_deduct_st_Wt", e.target.value)}
-                                                                options={[
-                                                                    { value: "Yes", label: "Yes" },
-                                                                    { value: "No", label: "No" },
-                                                                ]}
-                                                            />
+                                                            <InputField label="Deduct St Wt" name="pur_deduct_st_Wt" type="select" value={formData.pur_deduct_st_Wt || ""} onChange={(e) => handleChange("pur_deduct_st_Wt", e.target.value)} options={[{ value: "Yes", label: "Yes" }, { value: "No", label: "No" }]} />
                                                         </Col>
                                                         <Col xs={12} md={3}>
-                                                            <InputField
-                                                                label="Stones Price"
-                                                                name="pur_Stones_Price"
-                                                                value={formData.pur_Stones_Price}
-                                                                onChange={handleChange}
-                                                            />
+                                                            <InputField label="Stones Price" name="pur_Stones_Price" value={formData.pur_Stones_Price} onChange={handleChange} />
                                                         </Col>
                                                         <Col xs={12} md={3}>
-                                                            <InputField
-                                                                label="Purity"
-                                                                name="pur_Purity"
-                                                                type="select"
-                                                                value={formData.pur_Purity}
-                                                                onChange={(e) => handleChange("pur_Purity", e.target.value)}
-                                                                options={[
-                                                                    ...(formData.Purity
-                                                                        ? [{ value: selectedCategory?.purity, label: selectedCategory?.purity }]
-                                                                        : []),
-                                                                    ...purityOptions
-                                                                        .filter(option => option.name && option.purity)
-                                                                        .map(option => ({
-                                                                            value: `${option.name} | ${option.purity}`,
-                                                                            label: `${option.name} | ${option.purity}`,
-                                                                        })),
-                                                                    { value: "Manual", label: "Manual" }
-                                                                ]}
-                                                            />
+                                                            <InputField label="Purity" name="pur_Purity" type="select" value={formData.pur_Purity} onChange={(e) => handleChange("pur_Purity", e.target.value)} options={[...(formData.Purity ? [{ value: selectedCategory?.purity, label: selectedCategory?.purity }] : []), ...purityOptions.filter(option => option.name && option.purity).map(option => ({ value: `${option.name} | ${option.purity}`, label: `${option.name} | ${option.purity}` })), { value: "Manual", label: "Manual" }]} />
                                                         </Col>
                                                         {formData.pur_Purity === "Manual" && (
                                                             <Col xs={12} md={4}>
-                                                                <InputField
-                                                                    label="Custom Purity %"
-                                                                    name="pur_purityPercentage"
-                                                                    value={formData.pur_purityPercentage || ""}
-                                                                    onChange={(e) => handleChange("pur_purityPercentage", e.target.value)}
-                                                                />
+                                                                <InputField label="Custom Purity %" name="pur_purityPercentage" value={formData.pur_purityPercentage || ""} onChange={(e) => handleChange("pur_purityPercentage", e.target.value)} />
                                                             </Col>
                                                         )}
                                                         <Col xs={12} md={2}>
                                                             <InputField label="Wt BW" name="pur_Weight_BW" value={formData.pur_Weight_BW} onChange={handleChange} readOnly />
                                                         </Col>
-
                                                         <Col xs={12} md={4}>
-                                                            <InputField
-                                                                label="Wastage On"
-                                                                name="pur_Wastage_On"
-                                                                type="select"
-                                                                value={formData.pur_Wastage_On}
-                                                                onChange={handleChange}
-                                                                options={[
-                                                                    { value: "Gross Weight", label: "Gross Weight" },
-                                                                    { value: "Weight BW", label: "Weight BW" },
-                                                                ]}
-                                                            />
+                                                            <InputField label="Wastage On" name="pur_Wastage_On" type="select" value={formData.pur_Wastage_On} onChange={handleChange} options={[{ value: "Gross Weight", label: "Gross Weight" }, { value: "Weight BW", label: "Weight BW" }]} />
                                                         </Col>
                                                         <Col xs={12} md={3}>
                                                             <InputField label="Wastage %" name="pur_Wastage_Percentage" value={formData.pur_Wastage_Percentage} onChange={handleChange} />
@@ -2128,47 +1762,17 @@ const generateAndDownloadPDF = async (data) => {
                                                         <Col xs={12} md={3}>
                                                             <InputField label="Total Wt" name="pur_TotalWeight_AW" value={formData.pur_TotalWeight_AW} onChange={handleChange} readOnly />
                                                         </Col>
-
                                                         <Col xs={12} md={4}>
-                                                            <InputField
-                                                                label="MC On"
-                                                                name="pur_Making_Charges_On"
-                                                                type="select"
-                                                                value={formData.pur_Making_Charges_On}
-                                                                onChange={handleChange}
-                                                                options={[
-                                                                    { value: "MC / Gram", label: "MC / Gram" },
-                                                                    { value: "MC / Piece", label: "MC / Piece" },
-                                                                    { value: "MC %", label: "MC %" },
-                                                                ]}
-                                                            />
+                                                            <InputField label="MC On" name="pur_Making_Charges_On" type="select" value={formData.pur_Making_Charges_On} onChange={handleChange} options={[{ value: "MC / Gram", label: "MC / Gram" }, { value: "MC / Piece", label: "MC / Piece" }, { value: "MC %", label: "MC %" }]} />
                                                         </Col>
-
                                                         <Col xs={12} md={3}>
-                                                            <InputField
-                                                                label={formData.MC_Per_Gram_Label}
-                                                                name="pur_MC_Per_Gram"
-                                                                value={formData.pur_MC_Per_Gram}
-                                                                onChange={handleChange}
-                                                            />
+                                                            <InputField label={formData.MC_Per_Gram_Label} name="pur_MC_Per_Gram" value={formData.pur_MC_Per_Gram} onChange={handleChange} />
                                                         </Col>
-
                                                         <Col xs={12} md={3}>
-                                                            <InputField
-                                                                label="MC"
-                                                                name="pur_Making_Charges"
-                                                                value={formData.pur_Making_Charges}
-                                                                onChange={handleChange}
-                                                            />
+                                                            <InputField label="MC" name="pur_Making_Charges" value={formData.pur_Making_Charges} onChange={handleChange} />
                                                         </Col>
-
                                                         <Col xs={12} md={3}>
-                                                            <InputField
-                                                                label="Rate"
-                                                                type="number"
-                                                                value={formData.pur_rate_cut}
-                                                                onChange={(e) => handleChange("pur_rate_cut", e.target.value)}
-                                                            />
+                                                            <InputField label="Rate" type="number" value={formData.pur_rate_cut} onChange={(e) => handleChange("pur_rate_cut", e.target.value)} />
                                                         </Col>
                                                     </Row>
                                                 </Col>
@@ -2197,67 +1801,25 @@ const generateAndDownloadPDF = async (data) => {
                                                 <div className="image-upload-container">
                                                     <Dropdown>
                                                         <Dropdown.Toggle id="dropdown-basic-button">Upload Image</Dropdown.Toggle>
-
                                                         <Dropdown.Menu>
-                                                            <Dropdown.Item onClick={() => fileInputRef.current.click()}>
-                                                                Select Image
-                                                            </Dropdown.Item>
-                                                            <Dropdown.Item onClick={() => setIsCameraOpen(true)}>
-                                                                Capture Image
-                                                            </Dropdown.Item>
+                                                            <Dropdown.Item onClick={() => fileInputRef.current.click()}>Select Image</Dropdown.Item>
+                                                            <Dropdown.Item onClick={() => setIsCameraOpen(true)}>Capture Image</Dropdown.Item>
                                                         </Dropdown.Menu>
                                                     </Dropdown>
-
-                                                    <input
-                                                        type="file"
-                                                        accept="image/*"
-                                                        ref={fileInputRef}
-                                                        onChange={handleImageChange}
-                                                        style={{ display: "none" }}
-                                                    />
-
+                                                    <input type="file" accept="image/*" ref={fileInputRef} onChange={handleImageChange} style={{ display: "none" }} />
                                                     {isCameraOpen && (
                                                         <div className="webcam-container mt-2">
-                                                            <Webcam
-                                                                audio={false}
-                                                                ref={webcamRef}
-                                                                screenshotFormat="image/jpeg"
-                                                                className="img-thumbnail"
-                                                            />
+                                                            <Webcam audio={false} ref={webcamRef} screenshotFormat="image/jpeg" className="img-thumbnail" />
                                                             <div className="d-flex gap-2 mt-2">
-                                                                <Button onClick={captureImage} variant="primary">
-                                                                    Capture
-                                                                </Button>
-                                                                <Button onClick={() => setIsCameraOpen(false)} variant="danger">
-                                                                    Cancel
-                                                                </Button>
+                                                                <Button onClick={captureImage} variant="primary">Capture</Button>
+                                                                <Button onClick={() => setIsCameraOpen(false)} variant="danger">Cancel</Button>
                                                             </div>
                                                         </div>
                                                     )}
-
                                                     {image && (
                                                         <div style={{ position: "relative", display: "inline-block", marginTop: "10px" }}>
-                                                            <img src={image} alt="Selected"
-                                                                style={{
-                                                                    width: "100px",
-                                                                    height: "100px",
-                                                                    borderRadius: "8px",
-                                                                }} />
-                                                            <button
-                                                                type="button"
-                                                                onClick={clearImage}
-                                                                style={{
-                                                                    position: "absolute",
-                                                                    top: "5px",
-                                                                    right: "5px",
-                                                                    background: "transparent",
-                                                                    border: "none",
-                                                                    color: "red",
-                                                                    fontSize: "16px",
-                                                                    cursor: "pointer",
-                                                                    zIndex: 10,
-                                                                }}
-                                                            >
+                                                            <img src={image} alt="Selected" style={{ width: "100px", height: "100px", borderRadius: "8px" }} />
+                                                            <button type="button" onClick={clearImage} style={{ position: "absolute", top: "5px", right: "5px", background: "transparent", border: "none", color: "red", fontSize: "16px", cursor: "pointer", zIndex: 10 }}>
                                                                 <FaTrash />
                                                             </button>
                                                         </div>
@@ -2301,20 +1863,7 @@ const generateAndDownloadPDF = async (data) => {
                             </div>
 
                             <div className="container mt-2" style={{ overflowX: "auto", maxWidth: "100%" }}>
-                                <button
-                                    onClick={exportToExcel}
-                                    style={{
-                                        marginBottom: "10px",
-                                        padding: "5px 5px",
-                                        backgroundColor: "green",
-                                        color: "white",
-                                        border: "none",
-                                        borderRadius: "5px",
-                                        cursor: "pointer",
-                                        display: "flex",
-                                        alignItems: "center"
-                                    }}
-                                >
+                                <button onClick={exportToExcel} style={{ marginBottom: "10px", padding: "5px 5px", backgroundColor: "green", color: "white", border: "none", borderRadius: "5px", cursor: "pointer", display: "flex", alignItems: "center" }}>
                                     <FaFileExcel style={{ marginRight: "5px" }} /> Export to Excel
                                 </button>
                                 <Table bordered style={{ whiteSpace: "nowrap", fontSize: "15px" }}>
@@ -2351,60 +1900,22 @@ const generateAndDownloadPDF = async (data) => {
                                                     <td>{item.total_price}</td>
                                                     <td>
                                                         {item.image ? (
-                                                            <img
-                                                                src={item.image}
-                                                                alt="Product"
-                                                                style={{
-                                                                    width: "50px",
-                                                                    height: "50px",
-                                                                    objectFit: "cover",
-                                                                    borderRadius: "5px",
-                                                                    cursor: "pointer",
-                                                                }}
-                                                                onClick={() => {
-                                                                    const newWindow = window.open();
-                                                                    newWindow.document.write(
-                                                                        `<img src="${item.image}" alt="Product" style="width: 100%; height: auto;" />`
-                                                                    );
-                                                                }}
-                                                                onError={(e) => (e.target.src = "/placeholder.png")}
-                                                            />
-                                                        ) : (
-                                                            "No Image"
-                                                        )}
+                                                            <img src={item.image} alt="Product" style={{ width: "50px", height: "50px", objectFit: "cover", borderRadius: "5px", cursor: "pointer" }} onClick={() => { const newWindow = window.open(); newWindow.document.write(`<img src="${item.image}" alt="Product" style="width: 100%; height: auto;" />`); }} onError={(e) => (e.target.src = "/placeholder.png")} />
+                                                        ) : "No Image"}
                                                     </td>
                                                     <td>
-                                                        <a
-                                                            href={`${baseURL}/invoices/${item.PCode_BarCode}.pdf`}
-                                                            target="_blank"
-                                                            rel="noopener noreferrer"
-                                                            style={{ textDecoration: 'none' }}
-                                                        >
-                                                            📝 View
-                                                        </a>
+                                                        <a href={`${baseURL}/invoices/${item.PCode_BarCode}.pdf`} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'none' }}>📝 View</a>
                                                     </td>
                                                     <td>
-                                                        <FaEye
-                                                            style={{ cursor: "pointer", color: "green", marginRight: "10px" }}
-                                                            onClick={() => handleView(item)}
-                                                        />
-                                                        <FaEdit
-                                                            style={{ cursor: "pointer", color: "blue" }}
-                                                            onClick={() => {
-                                                                handleEdit(item);
-                                                                setTimeout(() => handleEdit(item), 1);
-                                                            }}
-                                                        />
-                                                        <FaTrash
-                                                            style={{ cursor: "pointer", marginLeft: "10px", color: "red" }}
-                                                            onClick={() => handleDelete(item.opentag_id)}
-                                                        />
+                                                        <FaEye style={{ cursor: "pointer", color: "green", marginRight: "10px" }} onClick={() => handleView(item)} />
+                                                        <FaEdit style={{ cursor: "pointer", color: "blue" }} onClick={() => { handleEdit(item); setTimeout(() => handleEdit(item), 1); }} />
+                                                        <FaTrash style={{ cursor: "pointer", marginLeft: "10px", color: "red" }} onClick={() => handleDelete(item.opentag_id)} />
                                                     </td>
                                                 </tr>
                                             ))
                                         ) : (
                                             <tr>
-                                                <td colSpan="12" className="text-center">No data available</td>
+                                                <td colSpan="13" className="text-center">No data available</td>
                                             </tr>
                                         )}
                                     </tbody>
@@ -2415,7 +1926,8 @@ const generateAndDownloadPDF = async (data) => {
                 </div>
             </div>
 
-            <Modal show={showModal} onHide={handleCloseModal} >
+            {/* Modal Components remain the same */}
+            <Modal show={showModal} onHide={handleCloseModal}>
                 <Modal.Header closeButton>
                     <Modal.Title>Add New Sub Category</Modal.Title>
                 </Modal.Header>
@@ -2423,86 +1935,48 @@ const generateAndDownloadPDF = async (data) => {
                     <Form>
                         <Form.Group controlId="categoryName">
                             <Form.Label>Category</Form.Label>
-                            <Form.Control
-                                type="text"
-                                name="category"
-                                value={newSubCategory.category || formData.category}
-                                onChange={handleModalChange}
-                                placeholder="Enter category"
-                                readOnly
-                            />
+                            <Form.Control type="text" name="category" value={newSubCategory.category || formData.category} onChange={handleModalChange} placeholder="Enter category" readOnly />
                         </Form.Group>
                         <Form.Group controlId="subCategoryName">
                             <Form.Label>Sub Category Name</Form.Label>
-                            <Form.Control
-                                type="text"
-                                name="name"
-                                value={newSubCategory.name}
-                                onChange={handleModalChange}
-                            />
+                            <Form.Control type="text" name="name" value={newSubCategory.name} onChange={handleModalChange} />
                         </Form.Group>
-
                         <Row>
                             <Col>
                                 <Form.Group controlId="subCategoryPrefix">
                                     <Form.Label>Prefix</Form.Label>
-                                    <Form.Control
-                                        type="text"
-                                        name="prefix"
-                                        value={newSubCategory.prefix}
-                                        onChange={handleModalChange}
-                                    />
+                                    <Form.Control type="text" name="prefix" value={newSubCategory.prefix} onChange={handleModalChange} />
                                 </Form.Group>
                             </Col>
                             <Col>
                                 <Form.Group controlId="subCategoryPrintingPurity">
                                     <Form.Label>Printing Purity</Form.Label>
-                                    <Form.Control
-                                        type="text"
-                                        name="printing_purity"
-                                        value={newSubCategory.printing_purity}
-                                        onChange={handleModalChange}
-                                    />
+                                    <Form.Control type="text" name="printing_purity" value={newSubCategory.printing_purity} onChange={handleModalChange} />
                                 </Form.Group>
                             </Col>
                         </Row>
-
                         <Row>
                             <Col>
                                 <Form.Group controlId="subCategorySellingPurity">
                                     <Form.Label>Selling Purity</Form.Label>
-                                    <Form.Control
-                                        type="number"
-                                        name="selling_purity"
-                                        value={newSubCategory.selling_purity}
-                                        onChange={handleModalChange}
-                                    />
+                                    <Form.Control type="number" name="selling_purity" value={newSubCategory.selling_purity} onChange={handleModalChange} />
                                 </Form.Group>
                             </Col>
                             <Col>
                                 <Form.Group controlId="subCategoryPurity">
                                     <Form.Label>Purchase Purity</Form.Label>
-                                    <Form.Control
-                                        type="text"
-                                        name="purity"
-                                        value={newSubCategory.purity}
-                                        onChange={handleModalChange}
-                                    />
+                                    <Form.Control type="text" name="purity" value={newSubCategory.purity} onChange={handleModalChange} />
                                 </Form.Group>
                             </Col>
                         </Row>
                     </Form>
-
                 </Modal.Body>
                 <Modal.Footer>
-                    <Button variant="secondary" onClick={handleCloseModal}>
-                        Close
-                    </Button>
-                    <Button variant="primary" onClick={handleAddSubCategory}>
-                        Save
-                    </Button>
+                    <Button variant="secondary" onClick={handleCloseModal}>Close</Button>
+                    <Button variant="primary" onClick={handleAddSubCategory}>Save</Button>
                 </Modal.Footer>
             </Modal>
+
             <Modal show={showDesignModal} onHide={handleCloseDesignModal}>
                 <Modal.Header closeButton>
                     <Modal.Title>Add New Product Design Name</Modal.Title>
@@ -2511,46 +1985,21 @@ const generateAndDownloadPDF = async (data) => {
                     <Form>
                         <Form.Group controlId="designCategory">
                             <Form.Label>Category</Form.Label>
-                            <Form.Control
-                                type="text"
-                                name="category"
-                                value={newDesign.category || formData.category}
-                                onChange={handleDesignModalChange}
-                                placeholder="Enter category"
-                                readOnly
-                            />
+                            <Form.Control type="text" name="category" value={newDesign.category || formData.category} onChange={handleDesignModalChange} placeholder="Enter category" readOnly />
                         </Form.Group>
                         <Form.Group controlId="metalType">
                             <Form.Label>Metal Type</Form.Label>
-                            <Form.Control
-                                type="text"
-                                name="metal"
-                                value={newDesign.metal || formData.metal_type}
-                                onChange={handleDesignModalChange}
-                                placeholder="Enter metal type"
-                                readOnly
-                            />
+                            <Form.Control type="text" name="metal" value={newDesign.metal || formData.metal_type} onChange={handleDesignModalChange} placeholder="Enter metal type" readOnly />
                         </Form.Group>
                         <Form.Group controlId="designName">
                             <Form.Label>Product Design Name</Form.Label>
-                            <Form.Control
-                                type="text"
-                                name="design_name"
-                                value={newDesign.design_name}
-                                onChange={handleDesignModalChange}
-                                placeholder="Enter design name"
-                            />
+                            <Form.Control type="text" name="design_name" value={newDesign.design_name} onChange={handleDesignModalChange} placeholder="Enter design name" />
                         </Form.Group>
-
                     </Form>
                 </Modal.Body>
                 <Modal.Footer>
-                    <Button variant="secondary" onClick={handleCloseDesignModal}>
-                        Close
-                    </Button>
-                    <Button variant="primary" onClick={handleAddDesign}>
-                        Save
-                    </Button>
+                    <Button variant="secondary" onClick={handleCloseDesignModal}>Close</Button>
+                    <Button variant="primary" onClick={handleAddDesign}>Save</Button>
                 </Modal.Footer>
             </Modal>
 
@@ -2583,36 +2032,18 @@ const generateAndDownloadPDF = async (data) => {
                 <Modal.Body>
                     {selectedRow ? (
                         <>
-                            <Row >
-                                <Col md={3} style={{ whiteSpace: "nowrap" }}>
-                                    <p><strong>Supplier:</strong> {selectedRow.account_name}</p>
-                                </Col>
-                                <Col md={3} style={{ whiteSpace: "nowrap" }}>
-                                    <p><strong>Category:</strong> {selectedRow.category}</p>
-                                </Col>
-                                <Col md={3} style={{ whiteSpace: "nowrap" }}>
-                                    <p><strong>Sub Category:</strong> {selectedRow.sub_category}</p>
-                                </Col>
-                                <Col md={3} style={{ whiteSpace: "nowrap" }}>
-                                    <p><strong>Design Name:</strong> {selectedRow.design_master}</p>
-                                </Col>
+                            <Row>
+                                <Col md={3}><p><strong>Supplier:</strong> {selectedRow.account_name}</p></Col>
+                                <Col md={3}><p><strong>Category:</strong> {selectedRow.category}</p></Col>
+                                <Col md={3}><p><strong>Sub Category:</strong> {selectedRow.sub_category}</p></Col>
+                                <Col md={3}><p><strong>Design Name:</strong> {selectedRow.design_master}</p></Col>
                             </Row>
-
-                            <Row >
-                                <Col md={3}>
-                                    <p><strong>Pricing:</strong> {selectedRow.Pricing}</p>
-                                </Col>
-                                <Col md={3}>
-                                    <p><strong>Barcode:</strong> {selectedRow.PCode_BarCode}</p>
-                                </Col>
-                                <Col md={3}>
-                                    <p><strong>HUID No:</strong> {selectedRow.HUID_No}</p>
-                                </Col>
-                                <Col md={3}>
-                                    <p><strong>Stock Point:</strong> {selectedRow.Stock_Point}</p>
-                                </Col>
+                            <Row>
+                                <Col md={3}><p><strong>Pricing:</strong> {selectedRow.Pricing}</p></Col>
+                                <Col md={3}><p><strong>Barcode:</strong> {selectedRow.PCode_BarCode}</p></Col>
+                                <Col md={3}><p><strong>HUID No:</strong> {selectedRow.HUID_No}</p></Col>
+                                <Col md={3}><p><strong>Stock Point:</strong> {selectedRow.Stock_Point}</p></Col>
                             </Row>
-
                             <Row>
                                 <Col md={3}>
                                     <p><strong>Gross Weight:</strong> {selectedRow.Gross_Weight}</p>
@@ -2624,7 +2055,6 @@ const generateAndDownloadPDF = async (data) => {
                                     <p><strong>Purity:</strong> {selectedRow.Purity}</p>
                                     <p><strong>Metal Type:</strong> {selectedRow.metal_type}</p>
                                 </Col>
-
                                 <Col md={3}>
                                     <p><strong>Wastage On:</strong> {selectedRow.Wastage_On}</p>
                                     <p><strong>Wastage Weight:</strong> {selectedRow.WastageWeight}</p>
@@ -2635,7 +2065,6 @@ const generateAndDownloadPDF = async (data) => {
                                     <p><strong>Tag ID:</strong> {selectedRow.tag_id}</p>
                                     <p><strong>Tag Weight:</strong> {selectedRow.tag_weight}</p>
                                 </Col>
-
                                 <Col md={3}>
                                     <p><strong>Pur. Gross Weight:</strong> {selectedRow.pur_Gross_Weight}</p>
                                     <p><strong>Pur. Stone Weight:</strong> {selectedRow.pur_Stones_Weight}</p>
@@ -2647,7 +2076,6 @@ const generateAndDownloadPDF = async (data) => {
                                     <p><strong>Pur. Wastage Weight:</strong> {selectedRow.pur_WastageWeight}</p>
                                     <p><strong>Pur. Total Weight:</strong> {selectedRow.pur_TotalWeight_AW}</p>
                                 </Col>
-
                                 <Col md={3}>
                                     <p><strong>Pur. MC / Gram:</strong> {selectedRow.pur_MC_Per_Gram}</p>
                                     <p><strong>Pur. MC Charges:</strong> {selectedRow.pur_Making_Charges}</p>
@@ -2661,15 +2089,10 @@ const generateAndDownloadPDF = async (data) => {
                                 </Col>
                             </Row>
                         </>
-                    ) : (
-                        <p>No data available.</p>
-                    )}
+                    ) : <p>No data available.</p>}
                 </Modal.Body>
-
                 <Modal.Footer>
-                    <Button variant="secondary" onClick={handleCloseViewModal}>
-                        Close
-                    </Button>
+                    <Button variant="secondary" onClick={handleCloseViewModal}>Close</Button>
                 </Modal.Footer>
             </Modal>
         </div>
