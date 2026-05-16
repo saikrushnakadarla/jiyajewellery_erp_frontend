@@ -44,15 +44,13 @@ function Customer_Master() {
   // Image upload state
   const [showWebcam, setShowWebcam] = useState(false);
   const [imagePreviews, setImagePreviews] = useState([]);
-  const [existingImages, setExistingImages] = useState([]); // Store existing image filenames
-  const [newImages, setNewImages] = useState([]); // Store new image files
+  const [existingImages, setExistingImages] = useState([]);
+  const [newImages, setNewImages] = useState([]);
   const webcamRef = useRef(null);
   const fileInputRef = useRef(null);
   const [isSaving, setIsSaving] = useState(false);
 
-
   useEffect(() => {
-    // Fetch existing customers to check for duplicate mobile numbers
     const fetchCustomers = async () => {
       try {
         const response = await fetch(`${baseURL}/get/account-details`);
@@ -68,14 +66,12 @@ function Customer_Master() {
       }
     };
 
-    // Fetch specific customer if editing
     const fetchCustomer = async () => {
       if (id) {
         try {
           const response = await fetch(`${baseURL}/get/account-details/${id}`);
           if (response.ok) {
             const result = await response.json();
-            // Parse dates without timezone adjustment
             const parseDate = (dateString) => {
               if (!dateString) return '';
               const date = new Date(dateString);
@@ -93,15 +89,10 @@ function Customer_Master() {
 
             setFormData(customerData);
 
-            // Handle existing images if editing
             if (result.images) {
-              // Check if images is an array (multiple images) or single image object
               const imagesArray = Array.isArray(result.images) ? result.images : [result.images];
-
-              // Extract URLs and filenames
               const imageUrls = imagesArray.map(img => img.url);
               const imageFilenames = imagesArray.map(img => img.filename);
-
               setImagePreviews(imageUrls);
               setExistingImages(imageFilenames);
             }
@@ -180,10 +171,6 @@ function Customer_Master() {
     }));
   };
 
-  const handleCheckboxChange = () => {
-    setTcsApplicable(!tcsApplicable);
-  };
-
   const validateForm = () => {
     if (!formData.account_name || !formData.account_name.trim()) {
       alert("Customer Name is required.");
@@ -220,7 +207,6 @@ function Customer_Master() {
     return true;
   };
 
-  // Image handling functions
   const handleImageUpload = (e) => {
     const files = Array.from(e.target.files);
     const newPreviews = files.map(file => URL.createObjectURL(file));
@@ -248,171 +234,189 @@ function Customer_Master() {
   };
 
   const removeImage = (index) => {
-    // Check if the image is an existing one or a new one
     if (index < existingImages.length) {
-      // Remove existing image
       const updatedExisting = [...existingImages];
       updatedExisting.splice(index, 1);
       setExistingImages(updatedExisting);
     } else {
-      // Remove new image
       const adjustedIndex = index - existingImages.length;
       const updatedNew = [...newImages];
       updatedNew.splice(adjustedIndex, 1);
       setNewImages(updatedNew);
     }
 
-    // Remove preview
     const updatedPreviews = [...imagePreviews];
     updatedPreviews.splice(index, 1);
     setImagePreviews(updatedPreviews);
   };
 
   // Function to store customer in users database
-const storeInUsersDB = async (customerData) => {
-  try {
-    const usersData = {
-      full_name: customerData.account_name,
-      email_id: customerData.email || "",
-      phone: customerData.mobile || null,
-      date_of_birth: customerData.birthday || null,
-      gender: "",
-      designation: "Customer",
-      date_of_anniversary: customerData.anniversary || null,
-      country: "",
-      state: customerData.state || "",
-      city: customerData.city || "",
-      company_name: customerData.company_name || "",
-      role: "customer",
-      status: "active",
-      pincode: customerData.pincode || ""
-    };
-
-    console.log("Sending to users API:", usersData);
-
-    const response = await fetch(`${baseURL2}/api/users`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(usersData),
-    });
-
-    if (response.ok) {
-      const result = await response.json();
-      console.log("User stored successfully in users DB:", result);
-      return true;
-    } else {
-      const errorData = await response.json();
-      console.error("Failed to store user in users DB:", errorData);
-      return false;
-    }
-  } catch (error) {
-    console.error("Error storing in users DB:", error);
-    return false;
-  }
-};
-
-const handleSubmit = async (e) => {
-  e.preventDefault();
-
-  if (!validateForm()) {
-    return;
-  }
-
-  setIsSaving(true);
-
-  try {
-    // Duplicate check
-    if (!id) {
-      const response = await fetch(`${baseURL}/get/account-details`);
-      if (!response.ok) {
-        throw new Error("Failed to fetch data for duplicate check.");
-      }
-
-      const result = await response.json();
-      const isDuplicateMobile = result.some(
-        (item) => item.mobile === formData.mobile && item.account_id !== id 
-      );
-
-      if (isDuplicateMobile) {
-        alert("This mobile number is already associated with another entry.");
-        setIsSaving(false);
-        return;
-      }
-    }
-
-    // Prepare FormData for main DB (with images)
-    const formDataToSend = new FormData();
-
-    Object.keys(formData).forEach(key => {
-      if (formData[key] !== undefined && formData[key] !== null) {
-        formDataToSend.append(key, formData[key]);
-      }
-    });
-
-    newImages.forEach(image => {
-      formDataToSend.append("images", image);
-    });
-
-    if (existingImages.length > 0) {
-      formDataToSend.append(
-        "imagesToKeep",
-        JSON.stringify(existingImages)
-      );
-    }
-
-    // Main API call (only baseURL)
-    const endpoint = id
-      ? `${baseURL}/edit/account-details/${id}`
-      : `${baseURL}/account-details`;
-
-    const method = id ? "PUT" : "POST";
-
-    const response = await fetch(endpoint, {
-      method: method,
-      body: formDataToSend,
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.message || "Failed to save customer");
-    }
-
-    const result = await response.json();
-    console.log("Customer saved in main DB:", result);
-
-    // Second API call - Store in users database (only for new customers, not for edits)
-    if (!id) {
-      const customerDataForUsers = {
-        account_name: formData.account_name,
-        email: formData.email,
-        mobile: formData.mobile,
-        birthday: formData.birthday,
-        anniversary: formData.anniversary,
-        state: formData.state,
-        city: formData.city,
-        pincode: formData.pincode,
-        company_name: formData.company_name
+  const storeInUsersDB = async (customerData, customerId) => {
+    try {
+      // Generate a random password if not provided
+      const randomPassword = Math.random().toString(36).slice(-8) + "@123";
+      
+      const usersData = {
+        full_name: customerData.account_name,
+        email_id: customerData.email || "",
+        phone: customerData.mobile || null,
+        date_of_birth: customerData.birthday || null,
+        gender: customerData.gender || "",
+        designation: "Customer",
+        date_of_anniversary: customerData.anniversary || null,
+        country: "India",
+        state: customerData.state || "",
+        city: customerData.city || "",
+        district: customerData.district || "",
+        company_name: customerData.company_name || "",
+        role: "customer",
+        status: "pending",
+        pincode: customerData.pincode || "",
+        password: randomPassword,
+        confirm_password: randomPassword,
+        customer_id: customerId,
+        latitude: customerData.latitude || null,
+        longitude: customerData.longitude || null
       };
 
-      await storeInUsersDB(customerDataForUsers);
+      console.log("Sending to users API:", usersData);
+
+      const response = await fetch(`${baseURL2}/api/users`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(usersData),
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        console.log("User stored successfully in users DB:", result);
+        return { success: true, customerId: result.customer_id };
+      } else {
+        const errorData = await response.json();
+        console.error("Failed to store user in users DB:", errorData);
+        return { success: false, error: errorData };
+      }
+    } catch (error) {
+      console.error("Error storing in users DB:", error);
+      return { success: false, error: error.message };
+    }
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+
+    if (!validateForm()) {
+      return;
     }
 
-    alert(`Customer ${id ? "updated" : "created"} successfully!`);
-    
-    // Navigate on success
-    navigate(location.state?.from || "/customerstable", {
-      state: { mobile: formData.mobile },
-    });
+    setIsSaving(true);
 
-  } catch (error) {
-    console.error("Error:", error);
-    alert(error.message || "An error occurred while processing the request.");
-  } finally {
-    setIsSaving(false);
-  }
-};
+    try {
+      // Duplicate check
+      if (!id) {
+        const response = await fetch(`${baseURL}/get/account-details`);
+        if (!response.ok) {
+          throw new Error("Failed to fetch data for duplicate check.");
+        }
+
+        const result = await response.json();
+        const isDuplicateMobile = result.some(
+          (item) => item.mobile === formData.mobile && item.account_id !== id 
+        );
+
+        if (isDuplicateMobile) {
+          alert("This mobile number is already associated with another entry.");
+          setIsSaving(false);
+          return;
+        }
+      }
+
+      // Prepare FormData for main DB (with images)
+      const formDataToSend = new FormData();
+
+      Object.keys(formData).forEach(key => {
+        if (formData[key] !== undefined && formData[key] !== null && formData[key] !== '') {
+          formDataToSend.append(key, formData[key]);
+        }
+      });
+
+      newImages.forEach(image => {
+        formDataToSend.append("images", image);
+      });
+
+      if (existingImages.length > 0) {
+        formDataToSend.append(
+          "imagesToKeep",
+          JSON.stringify(existingImages)
+        );
+      }
+
+      // Main API call (only baseURL)
+      const endpoint = id
+        ? `${baseURL}/edit/account-details/${id}`
+        : `${baseURL}/account-details`;
+
+      const method = id ? "PUT" : "POST";
+
+      const response = await fetch(endpoint, {
+        method: method,
+        body: formDataToSend,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || "Failed to save customer");
+      }
+
+      const result = await response.json();
+      console.log("Customer saved in main DB:", result);
+      
+      // Get the customer_id from response
+      const generatedCustomerId = result.customer_id;
+
+      // Second API call - Store in users database (only for new customers, not for edits)
+      if (!id) {
+        const customerDataForUsers = {
+          account_name: formData.account_name,
+          email: formData.email,
+          mobile: formData.mobile,
+          birthday: formData.birthday,
+          anniversary: formData.anniversary,
+          state: formData.state,
+          city: formData.city,
+          district: formData.city,
+          pincode: formData.pincode,
+          company_name: formData.company_name,
+          gender: "",
+          latitude: null,
+          longitude: null
+        };
+
+        const userStoreResult = await storeInUsersDB(customerDataForUsers, generatedCustomerId);
+        
+        if (userStoreResult.success) {
+          alert(`Customer created successfully! Customer ID: ${generatedCustomerId}\nUser account also created in the system.`);
+        } else {
+          alert(`Customer created successfully with ID: ${generatedCustomerId}, but there was an issue creating the user account. Please check logs.`);
+        }
+      } else {
+        alert(`Customer updated successfully!`);
+      }
+      
+      // Navigate on success
+      navigate(location.state?.from || "/customerstable", {
+        state: { mobile: formData.mobile },
+      });
+
+    } catch (error) {
+      console.error("Error:", error);
+      alert(error.message || "An error occurred while processing the request.");
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   const handleBack = () => {
     const from = location.state?.from || "/customerstable";
@@ -445,7 +449,6 @@ const handleSubmit = async (e) => {
       <div className="customer-master-container">
         <h2>{id ? 'Edit Customer' : 'Add Customer'}</h2>
         <form className="customer-master-form" onSubmit={handleSubmit}>
-          {/* Existing form fields */}
           <Row>
             <Col md={3}>
               <InputField
@@ -630,7 +633,6 @@ const handleSubmit = async (e) => {
               />
             </Col>
 
-            {/* Image Upload Section */}
             <Col md={12}>
               <div className="image-upload-section">
                 <h5>Upload Customer Documents/Photos</h5>
@@ -705,7 +707,6 @@ const handleSubmit = async (e) => {
             </Col>
           </Row>
 
-          {/* Buttons */}
           <div className="sup-button-container">
             <button
               type="button"
@@ -717,7 +718,7 @@ const handleSubmit = async (e) => {
             <button
               type="submit"
               className="cus-submit-btn"
-              disabled={isSaving}  // disable while saving
+              disabled={isSaving}
             >
               {isSaving ? (id ? "Updating..." : "Saving...") : (id ? "Update" : "Save")}
             </button>
