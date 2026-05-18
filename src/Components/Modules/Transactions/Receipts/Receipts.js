@@ -32,6 +32,11 @@ const RepairForm = () => {
     discount_amt: "",
     cash_amt: "",
     remarks: "",
+    total_wt: "",
+    paid_wt: "",
+    bal_wt: "",
+    rate: "",
+    category: "",
     is_advance: false, // Add this flag to track if ADVANCE is selected
   });
   const { id } = useParams();
@@ -50,6 +55,12 @@ const RepairForm = () => {
   const [repeatedData, setRepeatedData] = useState([]);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [accountDetails, setAccountDetails] = useState([]);
+
+  // Add these after your existing useState declarations
+  const [rateCutData, setRateCutData] = useState([]);
+  const [categoryOptions, setCategoryOptions] = useState([]);
+  const [rateCutOptions, setRateCutOptions] = useState([]);
+  const [showRateCutFields, setShowRateCutFields] = useState(false);
 
   useEffect(() => {
     const fetchLastReceiptNumber = async () => {
@@ -70,19 +81,19 @@ const RepairForm = () => {
   }, [repairData]);
 
   // Fetch account details including account_id
-useEffect(() => {
-  const fetchAccountDetails = async () => {
-    try {
-      const response = await axios.get(`${baseURL}/get/account-details`);
-      setAccountDetails(response.data);
-      console.log("Account details fetched:", response.data);
-    } catch (error) {
-      console.error("Error fetching account details:", error);
-    }
-  };
-  
-  fetchAccountDetails();
-}, []);
+  useEffect(() => {
+    const fetchAccountDetails = async () => {
+      try {
+        const response = await axios.get(`${baseURL}/get/account-details`);
+        setAccountDetails(response.data);
+        console.log("Account details fetched:", response.data);
+      } catch (error) {
+        console.error("Error fetching account details:", error);
+      }
+    };
+
+    fetchAccountDetails();
+  }, []);
 
   useEffect(() => {
     const fetchRepairs = async () => {
@@ -167,23 +178,46 @@ useEffect(() => {
     fetchAccountNames();
   }, []);
 
+
+  useEffect(() => {
+    const fetchRateCuts = async () => {
+      try {
+        const response = await axios.get(`${baseURL}/rateCuts`);
+        console.log("RateCuts Data:", response.data);
+        setRateCutData(response.data);
+      } catch (error) {
+        console.error("Error fetching rateCuts:", error);
+      }
+    };
+
+    fetchRateCuts();
+  }, []);
+
   const handleInputChange = (e) => {
     const { name, value } = e.target;
 
     setFormData((prevData) => {
-      const updatedData = {
+      let updatedData = {
         ...prevData,
         [name]: value,
       };
 
-      // Clear `invoice_number` and related fields when `account_name` is cleared
+      // Clear invoice_number and related fields when account_name is cleared
       if (name === "account_name" && value === "") {
         updatedData.invoice_number = "";
         updatedData.total_amt = "";
         updatedData.discount_amt = "";
         updatedData.cash_amt = "";
         updatedData.is_advance = false;
+        updatedData.total_wt = "";
+        updatedData.paid_wt = "";
+        updatedData.bal_wt = "";
+        updatedData.rate = "";
+        updatedData.category = "";
+        setShowRateCutFields(false);
         setInvoiceNumberOptions([]);
+        setCategoryOptions([]);
+        setRateCutOptions([]);
       }
 
       // Sync fields using accountData
@@ -197,7 +231,15 @@ useEffect(() => {
         updatedData.discount_amt = "";
         updatedData.cash_amt = "";
         updatedData.is_advance = false;
+        updatedData.total_wt = "";
+        updatedData.paid_wt = "";
+        updatedData.bal_wt = "";
+        updatedData.rate = "";
+        updatedData.category = "";
         updatedData.transaction_type = "Receipt";
+        setShowRateCutFields(false);
+        setCategoryOptions([]);
+        setRateCutOptions([]);
 
         // Create invoice options including ADVANCE
         if (value !== "") {
@@ -244,7 +286,15 @@ useEffect(() => {
         updatedData.discount_amt = "";
         updatedData.cash_amt = "";
         updatedData.is_advance = false;
+        updatedData.total_wt = "";
+        updatedData.paid_wt = "";
+        updatedData.bal_wt = "";
+        updatedData.rate = "";
+        updatedData.category = "";
         updatedData.transaction_type = "Receipt";
+        setShowRateCutFields(false);
+        setCategoryOptions([]);
+        setRateCutOptions([]);
 
         // Create invoice options including ADVANCE
         if (match?.account_name) {
@@ -287,10 +337,18 @@ useEffect(() => {
           // Handle ADVANCE selection
           updatedData.is_advance = true;
           updatedData.transaction_type = "Advance Receipt";
-          updatedData.total_amt = ""; // Clear total amount for advance
-          updatedData.discount_amt = ""; // Clear discount amount
-          updatedData.cash_amt = ""; // Clear cash amount
+          updatedData.total_amt = "";
+          updatedData.discount_amt = "";
+          updatedData.cash_amt = "";
+          updatedData.total_wt = "";
+          updatedData.paid_wt = "";
+          updatedData.bal_wt = "";
+          updatedData.rate = "";
+          updatedData.category = "";
+          setShowRateCutFields(false);
           setRepeatedData([]);
+          setCategoryOptions([]);
+          setRateCutOptions([]);
         } else if (value === "") {
           // Clear all when empty
           updatedData.is_advance = false;
@@ -298,7 +356,15 @@ useEffect(() => {
           updatedData.total_amt = "";
           updatedData.discount_amt = "";
           updatedData.cash_amt = "";
+          updatedData.total_wt = "";
+          updatedData.paid_wt = "";
+          updatedData.bal_wt = "";
+          updatedData.rate = "";
+          updatedData.category = "";
+          setShowRateCutFields(false);
           setRepeatedData([]);
+          setCategoryOptions([]);
+          setRateCutOptions([]);
         } else {
           // Handle regular invoice selection
           updatedData.is_advance = false;
@@ -322,39 +388,124 @@ useEffect(() => {
 
             updatedData.total_amt = total.toFixed(2);
 
-            // If there is already a value in discount_amt or cash_amt, clear them
-            if (updatedData.discount_amt || updatedData.cash_amt) {
-              updatedData.discount_amt = "";
-              updatedData.cash_amt = "";
-            }
+            // Check if this invoice has rate cut data
+            checkForRateCutData(value, updatedData.account_name, updatedData);
           }
         }
       }
 
-      // Handle changes to `total_amt` or `discount_amt` (only for non-advance)
-      if (
-        !updatedData.is_advance &&
-        (name === "total_amt" || name === "discount_amt")
-      ) {
-        const totalAmt = Number(updatedData.total_amt) || 0;
-        const discountAmt = Number(updatedData.discount_amt) || 0;
+      // Handle paid amount changes with rate cut
+      if (name === "discount_amt" && !updatedData.is_advance && updatedData.rate) {
+        const paidAmt = parseFloat(value) || 0;
+        const rate = parseFloat(updatedData.rate) || 1;
+        const totalAmt = parseFloat(updatedData.total_amt) || 0;
+        const totalWt = parseFloat(updatedData.total_wt) || 0;
 
-        // If `total_amt` is cleared, clear `cash_amt`
-        if (name === "total_amt" && value === "") {
-          updatedData.cash_amt = "";
-        } else if (discountAmt > totalAmt) {
-          alert("Paid amount cannot be greater than total amount.");
+        if (paidAmt > totalAmt) {
+          alert("Paid Amount cannot be greater than Outstanding Amount!");
+          return prevData;
+        }
 
-          // Reset the discount_amt if it's greater than total
-          updatedData.discount_amt = ""; // or you can set it to totalAmt
-          updatedData.cash_amt = "";
+        const paidWt = (paidAmt / rate).toFixed(3);
+        const balAmt = (totalAmt - paidAmt).toFixed(2);
+        const balWt = (totalWt - paidWt).toFixed(3);
+
+        updatedData.paid_wt = paidWt;
+        updatedData.bal_wt = balWt;
+        updatedData.cash_amt = balAmt;
+      }
+
+      // Handle paid weight changes with rate cut
+      if (name === "paid_wt" && !updatedData.is_advance && updatedData.rate) {
+        const paidWt = parseFloat(value) || 0;
+        const rate = parseFloat(updatedData.rate) || 1;
+        const totalAmt = parseFloat(updatedData.total_amt) || 0;
+        const totalWt = parseFloat(updatedData.total_wt) || 0;
+
+        if (paidWt > totalWt) {
+          alert("Paid Weight cannot be greater than Outstanding Weight!");
+          return prevData;
+        }
+
+        const paidAmt = (paidWt * rate).toFixed(2);
+        const balAmt = (totalAmt - paidAmt).toFixed(2);
+        const balWt = (totalWt - paidWt).toFixed(3);
+
+        updatedData.discount_amt = paidAmt;
+        updatedData.cash_amt = balAmt;
+        updatedData.bal_wt = balWt;
+      }
+
+      // Handle rate cut selection
+      if (name === "rate" && value) {
+        const selectedRateCut = rateCutOptions.find(opt => opt.value.toString() === value.toString());
+        if (selectedRateCut && selectedRateCut.total_wt && selectedRateCut.rate) {
+          updatedData.total_wt = selectedRateCut.total_wt;
+          updatedData.bal_wt = selectedRateCut.bal_wt || selectedRateCut.total_wt;
+          updatedData.rate = selectedRateCut.rate;
+        }
+      }
+
+      // Handle category selection
+      if (name === "category" && value) {
+        const selectedRateCut = rateCutData.find(
+          (rc) => rc.category === value &&
+            rc.invoice === updatedData.invoice_number &&
+            rc.account_name === updatedData.account_name
+        );
+
+        if (selectedRateCut) {
+          const matchingRateCuts = rateCutData.filter(
+            (rc) => rc.invoice === updatedData.invoice_number &&
+              rc.category === value
+          );
+
+          const rateCutOpts = matchingRateCuts.map((rc) => ({
+            label: `${rc.rate_cut} (Bal Wt: ${rc.bal_wt || 0})`,
+            value: rc.rate_cut,
+            total_wt: rc.bal_wt || rc.total_wt || 0,
+            bal_wt: rc.bal_wt || rc.total_wt || 0
+          }));
+
+          setRateCutOptions(rateCutOpts);
+
+          if (matchingRateCuts.length > 0) {
+            updatedData.total_wt = matchingRateCuts[0].bal_wt || matchingRateCuts[0].total_wt || 0;
+            updatedData.bal_wt = matchingRateCuts[0].bal_wt || matchingRateCuts[0].total_wt || 0;
+            updatedData.rate = matchingRateCuts[0].rate_cut;
+          }
+
+          setShowRateCutFields(true);
         } else {
-          updatedData.cash_amt = (totalAmt - discountAmt).toFixed(2);
+          setShowRateCutFields(false);
+          setRateCutOptions([]);
         }
       }
 
       return updatedData;
     });
+  };
+
+  // Helper function to check for rate cut data
+  const checkForRateCutData = (invoiceNumber, accountName, updatedData) => {
+    const relatedRateCuts = rateCutData.filter(
+      (rc) => rc.invoice === invoiceNumber && rc.account_name === accountName
+    );
+
+    if (relatedRateCuts.length > 0) {
+      const uniqueCategories = [...new Set(relatedRateCuts.map(rc => rc.category))];
+      setCategoryOptions(uniqueCategories.map(cat => ({ value: cat, label: cat })));
+      setShowRateCutFields(true);
+    } else {
+      setShowRateCutFields(false);
+      setCategoryOptions([]);
+      setRateCutOptions([]);
+      updatedData.total_wt = "";
+      updatedData.paid_wt = "";
+      updatedData.bal_wt = "";
+      updatedData.rate = "";
+      updatedData.category = "";
+    }
   };
 
   useEffect(() => {
@@ -470,10 +621,10 @@ useEffect(() => {
     fetchCompanies();
   }, []);
 
-const handleSubmit = async (e) => {
+ const handleSubmit = async (e) => {
   e.preventDefault();
 
-  // ✅ Validation for Paid Amount / Advance Amount
+  // Validation for Paid Amount / Advance Amount
   if (!formData.discount_amt || Number(formData.discount_amt) <= 0) {
     alert("Please enter the Paid Amount.");
     return;
@@ -494,7 +645,7 @@ const handleSubmit = async (e) => {
       dataToSend.cash_amt = "0.00";
     }
 
-    // Save receipt first (existing functionality - no changes)
+    // Save receipt
     const response = await fetch(endpoint, {
       method,
       headers: { "Content-Type": "application/json" },
@@ -525,22 +676,20 @@ const handleSubmit = async (e) => {
 
     // Create ledger entry only if account_id is found
     if (accountId) {
-      // Prepare ledger entry data
       const ledgerData = {
         transaction_date: new Date(formData.date).toISOString(),
         transaction_type: "RECEIPT",
-        invoice_number: formData.receipt_no, // Use Receipt No.
-        credit: parseFloat(formData.discount_amt) || 0, // Paid Amt
+        invoice_number: formData.receipt_no,
+        credit: parseFloat(formData.discount_amt) || 0,
         debit: 0,
-        net_wt: 0,
-        gross_wt: 0,
+        net_wt: parseFloat(formData.paid_wt) || 0,
+        gross_wt: parseFloat(formData.paid_wt) || 0,
         amount: parseFloat(formData.discount_amt) || 0,
         account_id: accountId
       };
       
       console.log("Sending to ledger:", ledgerData);
       
-      // Call ledger API
       const ledgerResponse = await fetch(`${baseURL}/ledger`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -557,7 +706,6 @@ const handleSubmit = async (e) => {
       }
     } else {
       console.warn("Skipping ledger entry - No account_id found for mobile:", formData.mobile);
-      alert(`Note: Receipt saved but ledger entry not created because account_id not found for mobile: ${formData.mobile || 'No mobile'}`);
     }
 
     alert(`Receipt ${id ? "updated" : "saved"} successfully!`);
@@ -576,7 +724,6 @@ const handleSubmit = async (e) => {
 
     await handleSavePDFToServer(pdfBlob, dataToSend.receipt_no);
 
-    // Navigate back
     navigate(-1);
   } catch (error) {
     console.error("Error in handleSubmit:", error);
@@ -809,6 +956,64 @@ const handleSubmit = async (e) => {
               />
             )}
           </Col>
+
+
+          {formData.is_advance && showRateCutFields && (
+            <>
+              <Col xs={12} md={2}>
+                <InputField
+                  label="Category"
+                  type="select"
+                  name="category"
+                  value={formData.category}
+                  onChange={handleInputChange}
+                  options={categoryOptions}
+                />
+              </Col>
+
+              <Col xs={12} md={2}>
+                <InputField
+                  label="Rate Cut"
+                  type="select"
+                  name="rate"
+                  value={formData.rate}
+                  onChange={handleInputChange}
+                  options={rateCutOptions}
+                />
+              </Col>
+
+              <Col xs={12} md={2}>
+                <InputField
+                  label="Out Standing Wt"
+                  type="number"
+                  name="total_wt"
+                  value={formData.total_wt}
+                  onChange={handleInputChange}
+                  readOnly
+                />
+              </Col>
+
+              <Col xs={12} md={2}>
+                <InputField
+                  label="Paid Wt"
+                  type="number"
+                  name="paid_wt"
+                  value={formData.paid_wt}
+                  onChange={handleInputChange}
+                />
+              </Col>
+
+              <Col xs={12} md={2}>
+                <InputField
+                  label="Bal Wt"
+                  type="number"
+                  name="bal_wt"
+                  value={formData.bal_wt}
+                  readOnly
+                />
+              </Col>
+            </>
+          )}
 
           {formData.is_advance ? (
             // Show only Advance Amount field for advance payments
