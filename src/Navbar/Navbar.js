@@ -275,6 +275,15 @@ function Navbar() {
               >
                 Metal Type
               </Link>
+
+              <Link
+                to="/stockpoints"
+                onClick={handleItemClick}
+                className={isActive("/stockpoints")}
+              >
+                Stock Points
+              </Link>
+
               <Link
                 to="/designmaster"
                 onClick={handleItemClick}
@@ -412,7 +421,7 @@ function Navbar() {
               >
                 URD Purchase
               </Link>
-               <Link
+              <Link
                 to="/ledger"
                 onClick={handleItemClick}
                 className={
@@ -540,59 +549,59 @@ function Navbar() {
           <span>
             {(location.pathname === "/sales" ||
               location.pathname === "/salestable") && (
-              <h1 className="path-heading">SALES</h1>
-            )}
+                <h1 className="path-heading">SALES</h1>
+              )}
             {(location.pathname === "/purchase" ||
               location.pathname === "/purchasetable") && (
-              <h1 className="path-heading">PURCHASE</h1>
-            )}
+                <h1 className="path-heading">PURCHASE</h1>
+              )}
             {(location.pathname === "/subcategory" ||
               location.pathname === "/subcategorytable") && (
-              <h1 className="path-heading">SUB CATEGORY</h1>
-            )}
+                <h1 className="path-heading">SUB CATEGORY</h1>
+              )}
             {(location.pathname === "/festoffers" ||
               location.pathname === "/festofferstable") && (
-              <h1 className="path-heading">FESTIVAL OFFERS</h1>
-            )}
+                <h1 className="path-heading">FESTIVAL OFFERS</h1>
+              )}
             {location.pathname === "/salesreturn" && (
               <h1 className="path-heading">SALES RETURN</h1>
             )}
             {(location.pathname === "/estimates" ||
               location.pathname === "/estimatetable") && (
-              <h1 className="path-heading">ESTIMATE</h1>
-            )}
+                <h1 className="path-heading">ESTIMATE</h1>
+              )}
             {(location.pathname === "/payments" ||
               location.pathname === "/paymentstable") && (
-              <h1 className="path-heading">PAYMENTS</h1>
-            )}
+                <h1 className="path-heading">PAYMENTS</h1>
+              )}
             {(location.pathname === "/receipts" ||
               location.pathname === "/receiptstable") && (
-              <h1 className="path-heading">RECEIPTS</h1>
-            )}
+                <h1 className="path-heading">RECEIPTS</h1>
+              )}
             {(location.pathname === "/repairs" ||
               location.pathname === "/repairstable") && (
-              <h1 className="path-heading">REPAIRS</h1>
-            )}
+                <h1 className="path-heading">REPAIRS</h1>
+              )}
             {(location.pathname === "/urd_purchase" ||
               location.pathname === "/urdpurchasetable") && (
-              <h1 className="path-heading">URD PURCHASE</h1>
-            )}
+                <h1 className="path-heading">URD PURCHASE</h1>
+              )}
             {(location.pathname === "/orders" ||
               location.pathname === "/orderstable") && (
-              <h1 className="path-heading">ORDERS</h1>
-            )}
+                <h1 className="path-heading">ORDERS</h1>
+              )}
             {(location.pathname === "/customermaster" ||
               location.pathname === "/customerstable") && (
-              <h1 className="path-heading">CUSTOMERS</h1>
-            )}
+                <h1 className="path-heading">CUSTOMERS</h1>
+              )}
             {(location.pathname === "/suppliermaster" ||
               location.pathname === "/suppliertable") && (
-              <h1 className="path-heading">SUPPLIERS</h1>
-            )}
+                <h1 className="path-heading">SUPPLIERS</h1>
+              )}
             {(location.pathname === "/itemmaster" ||
               location.pathname === "/itemmastertable") && (
-              <h1 className="path-heading">CATEGORY</h1>
-            )}
+                <h1 className="path-heading">CATEGORY</h1>
+              )}
             {location.pathname === "/purity" && (
               <h1 className="path-heading">PURITY</h1>
             )}
@@ -604,12 +613,12 @@ function Navbar() {
             )}
             {(location.pathname === "/accounts" ||
               location.pathname === "/accountstable") && (
-              <h1 className="path-heading">ACCOUNTS</h1>
-            )}
+                <h1 className="path-heading">ACCOUNTS</h1>
+              )}
             {(location.pathname === "/workermaster" ||
               location.pathname === "/workerstable") && (
-              <h1 className="path-heading">WORKERS</h1>
-            )}
+                <h1 className="path-heading">WORKERS</h1>
+              )}
             {location.pathname === "/rates" && (
               <h1 className="path-heading">RATES</h1>
             )}
@@ -621,8 +630,8 @@ function Navbar() {
             )}
             {(location.pathname === "/usertable" ||
               location.pathname === "/usermaster") && (
-              <h1 className="path-heading">USER</h1>
-            )}
+                <h1 className="path-heading">USER</h1>
+              )}
           </span>
         </div>
       </nav>
