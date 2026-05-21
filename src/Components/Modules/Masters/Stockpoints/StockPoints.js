@@ -1,9 +1,12 @@
 import React, { useState, useEffect, useRef } from "react";
 import InputField from "../../../Pages/InputField/InputField";
 import DataTable from "../../../Pages/InputField/TableLayout";
-import { FaEdit, FaTrash } from "react-icons/fa";
+import { FaEdit, FaTrash, FaPlus } from "react-icons/fa";
 import axios from "axios";
 import baseURL from "../../../../Url/NodeBaseURL";
+import Modal from "react-bootstrap/Modal";
+import Button from "react-bootstrap/Button";
+import "./StockPoints.css"
 
 function StockPoints() {
   const [formData, setFormData] = useState({
@@ -20,7 +23,17 @@ function StockPoints() {
   const [editMode, setEditMode] = useState(false);
   const [editId, setEditId] = useState(null);
   const [errors, setErrors] = useState({});
- 
+  
+  // Modal states
+  const [showWarehouseModal, setShowWarehouseModal] = useState(false);
+  const [warehouseFormData, setWarehouseFormData] = useState({
+    warehouse_name: "",
+    location: "",
+    status: "active"
+  });
+  const [warehouseErrors, setWarehouseErrors] = useState({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   useEffect(() => {
     fetchStockPoints();
     fetchWarehouses();
@@ -28,7 +41,7 @@ function StockPoints() {
 
   const fetchStockPoints = async () => {
     try {
-      const response = await axios.get(`${baseURL}/stockpoints`);
+      const response = await axios.get(`${baseURL}/api/stockpoints`);
       setSubmittedData(response.data);
     } catch (error) {
       console.error("Error fetching stock points:", error);
@@ -177,6 +190,93 @@ function StockPoints() {
     setErrors({});
   };
 
+  // Warehouse Modal Handlers
+  const handleOpenWarehouseModal = () => {
+    setShowWarehouseModal(true);
+    setWarehouseFormData({
+      warehouse_name: "",
+      location: "",
+      status: "active"
+    });
+    setWarehouseErrors({});
+  };
+
+  const handleCloseWarehouseModal = () => {
+    setShowWarehouseModal(false);
+    setWarehouseFormData({
+      warehouse_name: "",
+      location: "",
+      status: "active"
+    });
+    setWarehouseErrors({});
+    setIsSubmitting(false);
+  };
+
+  const handleWarehouseChange = (e) => {
+    const { name, value } = e.target;
+    setWarehouseFormData({
+      ...warehouseFormData,
+      [name]: value
+    });
+    
+    // Clear error for this field when user starts typing
+    if (warehouseErrors[name]) {
+      setWarehouseErrors({
+        ...warehouseErrors,
+        [name]: ""
+      });
+    }
+  };
+
+  const validateWarehouseForm = () => {
+    const newErrors = {};
+    
+    if (!warehouseFormData.warehouse_name.trim()) {
+      newErrors.warehouse_name = "Warehouse name is required";
+    }
+    
+    if (!warehouseFormData.location.trim()) {
+      newErrors.location = "Location is required";
+    }
+    
+    setWarehouseErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleAddWarehouse = async (e) => {
+    e.preventDefault();
+    
+    if (!validateWarehouseForm()) {
+      return;
+    }
+    
+    setIsSubmitting(true);
+    
+    try {
+      const response = await axios.post(`${baseURL}/api/warehouse`, warehouseFormData);
+      console.log("Warehouse added:", response.data);
+      
+      // Refresh warehouse list
+      await fetchWarehouses();
+      
+      // Auto-select the newly added warehouse
+      if (response.data.warehouse_id) {
+        setFormData({
+          ...formData,
+          warehouse_id: response.data.warehouse_id
+        });
+      }
+      
+      alert("Warehouse added successfully!");
+      handleCloseWarehouseModal();
+    } catch (error) {
+      console.error("Error adding warehouse:", error);
+      alert(error.response?.data?.message || "Error adding warehouse");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const getWarehouseName = (warehouseId) => {
     const warehouse = warehouses.find(w => w.warehouse_id === warehouseId);
     return warehouse ? warehouse.warehouse_name : "N/A";
@@ -271,22 +371,37 @@ function StockPoints() {
               placeholder="Enter location"
             />
             
-            <InputField
-              label="Warehouse *"
-              name="warehouse_id"
-              type="select"
-              value={formData.warehouse_id}
-              onChange={handleChange}
-              required={true}
-              error={errors.warehouse_id}
-              options={[
-                { value: '', label: 'Select Warehouse' },
-                ...warehouses.map(warehouse => ({
-                  value: warehouse.warehouse_id,
-                  label: warehouse.warehouse_name
-                }))
-              ]}
-            />
+            <div style={{ position: 'relative', flex: 1 }}>
+              <InputField
+                label="Warehouse *"
+                name="warehouse_id"
+                type="select"
+                value={formData.warehouse_id}
+                onChange={handleChange}
+                required={true}
+                error={errors.warehouse_id}
+                options={[
+                  { value: '', label: 'Select Warehouse' },
+                  ...warehouses.map(warehouse => ({
+                    value: warehouse.warehouse_id,
+                    label: warehouse.warehouse_name
+                  }))
+                ]}
+              />
+              <FaPlus
+                style={{
+                  position: 'absolute',
+                  right: '-25px',
+                  top: '10px',
+                  cursor: 'pointer',
+                  color: '#a36e29',
+                  fontSize: '18px',
+                  zIndex: 10
+                }}
+                onClick={handleOpenWarehouseModal}
+                title="Add New Warehouse"
+              />
+            </div>
           </div>
           
           <div className="form-row">
@@ -327,6 +442,72 @@ function StockPoints() {
           <DataTable columns={columns} data={[...submittedData].reverse()} />
         </div>
       </div>
+
+      {/* Warehouse Add Modal */}
+      <Modal show={showWarehouseModal} onHide={handleCloseWarehouseModal} size="lg" centered>
+        <Modal.Header closeButton>
+          <Modal.Title style={{ color: '#a36e29' }}>Add New Warehouse</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <form onSubmit={handleAddWarehouse}>
+            <div className="form-row" style={{ display: 'flex', gap: '20px', marginBottom: '20px' }}>
+              <div style={{ flex: 1 }}>
+                <InputField
+                  label="Warehouse Name *"
+                  name="warehouse_name"
+                  value={warehouseFormData.warehouse_name}
+                  onChange={handleWarehouseChange}
+                  required={true}
+                  error={warehouseErrors.warehouse_name}
+                  autoFocus
+                  placeholder="Enter warehouse name"
+                />
+              </div>
+              
+              <div style={{ flex: 1 }}>
+                <InputField
+                  label="Location *"
+                  name="location"
+                  value={warehouseFormData.location}
+                  onChange={handleWarehouseChange}
+                  required={true}
+                  error={warehouseErrors.location}
+                  placeholder="Enter location"
+                />
+              </div>
+            </div>
+            
+            <div className="form-row" style={{ display: 'flex', gap: '20px', marginBottom: '20px' }}>
+              <div style={{ flex: 1 }}>
+                <InputField
+                  label="Status"
+                  name="status"
+                  type="select"
+                  value={warehouseFormData.status}
+                  onChange={handleWarehouseChange}
+                  options={[
+                    { value: 'active', label: 'Active' },
+                    { value: 'inactive', label: 'Inactive' }
+                  ]}
+                />
+              </div>
+            </div>
+          </form>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={handleCloseWarehouseModal} disabled={isSubmitting}>
+            Cancel
+          </Button>
+          <Button 
+            variant="primary" 
+            onClick={handleAddWarehouse}
+            disabled={isSubmitting}
+            style={{ backgroundColor: '#a36e29', borderColor: '#a36e29' }}
+          >
+            {isSubmitting ? 'Adding...' : 'Add Warehouse'}
+          </Button>
+        </Modal.Footer>
+      </Modal>
     </div>
   );
 }

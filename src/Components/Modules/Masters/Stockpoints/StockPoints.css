@@ -1,0 +1,22 @@
+/* For the warehouse select field container */
+.warehouse-select-container {
+  position: relative;
+  flex: 1;
+}
+
+.warehouse-plus-icon {
+  position: absolute;
+  right: 10px;
+  top: 38px;
+  cursor: pointer;
+  color: #a36e29;
+  font-size: 18px;
+  z-index: 10;
+  background: white;
+  padding: 0 5px;
+}
+
+.warehouse-plus-icon:hover {
+  color: #7a5220;
+  transform: scale(1.1);
+}
