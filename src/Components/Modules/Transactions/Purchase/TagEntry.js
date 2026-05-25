@@ -939,7 +939,7 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
             doc.setFontSize(4.2);
             doc.text("O/N:", qrX + moveRight, qrY + qrSize + 2);
             doc.setFontSize(6.0);
-            doc.text("NEW FRIENDS JEWELLERS", qrX - 2, qrY + qrSize + 4.5);
+            doc.text("JIYA JEWELLERY", qrX - 2, qrY + qrSize + 4.5);
 
             return doc.output("blob");
         } catch (error) {

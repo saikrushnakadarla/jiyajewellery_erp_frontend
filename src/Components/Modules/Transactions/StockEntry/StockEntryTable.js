@@ -384,7 +384,7 @@ const StockEntryTable = (selectedProduct) => {
       // 🔼 Shop name – move left
       doc.setFontSize(6.0);
       doc.text(
-        "NEW FRIENDS JEWELLERS",
+        "JIYA JEWELLERY",
         qrX - 2, // ⬅️ move left (adjust 2–6 if needed)
         qrY + qrSize + 4.5,
       );
