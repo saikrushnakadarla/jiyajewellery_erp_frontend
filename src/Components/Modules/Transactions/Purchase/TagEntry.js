@@ -34,6 +34,7 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
     const [purityOptions, setPurityOptions] = useState([]);
     const [showWebcam, setShowWebcam] = useState(false);
     const [image, setImage] = useState(null);
+    const [stockPointOptions, setStockPointOptions] = useState([]);
     const [formData, setFormData] = useState({
         tag_id: selectedProduct.tag_id,
         product_id: selectedProduct.product_id,
@@ -273,6 +274,32 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
             }));
         }
     }, [selectedProduct]);
+
+
+    useEffect(() => {
+        const fetchStockPoints = async () => {
+            try {
+                const response = await axios.get(`${baseURL}/api/stockpoints`);
+                if (response.data && Array.isArray(response.data)) {
+                    const options = response.data.map(point => ({
+                        value: point.stock_point_name,
+                        label: point.stock_point_name
+                    }));
+                    setStockPointOptions(options);
+                }
+            } catch (error) {
+                console.error("Error fetching stock points:", error);
+                // Fallback to default options if API fails
+                setStockPointOptions([
+                    { value: "Display Floor1", label: "Display Floor1" },
+                    { value: "Display Floor2", label: "Display Floor2" },
+                    { value: "Strong room", label: "Strong room" }
+                ]);
+            }
+        };
+
+        fetchStockPoints();
+    }, []);
 
     useEffect(() => {
         const calculateTotalWeight = () => {
@@ -989,7 +1016,7 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
 
             let apiURL = `${baseURL}/post/opening-tags-entry`;
             let apiURL2 = `${baseURL2}/post/product`;
-            
+
             let method = "POST";
             let method2 = "POST";
             let isUpdating = false;
@@ -1063,19 +1090,19 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
 
             if (response2.status === 200 || response2.status === 201) {
                 console.log("Product saved successfully to Jewellery App:", response2.data);
-                
+
                 const productId = response2.data.product_id;
-                
+
                 // Generate QR Code and save to BOTH servers
                 if (isGeneratePDFRef.current && !isUpdating && formData.PCode_BarCode) {
                     const pdfBlob = await generateQRCodePDF(updatedData);
-                    
+
                     if (pdfBlob) {
                         // Save to ERP server
                         await handleSavePDFToServer(pdfBlob, formData.PCode_BarCode, baseURL);
                         // Save to Jewellery Application server
                         await handleSavePDFToServer(pdfBlob, formData.PCode_BarCode, baseURL2);
-                        
+
                         // Update QR status in Jewellery Application
                         try {
                             await axios.put(`${baseURL2}/update-product-qr/${productId}`, {
@@ -1090,7 +1117,7 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
             }
 
             alert(isUpdating ? "Stock updated successfully in both applications!" : "Stock added successfully in both applications!");
-            
+
             if (fetchBalance) {
                 fetchData();
                 fetchBalance();
@@ -1407,7 +1434,7 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
             setLoading(false);
         }
     };
-    
+
     useEffect(() => {
         fetchTagData();
     }, [selectedProduct]);
@@ -1597,11 +1624,18 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
                                                 <InputField label="HUID No" name="HUID_No" value={formData.HUID_No} onChange={handleChange} />
                                             </Col>
                                             <Col xs={12} md={2}>
-                                                <InputField label="Stock Point" name="Stock_Point" type="select" value={formData.Stock_Point} onChange={handleChange} options={[
-                                                    { value: "Display Floor1", label: "Display Floor1" },
-                                                    { value: "Display Floor2", label: "Display Floor2" },
-                                                    { value: "Strong room", label: "Strong room" },
-                                                ]} />
+                                                <InputField
+                                                    label="Stock Point"
+                                                    name="Stock_Point"
+                                                    type="select"
+                                                    value={formData.Stock_Point}
+                                                    onChange={handleChange}
+                                                    options={stockPointOptions.length > 0 ? stockPointOptions : [
+                                                        { value: "Display Floor1", label: "Display Floor1" },
+                                                        { value: "Display Floor2", label: "Display Floor2" },
+                                                        { value: "Strong room", label: "Strong room" }
+                                                    ]}
+                                                />
                                             </Col>
                                         </>
                                     ) : (
@@ -1621,11 +1655,18 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
                                                 <InputField label="HUID No" name="HUID_No" value={formData.HUID_No} onChange={handleChange} />
                                             </Col>
                                             <Col xs={12} md={2}>
-                                                <InputField label="Stock Point" name="Stock_Point" type="select" value={formData.Stock_Point} onChange={handleChange} options={[
-                                                    { value: "Display Floor1", label: "Display Floor1" },
-                                                    { value: "Display Floor2", label: "Display Floor2" },
-                                                    { value: "Strong room", label: "Strong room" },
-                                                ]} />
+                                                <InputField
+                                                    label="Stock Point"
+                                                    name="Stock_Point"
+                                                    type="select"
+                                                    value={formData.Stock_Point}
+                                                    onChange={handleChange}
+                                                    options={stockPointOptions.length > 0 ? stockPointOptions : [
+                                                        { value: "Display Floor1", label: "Display Floor1" },
+                                                        { value: "Display Floor2", label: "Display Floor2" },
+                                                        { value: "Strong room", label: "Strong room" }
+                                                    ]}
+                                                />
                                             </Col>
 
                                             <Col xs={12} md={2}>
