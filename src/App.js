@@ -77,6 +77,8 @@ import StockReport from "./Components/Modules/Reports/StockReport/StockReport";
 import Ledger from "./Components/Modules/Transactions/Ledger/Ledger";
 import SalesRateCut from "./Components/Modules/Transactions/Receipts/SalesRateCut";
 import StockPoints from "./Components/Modules/Masters/Stockpoints/StockPoints";
+import StockTransferTable from "./Components/Modules/Transactions/StockTransfer/StockTransferTable";
+import StockTransferForm from "./Components/Modules/Transactions/StockTransfer/StockTransferForm"
 
 function App() {
   const location = useLocation();
@@ -177,6 +179,16 @@ function App() {
            <Route path="/salesratecut" element={<SalesRateCut />} />
 
               <Route path="/stockpoints" element={<StockPoints />} /> 
+             
+              <Route path="/stock-transfer" element={<StockTransferTable />} />
+              <Route path="/add-stocktransfer" element={<StockTransferForm />} />
+
+
+
+
+
+
+
         </Routes>
       </AuthProvider>
     </>

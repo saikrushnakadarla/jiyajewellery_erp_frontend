@@ -11,14 +11,14 @@ import useProductHandlers from "./hooks/useProductHandlers";
 import useCalculations from "./hooks/useCalculations";
 import "./../Sales/SalesForm.css";
 import baseURL from "./../../../../Url/NodeBaseURL";
-import SalesFormSection from "./SalesForm3Section";
+// import SalesFormSection from "./SalesForm3Section";
 import { pdf } from "@react-pdf/renderer";
 import { PDFDownloadLink } from "@react-pdf/renderer";
 import PDFLayout from "./TaxInvoiceA4";
 import { useLocation } from "react-router-dom";
 import { saveAs } from "file-saver";
 
-const SalesForm = () => {
+const StockTransferForm = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [showPDFDownload, setShowPDFDownload] = useState(false);
@@ -1351,33 +1351,38 @@ const SalesForm = () => {
     return savedData ? JSON.parse(savedData) : [];
   });
 
-  const resetForm = () => {
-    setFormData({
-      customer_id: "",
-      mobile: "",
-      account_name: "",
-      email: "",
-      address1: "",
-      address2: "",
-      city: "",
-      pincode: "",
-      state: "",
-      state_code: "",
-      aadhar_card: "",
-      gst_in: "",
-      pan_card: "",
-      date: "",
-      invoice_number: "",
-    });
-    setPaymentDetails({
-      cash_amount: 0,
-      card_amt: 0,
-      chq: "",
-      chq_amt: 0,
-      online: "",
-      online_amt: 0,
-    });
-  };
+ const resetForm = () => {
+  setFormData({
+    customer_id: "",
+    mobile: "",
+    account_name: "",
+    email: "",
+    address1: "",
+    address2: "",
+    city: "",
+    pincode: "",
+    state: "",
+    state_code: "",
+    aadhar_card: "",
+    gst_in: "",
+    pan_card: "",
+    date: new Date().toISOString().split("T")[0],
+    invoice_number: "",
+    active_stock_point_id: "",
+    other_stock_point_id: "",
+    active_stock_point_details: null,
+    other_stock_point_details: null
+  });
+  setPaymentDetails({
+    cash_amount: 0,
+    card_amt: 0,
+    chq: "",
+    chq_amt: 0,
+    online: "",
+    online_amt: 0,
+  });
+  setRepairDetails([]);
+};
 
   const resetSaleReturnForm = () => {
     setReturnData({
@@ -1386,8 +1391,8 @@ const SalesForm = () => {
   };
 
   const handleBack = () => {
-    navigate("/salestable");
-  };
+  navigate("/stock-transfers"); // Change from "/salestable" to "/stock-transfers"
+};
 
   // const handleAddCustomer = () => {
   //   navigate("/customermaster", { state: { from: `/sales?tabId=${tabId}` } });
@@ -1922,31 +1927,38 @@ const netPayAmount = netPayableAmount;
     }
   }, []);
 
-  const clearData = () => {
-    setOldSalesData([]);
-    setSchemeSalesData([]);
-    setRepairDetails([]);
-    setPaymentDetails({
-      cash_amount: 0,
-      card_amt: 0,
-      chq: "",
-      chq_amt: 0,
-      online: "",
-      online_amt: 0,
-    });
-    setOldTableData([]); // Clear the oldTableData state
-    setSchemeTableData([]);
-    setDiscount(0);
-    localStorage.removeItem("oldSalesData");
-    localStorage.removeItem("schemeSalesData");
-    localStorage.removeItem(`repairDetails_${tabId}`);
-    localStorage.removeItem(`paymentDetails_${tabId}`);
-    localStorage.removeItem(`oldTableData_${tabId}`);
-    localStorage.removeItem(`schemeTableData_${tabId}`);
-    localStorage.removeItem(`discount_${tabId}`);
-    localStorage.removeItem(`saleFormData_${tabId}`);
-    console.log("Data cleared successfully");
-  };
+ const clearData = () => {
+  setOldSalesData([]);
+  setSchemeSalesData([]);
+  setRepairDetails([]);
+  setPaymentDetails({
+    cash_amount: 0,
+    card_amt: 0,
+    chq: "",
+    chq_amt: 0,
+    online: "",
+    online_amt: 0,
+  });
+  setOldTableData([]);
+  setSchemeTableData([]);
+  setDiscount(0);
+  setFormData(prev => ({
+    ...prev,
+    active_stock_point_id: "",
+    other_stock_point_id: "",
+    active_stock_point_details: null,
+    other_stock_point_details: null
+  }));
+  localStorage.removeItem("oldSalesData");
+  localStorage.removeItem("schemeSalesData");
+  localStorage.removeItem(`repairDetails_${tabId}`);
+  localStorage.removeItem(`paymentDetails_${tabId}`);
+  localStorage.removeItem(`oldTableData_${tabId}`);
+  localStorage.removeItem(`schemeTableData_${tabId}`);
+  localStorage.removeItem(`discount_${tabId}`);
+  localStorage.removeItem(`saleFormData_${tabId}`);
+  console.log("Data cleared successfully");
+};
 
   const [product, setProduct] = useState([]); // State to store table data
   const [company, setCompany] = useState(null);
@@ -2168,272 +2180,91 @@ const postLedgerData = async (invoiceData, netAmount, accountId) => {
 };
 
 const handleSave = async () => {
-  if (!formData.account_name || !formData.mobile) {
-    alert("Please select the Customer or enter the Customer Mobile Number");
-    return;
-  }
-
   try {
-    // Fetch tags
-    const tagResponse = await fetch(`${baseURL}/get/opening-tags-entry`);
-    const tagResult = await tagResponse.json();
-    const tagData = tagResult.result || [];
+    // Get selected stock point details from CustomerDetails
+    const activeStockPointDetails = formData.active_stock_point_details;
+    const otherStockPointDetails = formData.other_stock_point_details;
 
-    console.log("Tag Data from API:", tagData);
-
-    // Handle invoice number
-    const allItemsAreNew = repairDetails.every((item) => item.id === "");
-    let updatedFormData = { ...formData };
-
-    if (allItemsAreNew) {
-      const response = await axios.get(`${baseURL}/lastInvoiceNumber`);
-      const latestInvoiceNumber = response.data.lastInvoiceNumber;
-
-      updatedFormData = {
-        ...formData,
-        invoice_number: latestInvoiceNumber,
-      };
-
-      setFormData(updatedFormData);
+    if (!activeStockPointDetails) {
+      alert("Please select an Active Stock Point");
+      return;
     }
 
-    // Calculate totals
-    let totalNetWt = 0;
-    let totalGrossWt = 0;
+    if (!otherStockPointDetails) {
+      alert("Please select an Other Stock Point");
+      return;
+    }
 
-    repairDetails.forEach((item) => {
-      const weightBw = parseFloat(item.weight_bw) || 0;
-      totalNetWt += weightBw;
+    if (!repairDetails || repairDetails.length === 0) {
+      alert("Please add items to transfer");
+      return;
+    }
+
+    // Prepare transfer data from repairDetails
+    const transferData = repairDetails.map(item => ({
+      product_id: item.product_id || null,
+      product_name: item.product_name || null,
+      metal_type: item.metal_type || null,
+      purity: item.purity || item.selling_purity || null,
+      category: item.category || null,
+      sub_category: item.sub_category || item.product_name || null,
+      design_name: item.design_name || null,
+      qty: parseFloat(item.qty) || 1,
+      gross_weight: parseFloat(item.gross_weight) || 0,
+      stone_weight: parseFloat(item.stone_weight) || 0,
+      net_weight: parseFloat(item.total_weight_av) || parseFloat(item.weight_bw) || 0,
+      rate: parseFloat(item.rate) || 0,
+      making_charges: parseFloat(item.making_charges) || 0,
+      stone_price: parseFloat(item.stone_price) || 0,
+      total_price: parseFloat(item.total_price) || 0,
+      remarks: item.remarks || null
+    }));
+
+    // Prepare payload for stock transfer
+    const payload = {
+      transfer_data: transferData,
+      from_warehouse_id: activeStockPointDetails.warehouse_id,
+      to_warehouse_id: otherStockPointDetails.warehouse_id,
+      from_stock_point_id: parseInt(formData.active_stock_point_id),
+      to_stock_point_id: parseInt(formData.other_stock_point_id),
+      transfer_date: formData.date || new Date().toISOString().split('T')[0],
+      reference_number: formData.invoice_number || null,
+      remarks: `Transfer from ${activeStockPointDetails.stock_point_name} to ${otherStockPointDetails.stock_point_name}`,
+      created_by: formData.account_name || "system"
+    };
+
+    console.log("Sending Stock Transfer Payload:", payload);
+
+    // Send to stock transfer API
+    const response = await axios.post(`${baseURL}/api/stock-transfer/save-stock-transfer`, payload);
+
+    if (response.status === 200 || response.status === 201) {
+      alert("Stock Transfer completed successfully!");
       
-      const grossWt = parseFloat(item.gross_weight) || 0;
-      totalGrossWt += grossWt;
-    });
-
-    // FORCE ROUND function - ensures proper decimal places
-    const toFixedNumber = (value, decimals = 2) => {
-      if (value === null || value === undefined || value === '') return 0;
-      let num = typeof value === 'string' ? parseFloat(value) : value;
-      if (isNaN(num)) return 0;
-      return Number(num.toFixed(decimals));
-    };
-
-    // Round netPayableAmount FIRST
-    const roundedNetPayable = toFixedNumber(netPayableAmount, 2);
-    
-    // Round all payment amounts
-    const roundedCash = toFixedNumber(paymentDetails.cash_amount, 2);
-    const roundedCard = toFixedNumber(paymentDetails.card_amt, 2);
-    const roundedChq = toFixedNumber(paymentDetails.chq_amt, 2);
-    const roundedOnline = toFixedNumber(paymentDetails.online_amt, 2);
-    
-    // Calculate total payments with rounded values
-    const totalPayments = toFixedNumber(roundedCash + roundedCard + roundedChq + roundedOnline, 2);
-    
-    // Calculate totalBalAmt
-    const totalBalAmt = toFixedNumber(roundedNetPayable - totalPayments, 2);
-
-    console.log("========== PAYMENT CALCULATIONS ==========");
-    console.log("Original netPayableAmount:", netPayableAmount);
-    console.log("Rounded netPayableAmount:", roundedNetPayable);
-    console.log("Cash:", roundedCash, "Card:", roundedCard, "Chq:", roundedChq, "Online:", roundedOnline);
-    console.log("Total Payments:", totalPayments);
-    console.log("Total Balance Amount:", totalBalAmt);
-    console.log("==========================================");
-
-    // Round weights
-    const roundedTotalNetWt = toFixedNumber(totalNetWt, 3);
-    const roundedTotalGrossWt = toFixedNumber(totalGrossWt, 3);
-
-    // Prepare payload with rounded values
-    const dataToSave = {
-      repairDetails: repairDetails.map((item) => ({
-        ...item,
-        invoice_number: updatedFormData.invoice_number,
-        customer_id: updatedFormData.customer_id,
-        mobile: updatedFormData.mobile,
-        account_name: updatedFormData.account_name,
-        email: updatedFormData.email,
-        address1: updatedFormData.address1,
-        address2: updatedFormData.address2,
-        city: updatedFormData.city,
-        pincode: updatedFormData.pincode,
-        state: updatedFormData.state,
-        state_code: updatedFormData.state_code,
-        aadhar_card: updatedFormData.aadhar_card,
-        gst_in: updatedFormData.gst_in,
-        pan_card: updatedFormData.pan_card,
-        terms: updatedFormData.terms,
-        cash_amount: roundedCash,
-        card_amt: roundedCard,
-        chq_amt: roundedChq,
-        online_amt: roundedOnline,
-      })),
-      totalAmount: toFixedNumber(totalAmount, 2),
-      discountAmt: toFixedNumber(discountAmt, 2),
-      festivalDiscountAmt: toFixedNumber(festivalDiscountAmt, 2),
-      taxableAmount: toFixedNumber(taxableAmount, 2),
-      taxAmount: toFixedNumber(taxAmount, 2),
-      netAmount: toFixedNumber(netAmount, 2),
-      oldItems: oldSalesData,
-      memberSchemes: schemeSalesData,
-      oldItemsAmount: toFixedNumber(oldItemsAmount, 2),
-      schemeAmount: toFixedNumber(schemeAmount, 2),
-      salesNetAmount: toFixedNumber(salesAmountToPass, 2),
-      salesTaxableAmount: toFixedNumber(salesTaxableAmount, 2),
-      selectedAdvanceReceiptAmount: toFixedNumber(selectedAdvanceReceiptAmount, 2),
-      total_net_wt: roundedTotalNetWt,
-      total_gross_wt: roundedTotalGrossWt,
-      total_bal_amt: totalBalAmt,
-    };
-
-    // Save repair details first
-    const saveResponse = await axios.post(
-      `${baseURL}/save-repair-details`,
-      dataToSave,
-    );
-
-    // After saving repair details, update the advance receipts with the invoice number
-    if (
-      selectedAdvanceReceiptAmount > 0 &&
-      selectedReceiptIds &&
-      selectedReceiptIds.length > 0
-    ) {
-      try {
-        await axios.post(`${baseURL}/update-advance-receipts`, {
-          receiptIds: selectedReceiptIds,
-          invoiceNumber: updatedFormData.invoice_number,
-          mobile: formData.mobile,
-          account_name: formData.account_name,
-          invoiceAmount: toFixedNumber(netAmount, 2),
-        });
-        console.log("Advance receipts updated successfully");
-      } catch (updateError) {
-        console.error("Error updating advance receipts:", updateError);
-        alert(
-          "Warning: Advance receipts could not be updated, but invoice was saved.",
-        );
-      }
+      // Clear all data after successful transfer
+      clearData();
+      
+      // Reset form data
+      setFormData({
+        ...formData,
+        active_stock_point_id: "",
+        other_stock_point_id: "",
+        active_stock_point_details: null,
+        other_stock_point_details: null
+      });
+      
+      setRepairDetails([]);
+      
+      // Navigate back or to stock transfer list
+      navigate("/stock-transfers");
     }
-
-    // Post to ledger API with properly rounded values
-    if (updatedFormData.customer_id) {
-      try {
-        // Ensure all values are properly rounded
-        const finalDebit = Number(totalBalAmt.toFixed(2));
-        const finalAmount = Number(roundedNetPayable.toFixed(2));
-        const finalNetWt = Number(roundedTotalNetWt.toFixed(3));
-        const finalGrossWt = Number(roundedTotalGrossWt.toFixed(3));
-
-        console.log("========== SENDING TO LEDGER ==========");
-        console.log("Debit value being sent:", finalDebit);
-        console.log("Amount value being sent:", finalAmount);
-        console.log("Net Wt value being sent:", finalNetWt);
-        console.log("Gross Wt value being sent:", finalGrossWt);
-        console.log("======================================");
-
-        const ledgerData = {
-          transaction_date: new Date().toISOString().split('T')[0],
-          transaction_type: "SALE",
-          invoice_number: updatedFormData.invoice_number,
-          credit: 0,
-          debit: finalDebit,
-          balance: finalDebit,
-          net_wt: finalNetWt,
-          gross_wt: finalGrossWt,
-          amount: finalAmount,
-          account_id: Number(updatedFormData.customer_id)
-        };
-
-        console.log("Ledger Data being sent:", JSON.stringify(ledgerData, null, 2));
-
-        const ledgerResponse = await axios.post(`${baseURL}/ledger`, ledgerData);
-        
-        if (ledgerResponse.status === 201 || ledgerResponse.status === 200) {
-          console.log("Ledger entry created successfully:", ledgerResponse.data);
-          console.log(`Previous Balance: ${ledgerResponse.data.previous_balance}`);
-          console.log(`Current Balance: ${ledgerResponse.data.current_balance}`);
-        }
-      } catch (ledgerError) {
-        console.error("Error posting to ledger:", ledgerError);
-        if (ledgerError.response) {
-          console.error("Error response data:", ledgerError.response.data);
-          console.error("Error response status:", ledgerError.response.status);
-        }
-        alert("Warning: Invoice saved but ledger entry failed. Please check logs.");
-      }
-    }
-
-    alert("Sales added successfully");
-
-    // Generate PDF
-    const pdfDoc = (
-      <PDFLayout
-        formData={updatedFormData}
-        repairDetails={repairDetails}
-        cash_amount={roundedCash}
-        card_amt={roundedCard}
-        chq_amt={roundedChq}
-        online_amt={roundedOnline}
-        taxableAmount={toFixedNumber(taxableAmount, 2)}
-        taxAmount={toFixedNumber(taxAmount, 2)}
-        discountAmt={toFixedNumber(discountAmt, 2)}
-        festivalDiscountAmt={toFixedNumber(festivalDiscountAmt, 2)}
-        oldItemsAmount={toFixedNumber(oldItemsAmount, 2)}
-        schemeAmount={toFixedNumber(schemeAmount, 2)}
-        salesNetAmount={toFixedNumber(salesAmountToPass, 2)}
-        salesTaxableAmount={toFixedNumber(salesTaxableAmount, 2)}
-        selectedAdvanceReceiptAmount={toFixedNumber(selectedAdvanceReceiptAmount, 2)}
-        netAmount={toFixedNumber(netAmount, 2)}
-        netPayableAmount={roundedNetPayable}
-        company={company}
-        product={product}
-      />
-    );
-
-    const pdfBlob = await pdf(pdfDoc).toBlob();
-
-    // Save PDF to server
-    await handleSavePDFToServer(pdfBlob, updatedFormData.invoice_number);
-
-    // Open preview in new tab
-    const previewURL = `${baseURL}/invoices/${updatedFormData.invoice_number}.pdf`;
-    window.open(previewURL, "_blank");
-
-    // Attempt to share
-    const pdfFile = new File(
-      [pdfBlob],
-      `${updatedFormData.invoice_number}.pdf`,
-      {
-        type: "application/pdf",
-      },
-    );
-
-    if (navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
-      try {
-        await navigator.share({
-          title: `Invoice ${updatedFormData.invoice_number}`,
-          text: "Here is your invoice PDF.",
-          files: [pdfFile],
-        });
-        console.log("PDF shared successfully");
-      } catch (err) {
-        console.warn("Sharing was cancelled or failed:", err);
-      }
-    } else {
-      console.warn("Sharing not supported on this device/browser.");
-    }
-
-    // Cleanup
-    clearData();
-    resetForm();
-    navigate("/salestable");
-    window.location.reload();
-    await handleCheckout();
   } catch (error) {
-    console.error("Error saving data:", error);
-    alert("Error saving data: " + (error.response?.data?.message || error.message));
+    console.error("Error saving stock transfer:", error);
+    alert("Error saving stock transfer: " + (error.response?.data?.message || error.message));
   }
 };
+
+
   const handleSavePDFToServer = async (pdfBlob, invoiceNumber) => {
     const formData = new FormData();
     formData.append("invoice", pdfBlob, `${invoiceNumber}.pdf`);
@@ -2581,7 +2412,7 @@ const handleSave = async () => {
 
   return (
     <div className="main-container">
-      <Container className="sales-form-container" style={{marginTop:"80px"}}>
+      <Container className="sales-form-container" style={{marginTop: "70px"}}>
         <Form>
           {/* <h3 style={{ marginTop: '-45px', marginBottom: '10px', textAlign: 'left', color: '#a36e29' }}>
             Sales
@@ -2670,7 +2501,7 @@ const handleSave = async () => {
             />
           </div>
           <div className="sales-form">
-            <div className="sales-form-third">
+            {/* <div className="sales-form-third">
               <SalesFormSection
                 metal={metal}
                 setMetal={setMetal}
@@ -2721,7 +2552,7 @@ const handleSave = async () => {
                 selectedAdvanceReceiptAmount={selectedAdvanceReceiptAmount}
                 onReceiptIdsChange={setSelectedReceiptIds}
               />
-            </div>
+            </div> */}
             <div className="sales-form-fourth">
               <PaymentDetails
                 paymentDetails={paymentDetails}
@@ -2796,4 +2627,4 @@ const handleSave = async () => {
   );
 };
 
-export default SalesForm;
+export default StockTransferForm;

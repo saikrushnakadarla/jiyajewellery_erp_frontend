@@ -377,6 +377,13 @@ function Navbar() {
               >
                 Stock
               </Link>
+                <Link
+                to="/stock-transfer"
+                onClick={handleItemClick}
+                className={isActive("/stocktransfer")}
+              >
+                Stock Transfer
+              </Link>
               <Link
                 to="/paymentstable"
                 onClick={handleItemClick}

@@ -141,6 +141,12 @@ function StockPoints() {
   };
 
   const handleEdit = (row) => {
+    // Prevent editing if it's the default stock point
+    if (row.default_status === 'applied') {
+      alert("Cannot edit the default stock point!");
+      return;
+    }
+    
     setEditMode(true);
     setEditId(row.stock_point_id);
     setFormData({ 
@@ -158,7 +164,13 @@ function StockPoints() {
     }, 100);
   };
 
-  const handleDelete = async (id) => {
+  const handleDelete = async (id, default_status) => {
+    // Prevent deletion if it's the default stock point
+    if (default_status === 'applied') {
+      alert("Cannot delete the default stock point!");
+      return;
+    }
+    
     const isConfirmed = window.confirm(`Are you sure you want to delete the stock point with ID ${id}?`);
     
     if (!isConfirmed) {
@@ -176,31 +188,16 @@ function StockPoints() {
     }
   };
 
-  // New function to handle apply/unapply
-  const handleApplyDefault = async (id, currentStatus) => {
-    setApplyingId(id);
-    
-    try {
-      // If current status is 'applied', we don't need to do anything
-      if (currentStatus === 'applied') {
-        alert("This stock point is already set as default!");
-        return;
-      }
-      
-      // Call API to update default stock point
-      const response = await axios.put(`${baseURL}/api/stockpoints/${id}/default`);
-      
-      if (response.status === 200) {
-        // Refresh the table data to reflect changes
-        await fetchStockPoints();
-        alert("Default stock point updated successfully!");
-      }
-    } catch (error) {
-      console.error("Error updating default stock point:", error);
-      alert(error.response?.data?.message || "Error updating default stock point");
-    } finally {
-      setApplyingId(null);
+  // Updated function - no longer changes status, just shows info
+  const handleApplyDefault = async (id, currentStatus, stockPointName) => {
+    // Simply show info that MAIN STOCK ROOM is default and cannot be changed
+    if (stockPointName === "MAIN STOCK ROOM") {
+      alert("MAIN STOCK ROOM is the default stock point and cannot be changed!");
+      return;
     }
+    
+    alert(`Cannot change default status. Only MAIN STOCK ROOM is the default stock point.`);
+    return;
   };
 
   const resetForm = () => {
@@ -348,54 +345,88 @@ function StockPoints() {
         Header: "Default Column",
         Cell: ({ row }) => {
           const isApplied = row.original.default_status === 'applied';
+          const isMainStockRoom = row.original.stock_point_name === "MAIN STOCK ROOM";
+          
+          // Disable button for MAIN STOCK ROOM
+          const isButtonDisabled = isApplied || isMainStockRoom || applyingId === row.original.stock_point_id;
+          
+          let buttonText = 'Apply';
+          let buttonColor = '#ffc107';
+          
+          if (isMainStockRoom) {
+            buttonText = 'Default';
+            buttonColor = '#28a745';
+          } else if (isApplied) {
+            buttonText = 'Applied';
+            buttonColor = '#6c757d';
+          }
+          
           return (
             <button
-              onClick={() => handleApplyDefault(row.original.stock_point_id, row.original.default_status)}
-              disabled={applyingId === row.original.stock_point_id || isApplied}
+              onClick={() => handleApplyDefault(
+                row.original.stock_point_id, 
+                row.original.default_status,
+                row.original.stock_point_name
+              )}
+              disabled={isButtonDisabled}
               style={{
                 padding: '5px 15px',
-                backgroundColor: isApplied ? '#28a745' : '#ffc107',
+                backgroundColor: buttonColor,
                 color: 'white',
                 border: 'none',
                 borderRadius: '4px',
-                cursor: applyingId === row.original.stock_point_id || isApplied ? 'not-allowed' : 'pointer',
-                opacity: applyingId === row.original.stock_point_id || isApplied ? 0.6 : 1,
+                cursor: isButtonDisabled ? 'not-allowed' : 'pointer',
+                opacity: isButtonDisabled ? 0.6 : 1,
                 transition: 'all 0.3s ease'
-              }}
-              onMouseEnter={(e) => {
-                if (!isApplied && applyingId !== row.original.stock_point_id) {
-                  e.target.style.backgroundColor = '#e0a800';
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (!isApplied && applyingId !== row.original.stock_point_id) {
-                  e.target.style.backgroundColor = '#ffc107';
-                }
               }}
             >
               {applyingId === row.original.stock_point_id 
                 ? 'Applying...' 
-                : isApplied 
-                  ? 'Unapply' 
-                  : 'Apply'}
+                : buttonText}
             </button>
           );
         },
       },
       {
         Header: "Action",
-        Cell: ({ row }) => (
-          <div>
-            <FaEdit
-              style={{ cursor: 'pointer', marginLeft: '10px', color: 'blue' }}
-              onClick={() => handleEdit(row.original)}
-            />
-            <FaTrash
-              style={{ cursor: 'pointer', marginLeft: '10px', color: 'red' }}
-              onClick={() => handleDelete(row.original.stock_point_id)}
-            />
-          </div>
-        ),
+        Cell: ({ row }) => {
+          const isDefaultStockPoint = row.original.default_status === 'applied' || row.original.stock_point_name === "MAIN STOCK ROOM";
+          
+          return (
+            <div>
+              <FaEdit
+                style={{ 
+                  cursor: isDefaultStockPoint ? 'not-allowed' : 'pointer', 
+                  marginLeft: '10px', 
+                  color: isDefaultStockPoint ? '#ccc' : 'blue',
+                  opacity: isDefaultStockPoint ? 0.5 : 1
+                }}
+                onClick={() => {
+                  if (!isDefaultStockPoint) {
+                    handleEdit(row.original);
+                  } else {
+                    alert("Cannot edit the default stock point!");
+                  }
+                }}
+              />
+              <FaTrash
+                style={{ 
+                  cursor: isDefaultStockPoint ? 'not-allowed' : 'pointer', 
+                  marginLeft: '10px', 
+                  color: isDefaultStockPoint ? '#ccc' : 'red',
+                  opacity: isDefaultStockPoint ? 0.5 : 1
+                }}
+                onClick={() => {
+                  if (!isDefaultStockPoint) {
+                    handleDelete(row.original.stock_point_id, row.original.default_status);
+                  } else {
+                    alert("Cannot delete the default stock point!");
+                  }
+                }}
+              />
+            </div>
+          );
+        },
       },
     ],
     [submittedData, warehouses, applyingId]
