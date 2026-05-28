@@ -35,6 +35,7 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
     const [showWebcam, setShowWebcam] = useState(false);
     const [image, setImage] = useState(null);
     const [stockPointOptions, setStockPointOptions] = useState([]);
+    const [defaultStockPoint, setDefaultStockPoint] = useState("");
     const [formData, setFormData] = useState({
         tag_id: selectedProduct.tag_id,
         product_id: selectedProduct.product_id,
@@ -286,6 +287,19 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
                         label: point.stock_point_name
                     }));
                     setStockPointOptions(options);
+
+                    // Find the stock point with default_status = 'applied'
+                    const defaultPoint = response.data.find(point => point.default_status === 'applied');
+                    if (defaultPoint) {
+                        const defaultPointName = defaultPoint.stock_point_name;
+                        setDefaultStockPoint(defaultPointName);
+
+                        // Set the form data with the default stock point
+                        setFormData(prevData => ({
+                            ...prevData,
+                            Stock_Point: defaultPointName
+                        }));
+                    }
                 }
             } catch (error) {
                 console.error("Error fetching stock points:", error);
@@ -300,6 +314,7 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
 
         fetchStockPoints();
     }, []);
+
 
     useEffect(() => {
         const calculateTotalWeight = () => {

@@ -14,7 +14,8 @@ function StockPoints() {
     "location": "",
     "warehouse_id": "",
     "description": "",
-    "status": "active"
+    "status": "active",
+    "default_status": "not_applied"
   });
   
   const [warehouses, setWarehouses] = useState([]);
@@ -23,6 +24,7 @@ function StockPoints() {
   const [editMode, setEditMode] = useState(false);
   const [editId, setEditId] = useState(null);
   const [errors, setErrors] = useState({});
+  const [applyingId, setApplyingId] = useState(null);
   
   // Modal states
   const [showWarehouseModal, setShowWarehouseModal] = useState(false);
@@ -108,15 +110,11 @@ function StockPoints() {
     if (editMode) {
       // Edit functionality
       try {
-        const response = await axios.put(`${baseURL}/stockpoints/${editId}`, formData);
+        const response = await axios.put(`${baseURL}/api/stockpoints/${editId}`, formData);
         console.log("Data updated:", response.data);
         
         // Update the table with the edited data
-        setSubmittedData(
-          submittedData.map((item) =>
-            item.stock_point_id === editId ? { ...formData, stock_point_id: editId } : item
-          )
-        );
+        await fetchStockPoints();
         
         resetForm();
         alert("Stock point updated successfully!");
@@ -131,7 +129,7 @@ function StockPoints() {
         console.log("Data submitted:", response.data);
         
         // Update the table with the new data
-        setSubmittedData([...submittedData, { ...formData, stock_point_id: response.data.id }]);
+        await fetchStockPoints();
         
         resetForm();
         alert("Stock point created successfully!");
@@ -150,7 +148,8 @@ function StockPoints() {
       location: row.location,
       warehouse_id: row.warehouse_id,
       description: row.description || "",
-      status: row.status || "active"
+      status: row.status || "active",
+      default_status: row.default_status || "not_applied"
     });
     setErrors({});
     
@@ -167,13 +166,40 @@ function StockPoints() {
     }
     
     try {
-      await axios.delete(`${baseURL}/stockpoints/${id}`);
-      setSubmittedData(submittedData.filter((item) => item.stock_point_id !== id));
+      await axios.delete(`${baseURL}/api/stockpoints/${id}`);
+      await fetchStockPoints();
       console.log(`Stock point with ID ${id} deleted successfully.`);
       alert("Stock point deleted successfully!");
     } catch (error) {
       console.error("Error deleting record:", error);
       alert(error.response?.data?.message || "Error deleting stock point");
+    }
+  };
+
+  // New function to handle apply/unapply
+  const handleApplyDefault = async (id, currentStatus) => {
+    setApplyingId(id);
+    
+    try {
+      // If current status is 'applied', we don't need to do anything
+      if (currentStatus === 'applied') {
+        alert("This stock point is already set as default!");
+        return;
+      }
+      
+      // Call API to update default stock point
+      const response = await axios.put(`${baseURL}/api/stockpoints/${id}/default`);
+      
+      if (response.status === 200) {
+        // Refresh the table data to reflect changes
+        await fetchStockPoints();
+        alert("Default stock point updated successfully!");
+      }
+    } catch (error) {
+      console.error("Error updating default stock point:", error);
+      alert(error.response?.data?.message || "Error updating default stock point");
+    } finally {
+      setApplyingId(null);
     }
   };
 
@@ -183,7 +209,8 @@ function StockPoints() {
       location: "",
       warehouse_id: "",
       description: "",
-      status: "active"
+      status: "active",
+      default_status: "not_applied"
     });
     setEditMode(false);
     setEditId(null);
@@ -318,6 +345,44 @@ function StockPoints() {
         ),
       },
       {
+        Header: "Default Column",
+        Cell: ({ row }) => {
+          const isApplied = row.original.default_status === 'applied';
+          return (
+            <button
+              onClick={() => handleApplyDefault(row.original.stock_point_id, row.original.default_status)}
+              disabled={applyingId === row.original.stock_point_id || isApplied}
+              style={{
+                padding: '5px 15px',
+                backgroundColor: isApplied ? '#28a745' : '#ffc107',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: applyingId === row.original.stock_point_id || isApplied ? 'not-allowed' : 'pointer',
+                opacity: applyingId === row.original.stock_point_id || isApplied ? 0.6 : 1,
+                transition: 'all 0.3s ease'
+              }}
+              onMouseEnter={(e) => {
+                if (!isApplied && applyingId !== row.original.stock_point_id) {
+                  e.target.style.backgroundColor = '#e0a800';
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!isApplied && applyingId !== row.original.stock_point_id) {
+                  e.target.style.backgroundColor = '#ffc107';
+                }
+              }}
+            >
+              {applyingId === row.original.stock_point_id 
+                ? 'Applying...' 
+                : isApplied 
+                  ? 'Unapply' 
+                  : 'Apply'}
+            </button>
+          );
+        },
+      },
+      {
         Header: "Action",
         Cell: ({ row }) => (
           <div>
@@ -333,7 +398,7 @@ function StockPoints() {
         ),
       },
     ],
-    [submittedData, warehouses]
+    [submittedData, warehouses, applyingId]
   );
 
   return (
