@@ -191,7 +191,7 @@ const CustomerDetails = ({
         </Col>
 
         {/* Add Receipt Button */}
-        <Col xs={12} md={2}>
+        {/* <Col xs={12} md={2}>
           <Button
             style={{
               backgroundColor: '#28a745',
@@ -205,7 +205,7 @@ const CustomerDetails = ({
           >
             Add Receipt
           </Button>
-        </Col>
+        </Col> */}
       </Row>
     </Col>
   );
