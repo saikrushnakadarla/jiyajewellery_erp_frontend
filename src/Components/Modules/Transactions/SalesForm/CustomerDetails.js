@@ -384,10 +384,10 @@ const CustomerDetails = ({
             }}
             onClick={handleAddReceipt}
           >
-            Add Receipt
+           + Add Receipt
           </Button>
         </Col>
-        <Col xs={12} md={1}>
+        {/* <Col xs={12} md={1}>
           <Button
             onClick={handleNewTab}
             style={{
@@ -397,12 +397,12 @@ const CustomerDetails = ({
               padding: '0.35rem 0.35rem', fontSize: "13px",
               padding: "5px",
               marginTop: "2px",
-              marginLeft: "-100px"
+              marginLeft: "1px"
             }}
           >
             + New
           </Button>
-        </Col>
+        </Col> */}
 
 
       </Row>

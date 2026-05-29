@@ -69,20 +69,36 @@ const ProductDetails = ({
     : "";
 
   // Generate options list for barcode selection
-  const barcodeOptions = [
-    ...products
-      .filter((product) => (formData.category ? product.product_name === formData.category : true))
-      .map((product) => ({
-        value: product.rbarcode,
-        label: product.rbarcode,
-      })),
-    ...data
-      .filter((tag) => (formData.category ? tag.category === formData.category : true))
-      .map((tag) => ({
-        value: tag.PCode_BarCode,
-        label: tag.PCode_BarCode,
-      })),
-  ];
+  // Generate options list for barcode selection
+const barcodeOptions = [
+  // Product barcodes from products table
+  ...products
+    .filter((product) => (formData.category ? product.product_name === formData.category : true))
+    .map((product) => ({
+      value: product.rbarcode,
+      label: product.rbarcode,
+      type: 'product'
+    })),
+  
+  // Tag barcodes from opening_tags_entry - ONLY show Available and in MAIN STOCK ROOM
+  ...data
+    .filter((tag) => {
+      // Filter by category if selected
+      if (formData.category && tag.category !== formData.category) return false;
+      // Only show Available products
+      if (tag.Status !== 'Available') return false;
+      // Only show products in MAIN STOCK ROOM
+      if (tag.Stock_Point !== 'MAIN STOCK ROOM') return false;
+      return true;
+    })
+    .map((tag) => ({
+      value: tag.PCode_BarCode,
+      label: tag.PCode_BarCode,
+      type: 'tag',
+      tagData: tag  // Store full tag data for reference
+    })),
+];
+
 
   // Ensure default barcode is included in options
   if (defaultBarcode && !barcodeOptions.some((option) => option.value === defaultBarcode)) {

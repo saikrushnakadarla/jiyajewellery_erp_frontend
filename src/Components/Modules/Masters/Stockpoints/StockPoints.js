@@ -14,6 +14,8 @@ function StockPoints() {
     "location": "",
     "warehouse_id": "",
     "description": "",
+    "user_name": "",
+    "password": "",
     "status": "active",
     "default_status": "not_applied"
   });
@@ -96,6 +98,16 @@ function StockPoints() {
       newErrors.warehouse_id = "Please select a warehouse";
     }
     
+    // Validate user_name if provided
+    if (formData.user_name && formData.user_name.trim().length < 3) {
+      newErrors.user_name = "User name must be at least 3 characters";
+    }
+    
+    // Validate password if provided
+    if (formData.password && formData.password.trim().length < 4) {
+      newErrors.password = "Password must be at least 4 characters";
+    }
+    
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -107,15 +119,20 @@ function StockPoints() {
       return;
     }
     
+    // Prepare data for submission
+    const submitData = {
+      ...formData,
+      // Only include password if it's not empty (don't send empty password on edit if unchanged)
+      password: formData.password || null
+    };
+    
     if (editMode) {
       // Edit functionality
       try {
-        const response = await axios.put(`${baseURL}/api/stockpoints/${editId}`, formData);
+        const response = await axios.put(`${baseURL}/api/stockpoints/${editId}`, submitData);
         console.log("Data updated:", response.data);
         
-        // Update the table with the edited data
         await fetchStockPoints();
-        
         resetForm();
         alert("Stock point updated successfully!");
       } catch (error) {
@@ -125,12 +142,10 @@ function StockPoints() {
     } else {
       // Add functionality
       try {
-        const response = await axios.post(`${baseURL}/api/stockpoints`, formData);
+        const response = await axios.post(`${baseURL}/api/stockpoints`, submitData);
         console.log("Data submitted:", response.data);
         
-        // Update the table with the new data
         await fetchStockPoints();
-        
         resetForm();
         alert("Stock point created successfully!");
       } catch (error) {
@@ -141,7 +156,6 @@ function StockPoints() {
   };
 
   const handleEdit = (row) => {
-    // Prevent editing if it's the default stock point
     if (row.default_status === 'applied') {
       alert("Cannot edit the default stock point!");
       return;
@@ -154,6 +168,8 @@ function StockPoints() {
       location: row.location,
       warehouse_id: row.warehouse_id,
       description: row.description || "",
+      user_name: row.user_name || "",
+      password: "",  // Don't show password, user will enter new one if needed
       status: row.status || "active",
       default_status: row.default_status || "not_applied"
     });
@@ -165,7 +181,6 @@ function StockPoints() {
   };
 
   const handleDelete = async (id, default_status) => {
-    // Prevent deletion if it's the default stock point
     if (default_status === 'applied') {
       alert("Cannot delete the default stock point!");
       return;
@@ -188,9 +203,7 @@ function StockPoints() {
     }
   };
 
-  // Updated function - no longer changes status, just shows info
   const handleApplyDefault = async (id, currentStatus, stockPointName) => {
-    // Simply show info that MAIN STOCK ROOM is default and cannot be changed
     if (stockPointName === "MAIN STOCK ROOM") {
       alert("MAIN STOCK ROOM is the default stock point and cannot be changed!");
       return;
@@ -206,6 +219,8 @@ function StockPoints() {
       location: "",
       warehouse_id: "",
       description: "",
+      user_name: "",
+      password: "",
       status: "active",
       default_status: "not_applied"
     });
@@ -243,7 +258,6 @@ function StockPoints() {
       [name]: value
     });
     
-    // Clear error for this field when user starts typing
     if (warehouseErrors[name]) {
       setWarehouseErrors({
         ...warehouseErrors,
@@ -280,10 +294,8 @@ function StockPoints() {
       const response = await axios.post(`${baseURL}/api/warehouse`, warehouseFormData);
       console.log("Warehouse added:", response.data);
       
-      // Refresh warehouse list
       await fetchWarehouses();
       
-      // Auto-select the newly added warehouse
       if (response.data.warehouse_id) {
         setFormData({
           ...formData,
@@ -304,6 +316,12 @@ function StockPoints() {
   const getWarehouseName = (warehouseId) => {
     const warehouse = warehouses.find(w => w.warehouse_id === warehouseId);
     return warehouse ? warehouse.warehouse_name : "N/A";
+  };
+
+  // Mask password for display
+  const maskPassword = (password) => {
+    if (!password) return "Not set";
+    return "•".repeat(Math.min(password.length, 8));
   };
 
   const columns = React.useMemo(
@@ -330,6 +348,16 @@ function StockPoints() {
         accessor: "description",
       },
       {
+        Header: "User Name",
+        accessor: "user_name",
+        Cell: ({ value }) => value || "-",
+      },
+      {
+        Header: "Password",
+        accessor: "password",
+        Cell: ({ value }) => maskPassword(value),
+      },
+      {
         Header: "Status",
         accessor: "status",
         Cell: ({ value }) => (
@@ -337,7 +365,7 @@ function StockPoints() {
             color: value === 'active' ? 'green' : 'red',
             fontWeight: 'bold'
           }}>
-            {value.toUpperCase()}
+            {value?.toUpperCase()}
           </span>
         ),
       },
@@ -347,7 +375,6 @@ function StockPoints() {
           const isApplied = row.original.default_status === 'applied';
           const isMainStockRoom = row.original.stock_point_name === "MAIN STOCK ROOM";
           
-          // Disable button for MAIN STOCK ROOM
           const isButtonDisabled = isApplied || isMainStockRoom || applyingId === row.original.stock_point_id;
           
           let buttonText = 'Apply';
@@ -502,6 +529,27 @@ function StockPoints() {
           
           <div className="form-row">
             <InputField
+              label="User Name"
+              name="user_name"
+              value={formData.user_name}
+              onChange={handleChange}
+              error={errors.user_name}
+              placeholder="Enter user name (optional)"
+            />
+            
+            <InputField
+              label="Password"
+              name="password"
+              type="password"
+              value={formData.password}
+              onChange={handleChange}
+              error={errors.password}
+              placeholder={editMode ? "Enter new password (leave blank to keep current)" : "Enter password (optional)"}
+            />
+          </div>
+          
+          <div className="form-row">
+            <InputField
               label="Description"
               name="description"
               type="textarea"
@@ -539,7 +587,7 @@ function StockPoints() {
         </div>
       </div>
 
-      {/* Warehouse Add Modal */}
+      {/* Warehouse Add Modal - unchanged */}
       <Modal show={showWarehouseModal} onHide={handleCloseWarehouseModal} size="lg" centered>
         <Modal.Header closeButton>
           <Modal.Title style={{ color: '#a36e29' }}>Add New Warehouse</Modal.Title>

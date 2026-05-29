@@ -2293,174 +2293,101 @@ const StockTransferForm = () => {
   //   }
   // };
 
-  const handleSave = async () => {
-    try {
-      // Get selected stock point details from CustomerDetails
-      const activeStockPointDetails = formData.active_stock_point_details;
-      const otherStockPointDetails = formData.other_stock_point_details;
+ const handleSave = async () => {
+  try {
+    const activeStockPointDetails = formData.active_stock_point_details;
+    const otherStockPointDetails = formData.other_stock_point_details;
 
-      if (!activeStockPointDetails) {
-        alert("Please select an Active Stock Point");
-        return;
-      }
-
-      if (!otherStockPointDetails) {
-        alert("Please select an Other Stock Point");
-        return;
-      }
-
-      if (!repairDetails || repairDetails.length === 0) {
-        alert("Please add items to transfer");
-        return;
-      }
-
-      // Use the displayed transfer number (already fetched on mount)
-      let nextTransferNumber = formData.transfer_number;
-      
-      // If for some reason the displayed number is empty, fetch a new one
-      if (!nextTransferNumber) {
-        try {
-          const response = await axios.get(`${baseURL}/api/stock-transfer/lastTransferNumber`);
-          nextTransferNumber = response.data.lastTransferNumber;
-        } catch (error) {
-          console.error("Error fetching next transfer number:", error);
-          const date = new Date();
-          const timestamp = date.getTime().toString().slice(-6);
-          nextTransferNumber = `STF${timestamp}`;
-        }
-      }
-
-      console.log("Saving with Transfer Number:", nextTransferNumber);
-
-      // Prepare transfer data from repairDetails
-      const transferData = repairDetails.map(item => ({
-        product_id: item.product_id || null,
-        product_name: item.product_name || null,
-        metal_type: item.metal_type || null,
-        purity: item.purity || item.selling_purity || null,
-        category: item.category || null,
-        sub_category: item.sub_category || item.product_name || null,
-        design_name: item.design_name || null,
-        qty: parseFloat(item.qty) || 1,
-        gross_weight: parseFloat(item.gross_weight) || 0,
-        stone_weight: parseFloat(item.stone_weight) || 0,
-        net_weight: parseFloat(item.total_weight_av) || parseFloat(item.weight_bw) || 0,
-        rate: parseFloat(item.rate) || 0,
-        making_charges: parseFloat(item.making_charges) || 0,
-        stone_price: parseFloat(item.stone_price) || 0,
-        total_price: parseFloat(item.total_price) || 0,
-        remarks: item.remarks || null
-      }));
-
-      // Prepare payload for stock transfer
-      const payload = {
-        transfer_data: transferData,
-        from_warehouse_id: activeStockPointDetails.warehouse_id,
-        to_warehouse_id: otherStockPointDetails.warehouse_id,
-        from_stock_point_id: parseInt(formData.active_stock_point_id),
-        to_stock_point_id: parseInt(formData.other_stock_point_id),
-        transfer_date: formData.date || new Date().toISOString().split('T')[0],
-        reference_number: nextTransferNumber,
-        remarks: `Transfer from ${activeStockPointDetails.stock_point_name} to ${otherStockPointDetails.stock_point_name}`,
-        created_by: formData.account_name || "system"
-      };
-
-      console.log("Sending Stock Transfer Payload:", payload);
-
-      // Send to stock transfer API
-      const response = await axios.post(`${baseURL}/api/stock-transfer/save-stock-transfer`, payload);
-
-      if (response.status === 200 || response.status === 201) {
-        alert(`Stock Transfer completed successfully! Transfer Number: ${nextTransferNumber}`);
-        
-        // Generate PDF after successful save
-        setShowPDFDownload(true);
-        
-        // Prepare data for PDF
-        const updatedFormData = {
-          ...formData,
-          transfer_number: nextTransferNumber
-        };
-        
-        // Generate PDF
-        const pdfDoc = (
-          <PDFLayout
-            formData={updatedFormData}
-            repairDetails={repairDetails}
-            cash_amount={0}
-            card_amt={0}
-            chq_amt={0}
-            online_amt={0}
-            taxableAmount={taxableAmount}
-            taxAmount={taxAmount}
-            discountAmt={discountAmt}
-            festivalDiscountAmt={festivalDiscountAmt}
-            oldItemsAmount={0}
-            schemeAmount={0}
-            salesNetAmount={0}
-            salesTaxableAmount={0}
-            selectedAdvanceReceiptAmount={0}
-            netAmount={netAmount}
-            netPayableAmount={netPayableAmount}
-            company={company}
-            product={product}
-          />
-        );
-
-        const pdfBlob = await pdf(pdfDoc).toBlob();
-
-        // Save PDF to server
-        await handleSavePDFToServer(pdfBlob, nextTransferNumber);
-
-        // Open preview in new tab
-        const previewURL = `${baseURL}/invoices/${nextTransferNumber}.pdf`;
-        window.open(previewURL, "_blank");
-
-        // Attempt to share
-        const pdfFile = new File(
-          [pdfBlob],
-          `${nextTransferNumber}.pdf`,
-          { type: "application/pdf" }
-        );
-
-        if (navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
-          try {
-            await navigator.share({
-              title: `Stock Transfer ${nextTransferNumber}`,
-              text: "Here is your stock transfer PDF.",
-              files: [pdfFile],
-            });
-            console.log("PDF shared successfully");
-          } catch (err) {
-            console.warn("Sharing was cancelled or failed:", err);
-          }
-        } else {
-          console.warn("Sharing not supported on this device/browser.");
-        }
-        
-        // Clear all data after successful transfer
-        clearData();
-        
-        // Reset form data
-        setFormData({
-          ...formData,
-          active_stock_point_id: "",
-          other_stock_point_id: "",
-          active_stock_point_details: null,
-          other_stock_point_details: null,
-          transfer_number: "", // Clear the transfer number field
-        });
-        
-        setRepairDetails([]);
-        
-        // Navigate back or to stock transfer list
-        navigate("/stock-transfer");
-      }
-    } catch (error) {
-      console.error("Error saving stock transfer:", error);
-      alert("Error saving stock transfer: " + (error.response?.data?.message || error.message));
+    if (!activeStockPointDetails) {
+      alert("Please select an Active Stock Point");
+      return;
     }
-  };
+
+    if (!otherStockPointDetails) {
+      alert("Please select an Other Stock Point");
+      return;
+    }
+
+    if (!repairDetails || repairDetails.length === 0) {
+      alert("Please add items to transfer");
+      return;
+    }
+
+    let nextTransferNumber = formData.transfer_number;
+    
+    if (!nextTransferNumber) {
+      try {
+        const response = await axios.get(`${baseURL}/api/stock-transfer/lastTransferNumber`);
+        nextTransferNumber = response.data.lastTransferNumber;
+      } catch (error) {
+        console.error("Error fetching next transfer number:", error);
+        const date = new Date();
+        const timestamp = date.getTime().toString().slice(-6);
+        nextTransferNumber = `STF${timestamp}`;
+      }
+    }
+
+    console.log("Saving with Transfer Number:", nextTransferNumber);
+
+    // IMPORTANT: Include PCode_BarCode for stock point update
+    const transferData = repairDetails.map(item => ({
+      product_id: item.product_id || null,
+      product_name: item.product_name || null,
+      metal_type: item.metal_type || null,
+      purity: item.purity || item.selling_purity || null,
+      category: item.category || null,
+      sub_category: item.sub_category || item.product_name || null,
+      design_name: item.design_name || null,
+      qty: parseFloat(item.qty) || 1,
+      gross_weight: parseFloat(item.gross_weight) || 0,
+      stone_weight: parseFloat(item.stone_weight) || 0,
+      net_weight: parseFloat(item.total_weight_av) || parseFloat(item.weight_bw) || 0,
+      rate: parseFloat(item.rate) || 0,
+      making_charges: parseFloat(item.making_charges) || 0,
+      stone_price: parseFloat(item.stone_price) || 0,
+      total_price: parseFloat(item.total_price) || 0,
+      remarks: item.remarks || null,
+      PCode_BarCode: item.code  // KEY: Add PCode_BarCode for stock point update
+    }));
+
+    const payload = {
+      transfer_data: transferData,
+      from_warehouse_id: activeStockPointDetails.warehouse_id,
+      to_warehouse_id: otherStockPointDetails.warehouse_id,
+      from_stock_point_id: parseInt(formData.active_stock_point_id),
+      to_stock_point_id: parseInt(formData.other_stock_point_id),
+      transfer_date: formData.date || new Date().toISOString().split('T')[0],
+      reference_number: nextTransferNumber,
+      remarks: `Transfer from ${activeStockPointDetails.stock_point_name} to ${otherStockPointDetails.stock_point_name}`,
+      created_by: formData.account_name || "system"
+    };
+
+    console.log("Sending Stock Transfer Payload:", payload);
+
+    const response = await axios.post(`${baseURL}/api/stock-transfer/save-stock-transfer`, payload);
+
+    if (response.status === 200 || response.status === 201) {
+      alert(`Stock Transfer completed successfully! Transfer Number: ${nextTransferNumber}`);
+      
+      
+      clearData();
+      setFormData({
+        ...formData,
+        active_stock_point_id: "",
+        other_stock_point_id: "",
+        active_stock_point_details: null,
+        other_stock_point_details: null,
+        transfer_number: "",
+      });
+      
+      setRepairDetails([]);
+      navigate("/stock-transfer");
+    }
+  } catch (error) {
+    console.error("Error saving stock transfer:", error);
+    alert("Error saving stock transfer: " + (error.response?.data?.message || error.message));
+  }
+};
 
   const refreshSalesData = () => {
     setOldSalesData([]);
