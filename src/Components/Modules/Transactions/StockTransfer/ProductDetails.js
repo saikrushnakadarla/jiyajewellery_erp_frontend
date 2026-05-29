@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Col, Row, Button, Dropdown, DropdownButton, Modal, Form } from 'react-bootstrap';
+import { Col, Row, Button, Dropdown, DropdownButton } from 'react-bootstrap';
 import InputField from './InputfieldSales';
 import axios from 'axios';
 import { AiOutlinePlus } from "react-icons/ai";
@@ -8,7 +8,6 @@ import { useNavigate } from "react-router-dom";
 import { FaTrash, FaCamera, FaUpload } from "react-icons/fa";
 import Webcam from "react-webcam";
 import './SalesForm.css'
-
 
 const ProductDetails = ({
   handleAdd,
@@ -68,7 +67,6 @@ const ProductDetails = ({
     ? products.find((product) => product.product_name === formData.category)?.rbarcode || ""
     : "";
 
-  // Generate options list for barcode selection
   const barcodeOptions = [
     ...products
       .filter((product) => (formData.category ? product.product_name === formData.category : true))
@@ -84,12 +82,10 @@ const ProductDetails = ({
       })),
   ];
 
-  // Ensure default barcode is included in options
   if (defaultBarcode && !barcodeOptions.some((option) => option.value === defaultBarcode)) {
     barcodeOptions.unshift({ value: defaultBarcode, label: defaultBarcode });
   }
 
-  // Set default barcode only if formData.code is empty
   useEffect(() => {
     if (!formData.code && defaultBarcode) {
       handleBarcodeChange(defaultBarcode);
@@ -128,19 +124,17 @@ const ProductDetails = ({
       rate_amt: "",
       tax_percent: "03% GST",
       tax_amt: "",
-      hm_charges: "60.00",
+      hm_charges: "",
       total_price: "",
-      transaction_status: "Sales",
+      transaction_status: "Stock Transfer",
       qty: "1",
       opentag_id: "",
       product_image: null,
       imagePreview: null,
-      remarks: "",
       sale_status: "Delivered",
       custom_purity: "",
     }));
   };
-
 
   useEffect(() => {
     const grossWeight = parseFloat(formData.gross_weight) || 0;
@@ -149,26 +143,21 @@ const ProductDetails = ({
     const vaPercent = parseFloat(formData.va_percent) || 0;
     const rate = parseFloat(formData.rate) || 0;
     const mcPerGram = parseFloat(formData.mc_per_gram) || 0;
-    const hmCharges = parseFloat(formData.hm_charges) || 0;
     const taxPercent = parseFloat(formData.tax_percent) || 0;
     const discount = parseFloat(formData.disscount) || 0;
     const festivalDiscount = parseFloat(formData.festival_discount) || 0;
     const qty = parseFloat(formData.qty) || 0;
     const pieceCost = parseFloat(formData.pieace_cost) || 0;
 
-    // Weight BW
     const weightBW = grossWeight - stoneWeight;
 
-    // Wastage Weight
     const wastageWeight =
       formData.va_on === "Gross Weight"
         ? (grossWeight * vaPercent) / 100
         : (weightBW * vaPercent) / 100;
 
-    // Total Weight AW
     const totalWeightAW = weightBW + wastageWeight;
 
-    // Rate Amount
     let rateAmt = 0;
     if (formData.pricing === "By fixed") {
       rateAmt = pieceCost * qty;
@@ -176,7 +165,6 @@ const ProductDetails = ({
       rateAmt = rate * totalWeightAW;
     }
 
-    // Making Charges
     let makingCharges = 0;
     let calculatedMcPerGram = null;
 
@@ -194,7 +182,6 @@ const ProductDetails = ({
       makingCharges = parseFloat(formData.making_charges) || 0;
     }
 
-    // Taxable Amount & Tax
     let taxAmt = 0;
     let totalPrice = 0;
 
@@ -212,7 +199,7 @@ const ProductDetails = ({
       }));
     } else {
       const totalDiscount = discount + festivalDiscount;
-      const taxable = rateAmt + stonePrice + makingCharges + hmCharges - totalDiscount;
+      const taxable = rateAmt + stonePrice + makingCharges - totalDiscount;
       taxAmt = (taxable * taxPercent) / 100;
       totalPrice = taxable;
       setFormData(prev => {
@@ -225,10 +212,8 @@ const ProductDetails = ({
           total_price: roundedTotalPrice,
         };
       });
-
     }
 
-    // Final shared state update
     setFormData(prev => ({
       ...prev,
       weight_bw: weightBW.toFixed(2),
@@ -250,7 +235,6 @@ const ProductDetails = ({
     formData.mc_on,
     formData.mc_per_gram,
     formData.making_charges,
-    formData.hm_charges,
     formData.tax_percent,
     formData.disscount,
     formData.festival_discount,
@@ -259,153 +243,8 @@ const ProductDetails = ({
     formData.pricing,
   ]);
 
-  useEffect(() => {
-    if (!offers || offers.length === 0) return;
-
-    const selectedOffer = offers[0]; // Assuming auto-apply first offer
-    const percentageDiscount = parseFloat(selectedOffer.discount_percentage) || 0;
-    const rateDiscount = parseFloat(selectedOffer.discount_on_rate) || 0;
-    const fixedPercentageDiscount = parseFloat(selectedOffer.discount_percent_fixed) || 0;
-
-    const taxPercent = parseFloat(formData.tax_percent) || 1;
-    const pieceCost = parseFloat(formData.pieace_cost) || 0;
-    const qty = parseFloat(formData.qty) || 1;
-    const rateAmt = parseFloat(formData.rate_amt) || 0;
-    const stonePrice = parseFloat(formData.stone_price) || 0;
-    const makingCharges = parseFloat(formData.making_charges) || 0;
-    const hmCharges = parseFloat(formData.hm_charges) || 0;
-    const grossWeight = parseFloat(formData.gross_weight) || 0;
-    const discountAmt = parseFloat(formData.disscount) || 0;
-
-    if (formData.pricing === "By fixed") {
-      const pieceTaxableAmt = pieceCost * qty;
-      const originalPieceTaxableAmt = formData.original_piece_taxable_amt
-        ? parseFloat(formData.original_piece_taxable_amt)
-        : pieceTaxableAmt;
-
-      const calculatedDiscount = (pieceTaxableAmt * fixedPercentageDiscount) / 100;
-      const updatedPieceTaxableAmt = pieceTaxableAmt - calculatedDiscount;
-      const taxAmt = (taxPercent * updatedPieceTaxableAmt) / 100;
-      const totalPrice = updatedPieceTaxableAmt + taxAmt;
-
-      setFormData(prev => ({
-        ...prev,
-        original_piece_taxable_amt: pieceTaxableAmt.toFixed(2),
-        festival_discount: calculatedDiscount.toFixed(2),
-        festival_discount_percentage: percentageDiscount.toFixed(2),
-        festival_discount_on_rate: rateDiscount.toFixed(2),
-        piece_taxable_amt: updatedPieceTaxableAmt.toFixed(2),
-        tax_amt: taxAmt.toFixed(2),
-        total_price: totalPrice.toFixed(2),
-      }));
-    } else {
-      const weightBasedDiscount = (rateDiscount / 10) * grossWeight;
-      const calculatedDiscount = (makingCharges * percentageDiscount) / 100 + weightBasedDiscount;
-      const totalBeforeTax =
-        rateAmt + stonePrice + makingCharges + hmCharges - calculatedDiscount - discountAmt;
-
-      const taxAmt = (totalBeforeTax * taxPercent) / 100;
-      const totalPrice = totalBeforeTax + taxAmt;
-
-      setFormData(prev => ({
-        ...prev,
-        original_total_price: formData.original_total_price
-          ? formData.original_total_price
-          : parseFloat(formData.total_price || 0).toFixed(2),
-        festival_discount: calculatedDiscount.toFixed(2),
-        festival_discount_percentage: percentageDiscount.toFixed(2),
-        festival_discount_on_rate: rateDiscount.toFixed(2),
-        tax_amt: taxAmt.toFixed(2),
-        total_price: totalPrice.toFixed(2),
-      }));
-    }
-  }, [
-    formData.pricing,
-    formData.tax_percent,
-    formData.pieace_cost,
-    formData.qty,
-    formData.rate_amt,
-    formData.stone_price,
-    formData.making_charges,
-    formData.hm_charges,
-    formData.gross_weight,
-    formData.disscount,
-    formData.original_total_price,
-    formData.original_piece_taxable_amt,
-    offers,
-  ]);
-
-
-  const handleTotalPriceChange = () => {
-
-    if (!offers || offers.length === 0) return;
-
-    const selectedOffer = offers[0]; // Assuming auto-apply first offer
-    const percentageDiscount = parseFloat(selectedOffer.discount_percentage) || 0;
-    const rateDiscount = parseFloat(selectedOffer.discount_on_rate) || 0;
-    const fixedPercentageDiscount = parseFloat(selectedOffer.discount_percent_fixed) || 0;
-
-    const totalPrice = parseFloat(formData.total_price);
-    const taxPercent = parseFloat(formData.tax_percent) || 0;
-    const rateAmt = parseFloat(formData.rate_amt) || 0;
-    const hmCharges = parseFloat(formData.hm_charges) || 0;
-    const stonePrice = parseFloat(formData.stone_price) || 0;
-    const discount = parseFloat(formData.disscount) || 0;
-    const festivalDiscount = parseFloat(formData.festival_discount) || 0;
-    const totalWeightAW = parseFloat(formData.total_weight_av) || 0;
-    const makingChargesInput = parseFloat(formData.making_charges) || 0;
-    const grossWeight = parseFloat(formData.gross_weight) || 0;
-
-    let mcPerGram = 0;
-
-    if (
-      !isNaN(totalPrice) &&
-      totalPrice > 0 &&
-      taxPercent > 0 &&
-      rateAmt > 0 &&
-      (100 - percentageDiscount) !== 0
-    ) {
-      const taxableAmount = (totalPrice * 100) / (100 + taxPercent);
-
-      if (formData.mc_on === "MC %") {
-        const weightBasedDiscount = (rateDiscount / 10) * grossWeight;
-
-        const mcPerGramNumerator =
-          (totalPrice / (1 + taxPercent / 100)) -
-          rateAmt -
-          hmCharges +
-          weightBasedDiscount;
-
-        const mcPerGramDenominator = rateAmt * (100 - percentageDiscount);
-
-        mcPerGram = (mcPerGramNumerator * 10000) / mcPerGramDenominator;
-
-      } else if (formData.mc_on === "MC / Gram" || formData.mc_on === "MC / Piece") {
-        const weightBasedDiscount = (rateDiscount / 10) * grossWeight;
-        const adjustedFestivalDiscount = ((percentageDiscount / 100) * makingChargesInput) + weightBasedDiscount;
-
-        const totalMC = taxableAmount - rateAmt - hmCharges - stonePrice + discount + adjustedFestivalDiscount;
-
-        if (totalWeightAW > 0) {
-          mcPerGram = totalMC / totalWeightAW;
-        }
-      } else {
-        mcPerGram = parseFloat(formData.mc_per_gram) || 0;
-      }
-
-      if (!isNaN(mcPerGram)) {
-        setFormData(prev => ({
-          ...prev,
-          mc_per_gram: mcPerGram,
-        }));
-      }
-    }
-    setIsManualTotalPriceChange(false);
-  };
-
-
   return (
-    <Col >
+    <Col>
       <Row>
         <Col xs={12} md={2}>
           <InputField
@@ -500,25 +339,9 @@ const ProductDetails = ({
           />
         </Col>
 
-        <Col xs={12} md={2}>
-          <InputField
-            label="Pricing"
-            name="pricing"
-            type="select"
-            value={formData.pricing || ""}
-            onChange={handleChange}
-            options={[
-              { value: "By Weight", label: "By Weight" },
-              { value: "By fixed", label: "By fixed" },
-              ...(formData.pricing &&
-                !["By Weight", "By fixed"].includes(formData.pricing)
-                ? [{ value: formData.pricing, label: formData.pricing }]
-                : []),
-            ]}
-          />
-        </Col>
+        {/* REMOVED: Pricing Field */}
 
-        {/* Render different fields based on Pricing selection */}
+        {/* By Fixed Pricing Fields */}
         {isByFixed ? (
           <>
             <Col xs={12} md={2}>
@@ -546,55 +369,8 @@ const ProductDetails = ({
                 readOnly={!isQtyEditable}
               />
             </Col>
-            <Col xs={12} md={2}>
-              <InputField
-                label="Taxable Amt"
-                name="piece_taxable_amt"
-                value={formData.piece_taxable_amt}
-                onChange={handleChange}
-                readOnly
-              />
-            </Col>
-            <Col xs={12} md={1}>
-              <InputField
-                label="MRP"
-                name="mrp_price"
-                value={formData.mrp_price || "0.00"}
-                onChange={handleChange}
-                readOnly={false}
-              />
-            </Col>
-            <Col xs={12} md={2}>
-              <InputField
-                label="Total Price"
-                name="total_price"
-                value={formData.total_price || "0.00"}
-                onChange={handleChange}
-                readOnly
-              />
-            </Col>
-            <Col xs={12} md={2}>
-              <InputField
-                label="Remarks"
-                name="remarks"
-                value={formData.remarks}
-                onChange={handleChange}
-              />
-            </Col>
-            <Col xs={12} md={2}>
-              <InputField
-                label="Status"
-                type='select'
-                name="sale_status"
-                value={formData.sale_status}
-                onChange={handleChange}
-                options={[
-                  { value: "Delivered", label: "Delivered" },
-                  { value: "Not Delivered", label: "Not Delivered" },
-                ]}
-              />
-            </Col>
-            <Col xs={12} md={2}>
+            {/* REMOVED: Remarks Field */}
+            <Col xs={12} md={4}>
               <DropdownButton
                 id="dropdown-basic-button"
                 title="Choose / Capture Image"
@@ -724,7 +500,6 @@ const ProductDetails = ({
                 onChange={handleChange}
               />
             </Col>
-            {/* REMOVED: St Price field */}
             <Col xs={12} md={1}>
               <InputField
                 label="Weight BW"
@@ -780,9 +555,6 @@ const ProductDetails = ({
               />
             </Col>
 
-            {/* REMOVED: Rate field */}
-            {/* REMOVED: Amount field */}
-
             <Col xs={12} md={2}>
               <InputField
                 label="MC On"
@@ -823,67 +595,7 @@ const ProductDetails = ({
               />
             </Col>
 
-            <Col xs={12} md={1}>
-              <InputField
-                label="HM Charge"
-                name="hm_charges"
-                type='number'
-                value={formData.hm_charges || "0.00"}
-                onChange={handleChange}
-              />
-            </Col>
-
-            {/* REMOVED: Total Price field */}
-
-            <Col xs={10} md={2}>
-              <InputField
-                label="Final Price"
-                name="total_price"
-                value={formData.total_price ?? ""}
-                onChange={handleChange}
-              />
-            </Col>
-
-            <Col xs={2} md={1} className="d-flex align-items-end">
-              <button
-                type="button"
-                className="btn btn-primary"
-                onClick={handleTotalPriceChange}
-                disabled={!isManualTotalPriceChange}
-                style={{
-                  backgroundColor: "#a36e29",
-                  borderColor: "#a36e29",
-                  padding: "4px 7px",
-                  marginBottom: "15px",
-                  marginLeft: "-1px",
-                  fontSize: "13px"
-                }}
-              >
-                Change
-              </button>
-            </Col>
-
-            <Col xs={12} md={2}>
-              <InputField
-                label="Remarks"
-                name="remarks"
-                value={formData.remarks}
-                onChange={handleChange}
-              />
-            </Col>
-            <Col xs={12} md={2}>
-              <InputField
-                label="Status"
-                type='select'
-                name="sale_status"
-                value={formData.sale_status}
-                onChange={handleChange}
-                options={[
-                  { value: "Delivered", label: "Delivered" },
-                  { value: "Not Delivered", label: "Not Delivered" },
-                ]}
-              />
-            </Col>
+            {/* REMOVED: Remarks Field */}
             <Col xs={12} md={2}>
               <DropdownButton
                 id="dropdown-basic-button"
@@ -995,21 +707,6 @@ const ProductDetails = ({
           >
             Clear
           </Button>
-        </Col>
-
-        <Col xs={12} md={2}>
-          <InputField
-            label="Estimate Number"
-            type="select"
-            value={selectedEstimate}
-            onChange={handleEstimateChange}
-            options={[
-              ...estimate.map((item) => ({
-                value: item.estimate_number,
-                label: item.estimate_number
-              }))
-            ]}
-          />
         </Col>
       </Row>
     </Col>

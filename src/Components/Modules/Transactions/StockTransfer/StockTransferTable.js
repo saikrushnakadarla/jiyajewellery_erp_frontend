@@ -124,16 +124,16 @@ const StockTransferTable = () => {
         Header: 'Total Net Wt',
         accessor: 'total_net_weight',
       },
-      {
-        Header: 'Status',
-        accessor: 'status',
-        Cell: ({ value }) => getStatusBadge(value),
-      },
-      {
-        Header: 'Created By',
-        accessor: 'created_by',
-        Cell: ({ value }) => value || 'System',
-      },
+      // {
+      //   Header: 'Status',
+      //   accessor: 'status',
+      //   Cell: ({ value }) => getStatusBadge(value),
+      // },
+      // {
+      //   Header: 'Created By',
+      //   accessor: 'created_by',
+      //   Cell: ({ value }) => value || 'System',
+      // },
       {
         Header: 'Actions',
         id: 'actions',

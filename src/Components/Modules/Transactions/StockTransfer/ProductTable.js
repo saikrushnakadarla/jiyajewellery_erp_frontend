@@ -5,14 +5,6 @@ import "./ProductTable.css";
 
 const ProductTable = ({ repairDetails, onDelete, onEdit }) => {
   console.log("repairDetails=", repairDetails)
-  const taxableAmount = repairDetails.reduce((sum, item) => {
-    const stonePrice = parseFloat(item.stone_price) || 0;
-    const makingCharges = parseFloat(item.making_charges) || 0;
-    const rateAmt = parseFloat(item.rate_amt) || 0;
-    return sum + stonePrice + makingCharges + rateAmt;
-  }, 0);
-  const taxAmount = repairDetails.reduce((sum, item) => sum + parseFloat(item.tax_amt || 0), 0);
-  const netAmount = taxableAmount + taxAmount;
 
   const [showModal, setShowModal] = useState(false);
   const [selectedDetail, setSelectedDetail] = useState(null);
@@ -23,15 +15,12 @@ const ProductTable = ({ repairDetails, onDelete, onEdit }) => {
   };
 
   return (
-
-    // <div style={{ maxHeight: "107px", overflowY: "auto", position: "relative" }}>
-    <div >
+    <div>
       <Table className='dataTable_headerCell1' bordered hover responsive>
         <thead style={{ position: "sticky", top: 0, background: "white", zIndex: 2, fontSize: "13px" }}>
           <tr>
             <th>S No</th>
             <th>BarCode</th>
-            {/* <th>Invoice Number</th> */}
             <th>Product Name</th>
             <th>Metal</th>
             <th>Purity</th>
@@ -41,13 +30,8 @@ const ProductTable = ({ repairDetails, onDelete, onEdit }) => {
             <th>Total Wt</th>
             <th>Rate</th>
             <th>MC</th>
-            <th>Discount</th>
-            <th>Fest Discount</th>
-            {/* <th>Tax %</th>
-            <th>Tax Amt</th> */}
             <th>Total Price</th>
             <th>Image</th>
-            <th>Status</th>
             <th>Action</th>
           </tr>
         </thead>
@@ -57,10 +41,8 @@ const ProductTable = ({ repairDetails, onDelete, onEdit }) => {
               <tr key={index} className='table-values-sales'>
                 <td>{index + 1}</td>
                 <td>{detail.code}</td>
-                {/* <td>{detail.invoice_number}</td> */}
                 <td>{detail.product_name}</td>
                 <td>{detail.metal_type}</td>
-                {/* <td>{detail.pricing === 'By Weight' ? detail.selling_purity : detail.printing_purity}</td> */}
                 <td>
                   {detail.pricing === 'By Weight'
                     ? (detail.selling_purity !== undefined && detail.selling_purity !== '' ? detail.selling_purity : detail.purity)
@@ -72,10 +54,6 @@ const ProductTable = ({ repairDetails, onDelete, onEdit }) => {
                 <td>{detail.total_weight_av}</td>
                 <td>{detail.pieace_cost ? detail.pieace_cost : detail.rate}</td>
                 <td>{detail.making_charges}</td>
-                <td>{detail.disscount}</td>
-                <td>{detail.festival_discount}</td>
-                {/* <td>{detail.tax_percent}</td>
-                <td>{detail.tax_amt}</td> */}
                 <td>{detail.total_price}</td>
                 <td>
                   {detail.imagePreview ? (
@@ -88,10 +66,6 @@ const ProductTable = ({ repairDetails, onDelete, onEdit }) => {
                     "No Image"
                   )}
                 </td>
-                <td style={{ color: detail.sale_status === "Delivered" ? "green" : "red" }}>
-                  {detail.sale_status}
-                </td>
-
                 <td>
                   <div style={{ display: "flex", alignItems: "center" }}>
                     <FaEye
@@ -115,7 +89,7 @@ const ProductTable = ({ repairDetails, onDelete, onEdit }) => {
             ))
           ) : (
             <tr>
-              <td colSpan="19 " className="text-center">
+              <td colSpan="14" className="text-center">
                 No data available
               </td>
             </tr>
@@ -129,12 +103,14 @@ const ProductTable = ({ repairDetails, onDelete, onEdit }) => {
               <td>
                 {repairDetails.reduce((sum, item) => sum + parseFloat(item.gross_weight || 0), 0).toFixed(3)}
               </td>
-              <td>    {repairDetails.reduce((sum, item) => sum + parseFloat(item.stone_weight || 0), 0).toFixed(3)}</td>
+              <td>
+                {repairDetails.reduce((sum, item) => sum + parseFloat(item.stone_weight || 0), 0).toFixed(3)}
+              </td>
               <td></td>
               <td>
                 {repairDetails.reduce((sum, item) => sum + parseFloat(item.total_weight_av || 0), 0).toFixed(3)}
               </td>
-              <td colSpan="10"></td>
+              <td colSpan="8"></td>
             </tr>
           </tfoot>
         )}
@@ -154,8 +130,7 @@ const ProductTable = ({ repairDetails, onDelete, onEdit }) => {
                 <p><strong>VA%:</strong> {selectedDetail.va_percent}</p>
                 <p><strong>Rate:</strong> {selectedDetail.rate}</p>
                 <p><strong>MC %:</strong> {selectedDetail.mc_per_gram}</p>
-                <p><strong>Discount %:</strong> {selectedDetail.disscount_percentage}</p>
-                <p><strong>Tax Amount:</strong> {selectedDetail.tax_amt}</p>
+                <p><strong>Total Price:</strong> {selectedDetail.total_price}</p>
               </Col>
               <Col md={4}>
                 <p><strong>Category:</strong> {selectedDetail.category}</p>
@@ -165,8 +140,7 @@ const ProductTable = ({ repairDetails, onDelete, onEdit }) => {
                 <p><strong>Wastage Wt:</strong> {selectedDetail.wastage_weight}</p>
                 <p><strong>Metal Amount:</strong> {selectedDetail.rate_amt}</p>
                 <p><strong>Total MC:</strong> {selectedDetail.making_charges}</p>
-                <p><strong>Discount:</strong> {selectedDetail.disscount}</p>
-                <p><strong>Total Price:</strong> {selectedDetail.total_price}</p>
+                <p><strong>Remarks:</strong> {selectedDetail.remarks}</p>
               </Col>
               <Col md={4}>
                 <p><strong>Sub Category:</strong> {selectedDetail.product_name}</p>
@@ -175,18 +149,7 @@ const ProductTable = ({ repairDetails, onDelete, onEdit }) => {
                 <p><strong>Wastage on:</strong> {selectedDetail.va_on}</p>
                 <p><strong>Total Weight:</strong> {selectedDetail.total_weight_av}</p>
                 <p><strong>MC On:</strong> {selectedDetail.mc_on}</p>
-                <p><strong>HM Charges:</strong> {selectedDetail.hm_charges}</p>
-                <p><strong>Tax %:</strong> {selectedDetail.tax_percent}</p>
-                <p><strong>Remarks:</strong> {selectedDetail.remarks}</p>
               </Col>
-
-              {/* {selectedDetail.imagePreview && (
-                <Col md={12} className="text-center">
-                  <strong>Image:</strong>
-                  <br />
-                  <img src={selectedDetail.imagePreview} alt='Uploaded' style={{ width: '100%', height: 'auto' }} />
-                </Col>
-              )} */}
             </Row>
           )}
         </Modal.Body>
@@ -197,8 +160,6 @@ const ProductTable = ({ repairDetails, onDelete, onEdit }) => {
         </Modal.Footer>
       </Modal>
     </div>
-
-
   );
 };
 

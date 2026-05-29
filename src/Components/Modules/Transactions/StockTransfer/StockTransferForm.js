@@ -129,22 +129,29 @@ const StockTransferForm = () => {
     fetchCustomers();
   }, []);
 
-  // Fetch last invoice number
+  // ✅ ADD THIS: Fetch next transfer number on component mount - displays automatically
   useEffect(() => {
-    const fetchLastInvoiceNumber = async () => {
+    const fetchNextTransferNumber = async () => {
       try {
-        const response = await axios.get(`${baseURL}/lastInvoiceNumber`);
+        const response = await axios.get(`${baseURL}/api/stock-transfer/lastTransferNumber`);
+        const nextNumber = response.data.lastTransferNumber;
+        console.log("Next Transfer Number to display:", nextNumber);
         setFormData((prev) => ({
           ...prev,
-          invoice_number: response.data.lastInvoiceNumber,
+          transfer_number: nextNumber,
         }));
       } catch (error) {
-        console.error("Error fetching invoice number:", error);
+        console.error("Error fetching next transfer number:", error);
+        // Set default if API fails
+        setFormData((prev) => ({
+          ...prev,
+          transfer_number: "STF001",
+        }));
       }
     };
 
-    fetchLastInvoiceNumber();
-  }, []);
+    fetchNextTransferNumber();
+  }, []); // Empty dependency array - runs once on mount
 
   const [selectedMobile, setSelectedMobile] = useState("");
   const [uniqueInvoice, setUniqueInvoice] = useState([]);
@@ -152,7 +159,7 @@ const StockTransferForm = () => {
   const [invoiceDetails, setInvoiceDetails] = useState(null);
 
   const [returnData, setReturnData] = useState({
-    invoice_number: "",
+    transfer_number: "",
   });
 
   useEffect(() => {
@@ -185,14 +192,14 @@ const StockTransferForm = () => {
     if (selectedInvoice) {
       setReturnData({
         ...returnData,
-        invoice_number: selectedInvoiceNumber,
+        transfer_number: selectedInvoiceNumber,
         date: selectedInvoice.date ? formatDate(selectedInvoice.date) : "", // Format date
         terms: selectedInvoice.terms || "", // Set the terms from the selected invoice
       });
     } else {
       setReturnData({
         ...returnData,
-        invoice_number: selectedInvoiceNumber,
+        transfer_number: selectedInvoiceNumber,
         date: "",
         terms: "",
       });
@@ -220,14 +227,14 @@ const StockTransferForm = () => {
 
   useEffect(() => {
     const fetchInvoiceDetails = async () => {
-      if (!returnData.invoice_number) {
+      if (!returnData.transfer_number) {
         setInvoiceDetails([]); // Ensure it's an empty array, not null
         return;
       }
 
       try {
         const response = await axios.get(
-          `${baseURL}/getsales/${returnData.invoice_number}`,
+          `${baseURL}/getsales/${returnData.transfer_number}`,
         );
         const filteredData = response.data.filter(
           (invoice) => invoice.status !== "Sale Returned",
@@ -237,7 +244,7 @@ const StockTransferForm = () => {
         console.log("Fetched Invoice Details:", filteredData);
       } catch (error) {
         console.error(
-          `Error fetching details for invoice ${returnData.invoice_number}:`,
+          `Error fetching details for invoice ${returnData.transfer_number}:`,
           error,
         );
         setInvoiceDetails([]); // Set empty array on error
@@ -245,7 +252,7 @@ const StockTransferForm = () => {
     };
 
     fetchInvoiceDetails();
-  }, [returnData.invoice_number]);
+  }, [returnData.transfer_number]);
 
   const handleCustomerChange = (customerId) => {
     const customer = customers.find(
@@ -268,8 +275,8 @@ const StockTransferForm = () => {
         aadhar_card: customer.aadhar_card || "",
         gst_in: customer.gst_in || "",
         pan_card: customer.pan_card || "",
-        // keep invoice_number untouched
-        invoice_number: prevData.invoice_number || "",
+        // keep transfer_number untouched
+        transfer_number: prevData.transfer_number || "",
       }));
       setSelectedMobile(customer.mobile || "");
 
@@ -295,8 +302,8 @@ const StockTransferForm = () => {
         aadhar_card: "",
         gst_in: "",
         pan_card: "",
-        // preserve invoice_number
-        invoice_number: prevData.invoice_number || "",
+        // preserve transfer_number
+        transfer_number: prevData.transfer_number || "",
       }));
       setSelectedMobile("");
       setFilteredInvoices(uniqueInvoice);
@@ -830,8 +837,8 @@ const StockTransferForm = () => {
         )
         .map((item) => ({
           ...item,
-          invoice_number: formData.invoice_number, // Add invoice_number from formData
-          transaction_status: "Sales", // Add transaction_status as "Sales"
+          transfer_number: formData.transfer_number, // Add transfer_number from formData
+          transaction_status: "Stock Transfer", // Add transaction_status as "Stock Transfer"
           date: formData.date,
         }));
 
@@ -953,8 +960,8 @@ const StockTransferForm = () => {
       // Filter only matching repeatedData items
       const filteredData = response.data.repeatedData.map((item) => ({
         ...item,
-        invoice_number: formData.invoice_number, // Add invoice_number from formData
-        transaction_status: "Orders", // Add transaction_status as "Sales"
+        transfer_number: formData.transfer_number, // Add transfer_number from formData
+        transaction_status: "Stock Transfer", // Add transaction_status as "Stock Transfer"
         date: formData.date,
         invoice: "Converted",
       }));
@@ -1099,8 +1106,8 @@ const StockTransferForm = () => {
           qty: repair.qty,
           total_price: repair.total_amt,
           repair_no: repair.repair_no,
-          invoice_number: formData.invoice_number,
-          transaction_status: "Repairs",
+          transfer_number: formData.transfer_number,
+          transaction_status: "Stock Transfer",
           date: formData.date,
           invoice: "Converted",
           rate: repair.total_amt,
@@ -1351,48 +1358,48 @@ const StockTransferForm = () => {
     return savedData ? JSON.parse(savedData) : [];
   });
 
- const resetForm = () => {
-  setFormData({
-    customer_id: "",
-    mobile: "",
-    account_name: "",
-    email: "",
-    address1: "",
-    address2: "",
-    city: "",
-    pincode: "",
-    state: "",
-    state_code: "",
-    aadhar_card: "",
-    gst_in: "",
-    pan_card: "",
-    date: new Date().toISOString().split("T")[0],
-    invoice_number: "",
-    active_stock_point_id: "",
-    other_stock_point_id: "",
-    active_stock_point_details: null,
-    other_stock_point_details: null
-  });
-  setPaymentDetails({
-    cash_amount: 0,
-    card_amt: 0,
-    chq: "",
-    chq_amt: 0,
-    online: "",
-    online_amt: 0,
-  });
-  setRepairDetails([]);
-};
+  const resetForm = () => {
+    setFormData({
+      customer_id: "",
+      mobile: "",
+      account_name: "",
+      email: "",
+      address1: "",
+      address2: "",
+      city: "",
+      pincode: "",
+      state: "",
+      state_code: "",
+      aadhar_card: "",
+      gst_in: "",
+      pan_card: "",
+      date: new Date().toISOString().split("T")[0],
+      transfer_number: "",
+      active_stock_point_id: "",
+      other_stock_point_id: "",
+      active_stock_point_details: null,
+      other_stock_point_details: null
+    });
+    setPaymentDetails({
+      cash_amount: 0,
+      card_amt: 0,
+      chq: "",
+      chq_amt: 0,
+      online: "",
+      online_amt: 0,
+    });
+    setRepairDetails([]);
+  };
 
   const resetSaleReturnForm = () => {
     setReturnData({
-      invoice_number: "",
+      transfer_number: "",
     });
   };
 
   const handleBack = () => {
-  navigate("/stock-transfers"); // Change from "/salestable" to "/stock-transfers"
-};
+    navigate("/stock-transfers"); // Change from "/salestable" to "/stock-transfers"
+  };
 
   // const handleAddCustomer = () => {
   //   navigate("/customermaster", { state: { from: `/sales?tabId=${tabId}` } });
@@ -1894,13 +1901,13 @@ const StockTransferForm = () => {
   // const netPayAmount = netPayableAmount;
 
   const netPayableAmount = isManualNetMode
-  ? manualNetPayAmount
-  : Math.max(
-      0,
-      netAmount - (schemeAmount + salesAmountToPass + selectedAdvanceReceiptAmount)
-    );
+    ? manualNetPayAmount
+    : Math.max(
+        0,
+        netAmount - (schemeAmount + salesAmountToPass + selectedAdvanceReceiptAmount)
+      );
 
-const netPayAmount = netPayableAmount;
+  const netPayAmount = netPayableAmount;
 
   const [paymentDetails, setPaymentDetails] = useState({
     cash_amount: location.state?.cash_amount || "",
@@ -1927,38 +1934,38 @@ const netPayAmount = netPayableAmount;
     }
   }, []);
 
- const clearData = () => {
-  setOldSalesData([]);
-  setSchemeSalesData([]);
-  setRepairDetails([]);
-  setPaymentDetails({
-    cash_amount: 0,
-    card_amt: 0,
-    chq: "",
-    chq_amt: 0,
-    online: "",
-    online_amt: 0,
-  });
-  setOldTableData([]);
-  setSchemeTableData([]);
-  setDiscount(0);
-  setFormData(prev => ({
-    ...prev,
-    active_stock_point_id: "",
-    other_stock_point_id: "",
-    active_stock_point_details: null,
-    other_stock_point_details: null
-  }));
-  localStorage.removeItem("oldSalesData");
-  localStorage.removeItem("schemeSalesData");
-  localStorage.removeItem(`repairDetails_${tabId}`);
-  localStorage.removeItem(`paymentDetails_${tabId}`);
-  localStorage.removeItem(`oldTableData_${tabId}`);
-  localStorage.removeItem(`schemeTableData_${tabId}`);
-  localStorage.removeItem(`discount_${tabId}`);
-  localStorage.removeItem(`saleFormData_${tabId}`);
-  console.log("Data cleared successfully");
-};
+  const clearData = () => {
+    setOldSalesData([]);
+    setSchemeSalesData([]);
+    setRepairDetails([]);
+    setPaymentDetails({
+      cash_amount: 0,
+      card_amt: 0,
+      chq: "",
+      chq_amt: 0,
+      online: "",
+      online_amt: 0,
+    });
+    setOldTableData([]);
+    setSchemeTableData([]);
+    setDiscount(0);
+    setFormData(prev => ({
+      ...prev,
+      active_stock_point_id: "",
+      other_stock_point_id: "",
+      active_stock_point_details: null,
+      other_stock_point_details: null
+    }));
+    localStorage.removeItem("oldSalesData");
+    localStorage.removeItem("schemeSalesData");
+    localStorage.removeItem(`repairDetails_${tabId}`);
+    localStorage.removeItem(`paymentDetails_${tabId}`);
+    localStorage.removeItem(`oldTableData_${tabId}`);
+    localStorage.removeItem(`schemeTableData_${tabId}`);
+    localStorage.removeItem(`discount_${tabId}`);
+    localStorage.removeItem(`saleFormData_${tabId}`);
+    console.log("Data cleared successfully");
+  };
 
   const [product, setProduct] = useState([]); // State to store table data
   const [company, setCompany] = useState(null);
@@ -2151,123 +2158,37 @@ const netPayAmount = netPayableAmount;
   //   }
   // };
 
-const postLedgerData = async (invoiceData, netAmount, accountId) => {
-  try {
-    const ledgerData = {
-      transaction_date: new Date().toISOString(),
-      transaction_type: "SALE",
-      invoice_number: invoiceData.invoice_number,
-      credit: null,
-      debit: netAmount, // debit value same as bal_amt
-      balance: netAmount, // balance value same as bal_amt
-      net_wt: invoiceData.total_net_wt || 0,
-      gross_wt: invoiceData.total_gross_wt || 0,
-      amount: netAmount,
-      account_id: accountId
-    };
+  const postLedgerData = async (invoiceData, netAmount, accountId) => {
+    try {
+      const ledgerData = {
+        transaction_date: new Date().toISOString(),
+        transaction_type: "STOCK_TRANSFER",
+        invoice_number: invoiceData.transfer_number,
+        credit: null,
+        debit: netAmount,
+        balance: netAmount,
+        net_wt: invoiceData.total_net_wt || 0,
+        gross_wt: invoiceData.total_gross_wt || 0,
+        amount: netAmount,
+        account_id: accountId
+      };
 
-    const response = await axios.post(`${baseURL}/ledger`, ledgerData);
-    
-    if (response.status === 201 || response.status === 200) {
-      console.log("Ledger entry created successfully:", response.data);
-      return true;
-    }
-    return false;
-  } catch (error) {
-    console.error("Error posting to ledger:", error);
-    return false;
-  }
-};
-
-const handleSave = async () => {
-  try {
-    // Get selected stock point details from CustomerDetails
-    const activeStockPointDetails = formData.active_stock_point_details;
-    const otherStockPointDetails = formData.other_stock_point_details;
-
-    if (!activeStockPointDetails) {
-      alert("Please select an Active Stock Point");
-      return;
-    }
-
-    if (!otherStockPointDetails) {
-      alert("Please select an Other Stock Point");
-      return;
-    }
-
-    if (!repairDetails || repairDetails.length === 0) {
-      alert("Please add items to transfer");
-      return;
-    }
-
-    // Prepare transfer data from repairDetails
-    const transferData = repairDetails.map(item => ({
-      product_id: item.product_id || null,
-      product_name: item.product_name || null,
-      metal_type: item.metal_type || null,
-      purity: item.purity || item.selling_purity || null,
-      category: item.category || null,
-      sub_category: item.sub_category || item.product_name || null,
-      design_name: item.design_name || null,
-      qty: parseFloat(item.qty) || 1,
-      gross_weight: parseFloat(item.gross_weight) || 0,
-      stone_weight: parseFloat(item.stone_weight) || 0,
-      net_weight: parseFloat(item.total_weight_av) || parseFloat(item.weight_bw) || 0,
-      rate: parseFloat(item.rate) || 0,
-      making_charges: parseFloat(item.making_charges) || 0,
-      stone_price: parseFloat(item.stone_price) || 0,
-      total_price: parseFloat(item.total_price) || 0,
-      remarks: item.remarks || null
-    }));
-
-    // Prepare payload for stock transfer
-    const payload = {
-      transfer_data: transferData,
-      from_warehouse_id: activeStockPointDetails.warehouse_id,
-      to_warehouse_id: otherStockPointDetails.warehouse_id,
-      from_stock_point_id: parseInt(formData.active_stock_point_id),
-      to_stock_point_id: parseInt(formData.other_stock_point_id),
-      transfer_date: formData.date || new Date().toISOString().split('T')[0],
-      reference_number: formData.invoice_number || null,
-      remarks: `Transfer from ${activeStockPointDetails.stock_point_name} to ${otherStockPointDetails.stock_point_name}`,
-      created_by: formData.account_name || "system"
-    };
-
-    console.log("Sending Stock Transfer Payload:", payload);
-
-    // Send to stock transfer API
-    const response = await axios.post(`${baseURL}/api/stock-transfer/save-stock-transfer`, payload);
-
-    if (response.status === 200 || response.status === 201) {
-      alert("Stock Transfer completed successfully!");
+      const response = await axios.post(`${baseURL}/ledger`, ledgerData);
       
-      // Clear all data after successful transfer
-      clearData();
-      
-      // Reset form data
-      setFormData({
-        ...formData,
-        active_stock_point_id: "",
-        other_stock_point_id: "",
-        active_stock_point_details: null,
-        other_stock_point_details: null
-      });
-      
-      setRepairDetails([]);
-      
-      // Navigate back or to stock transfer list
-      navigate("/stock-transfers");
+      if (response.status === 201 || response.status === 200) {
+        console.log("Ledger entry created successfully:", response.data);
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error("Error posting to ledger:", error);
+      return false;
     }
-  } catch (error) {
-    console.error("Error saving stock transfer:", error);
-    alert("Error saving stock transfer: " + (error.response?.data?.message || error.message));
-  }
-};
+  };
 
-
-  const handleSavePDFToServer = async (pdfBlob, invoiceNumber) => {
+  const handleSavePDFToServer = async (pdfBlob, transferNumber) => {
     const formData = new FormData();
-    formData.append("invoice", pdfBlob, `${invoiceNumber}.pdf`);
+    formData.append("invoice", pdfBlob, `${transferNumber}.pdf`);
 
     try {
       const response = await fetch(`${baseURL}/upload-invoice`, {
@@ -2279,7 +2200,7 @@ const handleSave = async () => {
         throw new Error("Failed to upload invoice");
       }
 
-      console.log(`Invoice ${invoiceNumber} saved on server`);
+      console.log(`Transfer PDF ${transferNumber} saved on server`);
     } catch (error) {
       console.error("Error uploading invoice:", error);
     }
@@ -2372,6 +2293,175 @@ const handleSave = async () => {
   //   }
   // };
 
+  const handleSave = async () => {
+    try {
+      // Get selected stock point details from CustomerDetails
+      const activeStockPointDetails = formData.active_stock_point_details;
+      const otherStockPointDetails = formData.other_stock_point_details;
+
+      if (!activeStockPointDetails) {
+        alert("Please select an Active Stock Point");
+        return;
+      }
+
+      if (!otherStockPointDetails) {
+        alert("Please select an Other Stock Point");
+        return;
+      }
+
+      if (!repairDetails || repairDetails.length === 0) {
+        alert("Please add items to transfer");
+        return;
+      }
+
+      // Use the displayed transfer number (already fetched on mount)
+      let nextTransferNumber = formData.transfer_number;
+      
+      // If for some reason the displayed number is empty, fetch a new one
+      if (!nextTransferNumber) {
+        try {
+          const response = await axios.get(`${baseURL}/api/stock-transfer/lastTransferNumber`);
+          nextTransferNumber = response.data.lastTransferNumber;
+        } catch (error) {
+          console.error("Error fetching next transfer number:", error);
+          const date = new Date();
+          const timestamp = date.getTime().toString().slice(-6);
+          nextTransferNumber = `STF${timestamp}`;
+        }
+      }
+
+      console.log("Saving with Transfer Number:", nextTransferNumber);
+
+      // Prepare transfer data from repairDetails
+      const transferData = repairDetails.map(item => ({
+        product_id: item.product_id || null,
+        product_name: item.product_name || null,
+        metal_type: item.metal_type || null,
+        purity: item.purity || item.selling_purity || null,
+        category: item.category || null,
+        sub_category: item.sub_category || item.product_name || null,
+        design_name: item.design_name || null,
+        qty: parseFloat(item.qty) || 1,
+        gross_weight: parseFloat(item.gross_weight) || 0,
+        stone_weight: parseFloat(item.stone_weight) || 0,
+        net_weight: parseFloat(item.total_weight_av) || parseFloat(item.weight_bw) || 0,
+        rate: parseFloat(item.rate) || 0,
+        making_charges: parseFloat(item.making_charges) || 0,
+        stone_price: parseFloat(item.stone_price) || 0,
+        total_price: parseFloat(item.total_price) || 0,
+        remarks: item.remarks || null
+      }));
+
+      // Prepare payload for stock transfer
+      const payload = {
+        transfer_data: transferData,
+        from_warehouse_id: activeStockPointDetails.warehouse_id,
+        to_warehouse_id: otherStockPointDetails.warehouse_id,
+        from_stock_point_id: parseInt(formData.active_stock_point_id),
+        to_stock_point_id: parseInt(formData.other_stock_point_id),
+        transfer_date: formData.date || new Date().toISOString().split('T')[0],
+        reference_number: nextTransferNumber,
+        remarks: `Transfer from ${activeStockPointDetails.stock_point_name} to ${otherStockPointDetails.stock_point_name}`,
+        created_by: formData.account_name || "system"
+      };
+
+      console.log("Sending Stock Transfer Payload:", payload);
+
+      // Send to stock transfer API
+      const response = await axios.post(`${baseURL}/api/stock-transfer/save-stock-transfer`, payload);
+
+      if (response.status === 200 || response.status === 201) {
+        alert(`Stock Transfer completed successfully! Transfer Number: ${nextTransferNumber}`);
+        
+        // Generate PDF after successful save
+        setShowPDFDownload(true);
+        
+        // Prepare data for PDF
+        const updatedFormData = {
+          ...formData,
+          transfer_number: nextTransferNumber
+        };
+        
+        // Generate PDF
+        const pdfDoc = (
+          <PDFLayout
+            formData={updatedFormData}
+            repairDetails={repairDetails}
+            cash_amount={0}
+            card_amt={0}
+            chq_amt={0}
+            online_amt={0}
+            taxableAmount={taxableAmount}
+            taxAmount={taxAmount}
+            discountAmt={discountAmt}
+            festivalDiscountAmt={festivalDiscountAmt}
+            oldItemsAmount={0}
+            schemeAmount={0}
+            salesNetAmount={0}
+            salesTaxableAmount={0}
+            selectedAdvanceReceiptAmount={0}
+            netAmount={netAmount}
+            netPayableAmount={netPayableAmount}
+            company={company}
+            product={product}
+          />
+        );
+
+        const pdfBlob = await pdf(pdfDoc).toBlob();
+
+        // Save PDF to server
+        await handleSavePDFToServer(pdfBlob, nextTransferNumber);
+
+        // Open preview in new tab
+        const previewURL = `${baseURL}/invoices/${nextTransferNumber}.pdf`;
+        window.open(previewURL, "_blank");
+
+        // Attempt to share
+        const pdfFile = new File(
+          [pdfBlob],
+          `${nextTransferNumber}.pdf`,
+          { type: "application/pdf" }
+        );
+
+        if (navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
+          try {
+            await navigator.share({
+              title: `Stock Transfer ${nextTransferNumber}`,
+              text: "Here is your stock transfer PDF.",
+              files: [pdfFile],
+            });
+            console.log("PDF shared successfully");
+          } catch (err) {
+            console.warn("Sharing was cancelled or failed:", err);
+          }
+        } else {
+          console.warn("Sharing not supported on this device/browser.");
+        }
+        
+        // Clear all data after successful transfer
+        clearData();
+        
+        // Reset form data
+        setFormData({
+          ...formData,
+          active_stock_point_id: "",
+          other_stock_point_id: "",
+          active_stock_point_details: null,
+          other_stock_point_details: null,
+          transfer_number: "", // Clear the transfer number field
+        });
+        
+        setRepairDetails([]);
+        
+        // Navigate back or to stock transfer list
+        navigate("/stock-transfer");
+      }
+    } catch (error) {
+      console.error("Error saving stock transfer:", error);
+      alert("Error saving stock transfer: " + (error.response?.data?.message || error.message));
+    }
+  };
+
   const refreshSalesData = () => {
     setOldSalesData([]);
     setSchemeSalesData([]);
@@ -2407,8 +2497,8 @@ const handleSave = async () => {
   }, [formData.code]);
 
   // Apply calculations
-  // useCalculations(formData, setFormData, offers,  isManualTotalPriceChange,
-  //   setIsManualTotalPriceChange, isTotalPriceCleared);
+  useCalculations(formData, setFormData, offers, isManualTotalPriceChange,
+    setIsManualTotalPriceChange, isTotalPriceCleared);
 
   return (
     <div className="main-container">
@@ -2614,10 +2704,10 @@ const handleSave = async () => {
                   paymentDetails={paymentDetails}
                 />
               }
-              fileName={`invoice-${formData.invoice_number}.pdf`}
+              fileName={`stock-transfer-${formData.transfer_number}.pdf`}
             >
               {({ blob, url, loading, error }) =>
-                loading ? "Generating PDF..." : "Download Invoice PDF"
+                loading ? "Generating PDF..." : "Download Stock Transfer PDF"
               }
             </PDFDownloadLink>
           )}
