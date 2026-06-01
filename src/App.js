@@ -79,6 +79,7 @@ import SalesRateCut from "./Components/Modules/Transactions/Receipts/SalesRateCu
 import StockPoints from "./Components/Modules/Masters/Stockpoints/StockPoints";
 import StockTransferTable from "./Components/Modules/Transactions/StockTransfer/StockTransferTable";
 import StockTransferForm from "./Components/Modules/Transactions/StockTransfer/StockTransferForm"
+import StockPointDashboard from "./Components/Pages/Dashboard/StockPointsDashboard";
 
 function App() {
   const location = useLocation();
@@ -95,6 +96,7 @@ function App() {
           <Route path="/" exact element={<Login />} />
            <Route path="/ledger" exact element={<Ledger />} />
           <Route path="/dashboard" exact element={<Dashboard />} />
+          <Route path="/stock-dashboard" exact element={<StockPointDashboard />} />
           <Route path="/itemmaster" exact element={<ItemMaster />} />
           <Route path="/repairs" element={<Repairs />} />
           <Route path="/repairs/:id" element={<Repairs />} />

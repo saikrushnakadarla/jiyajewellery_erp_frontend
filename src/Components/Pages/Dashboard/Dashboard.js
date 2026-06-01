@@ -30,6 +30,8 @@ import {
   LineElement,
 } from 'chart.js';
 
+
+
 ChartJS.register(
   CategoryScale,
   LinearScale,

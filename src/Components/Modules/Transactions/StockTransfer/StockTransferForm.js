@@ -24,6 +24,10 @@ const StockTransferForm = () => {
   const [showPDFDownload, setShowPDFDownload] = useState(false);
   const [customers, setCustomers] = useState([]);
   const [metal, setMetal] = useState("");
+  
+  // State for stock points
+  const [activeStockPoints, setActiveStockPoints] = useState([]);
+  const [otherStockPoints, setOtherStockPoints] = useState([]);
 
   const [oldSalesData, setOldSalesData] = useState(
     JSON.parse(localStorage.getItem("oldSalesData")) || [],
@@ -152,6 +156,46 @@ const StockTransferForm = () => {
 
     fetchNextTransferNumber();
   }, []); // Empty dependency array - runs once on mount
+
+  // Fetch stock points for dropdown
+  useEffect(() => {
+    const fetchStockPoints = async () => {
+      try {
+        const response = await axios.get(`${baseURL}/api/stockpoints`);
+        // Filter only active stock points
+        const activePoints = response.data.filter(sp => sp.status === 'active');
+        setActiveStockPoints(activePoints);
+        setOtherStockPoints(activePoints);
+      } catch (error) {
+        console.error("Error fetching stock points:", error);
+      }
+    };
+    fetchStockPoints();
+  }, []);
+
+  // Handle Active Stock Point Selection
+  const handleActiveStockPointChange = (e) => {
+    const selectedId = parseInt(e.target.value);
+    const selectedStockPoint = activeStockPoints.find(sp => sp.stock_point_id === selectedId);
+    
+    setFormData(prev => ({
+      ...prev,
+      active_stock_point_id: selectedId,
+      active_stock_point_details: selectedStockPoint || null
+    }));
+  };
+
+  // Handle Other Stock Point Selection
+  const handleOtherStockPointChange = (e) => {
+    const selectedId = parseInt(e.target.value);
+    const selectedStockPoint = otherStockPoints.find(sp => sp.stock_point_id === selectedId);
+    
+    setFormData(prev => ({
+      ...prev,
+      other_stock_point_id: selectedId,
+      other_stock_point_details: selectedStockPoint || null
+    }));
+  };
 
   const [selectedMobile, setSelectedMobile] = useState("");
   const [uniqueInvoice, setUniqueInvoice] = useState([]);
@@ -2329,7 +2373,7 @@ const StockTransferForm = () => {
 
     console.log("Saving with Transfer Number:", nextTransferNumber);
 
-    // IMPORTANT: Include PCode_BarCode for stock point update
+    // IMPORTANT: Include PCode_BarCode and user_id from stock points
     const transferData = repairDetails.map(item => ({
       product_id: item.product_id || null,
       product_name: item.product_name || null,
@@ -2359,7 +2403,10 @@ const StockTransferForm = () => {
       transfer_date: formData.date || new Date().toISOString().split('T')[0],
       reference_number: nextTransferNumber,
       remarks: `Transfer from ${activeStockPointDetails.stock_point_name} to ${otherStockPointDetails.stock_point_name}`,
-      created_by: formData.account_name || "system"
+      created_by: formData.account_name || "system",
+      // Include user_id from stock points
+      from_user_id: activeStockPointDetails.user_id || null,
+      to_user_id: otherStockPointDetails.user_id || null
     };
 
     console.log("Sending Stock Transfer Payload:", payload);
@@ -2451,6 +2498,68 @@ const StockTransferForm = () => {
               <InvoiceDetails formData={formData} setFormData={setFormData} />
             </div>
           </div>
+          
+          {/* Stock Points Selection Section */}
+          {/* <div className="sales-form" style={{ marginTop: "15px", marginBottom: "15px" }}>
+            <div className="sales-form-left">
+              <div style={{ padding: "10px", border: "1px solid #ddd", borderRadius: "5px", backgroundColor: "#f9f9f9" }}>
+                <label style={{ fontWeight: "bold", marginBottom: "10px", display: "block", color: "#a36e29" }}>
+                  Active Stock Point *
+                </label>
+                <select
+                  className="form-control"
+                  value={formData.active_stock_point_id || ""}
+                  onChange={handleActiveStockPointChange}
+                  style={{ width: "100%", padding: "8px", borderRadius: "4px", border: "1px solid #ccc" }}
+                >
+                  <option value="">Select Active Stock Point</option>
+                  {activeStockPoints.map(sp => (
+                    <option key={sp.stock_point_id} value={sp.stock_point_id}>
+                      {sp.stock_point_name} {sp.user_id ? `(User ID: ${sp.user_id})` : ''}
+                    </option>
+                  ))}
+                </select>
+                {formData.active_stock_point_details && (
+                  <div style={{ marginTop: "8px", fontSize: "12px", color: "#666" }}>
+                    Location: {formData.active_stock_point_details.location} | 
+                    Status: {formData.active_stock_point_details.status} |
+                    {formData.active_stock_point_details.user_id && ` User ID: ${formData.active_stock_point_details.user_id}`}
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="sales-form-right">
+              <div style={{ padding: "10px", border: "1px solid #ddd", borderRadius: "5px", backgroundColor: "#f9f9f9" }}>
+                <label style={{ fontWeight: "bold", marginBottom: "10px", display: "block", color: "#a36e29" }}>
+                  Other Stock Point *
+                </label>
+                <select
+                  className="form-control"
+                  value={formData.other_stock_point_id || ""}
+                  onChange={handleOtherStockPointChange}
+                  style={{ width: "100%", padding: "8px", borderRadius: "4px", border: "1px solid #ccc" }}
+                  disabled={!formData.active_stock_point_id}
+                >
+                  <option value="">Select Other Stock Point</option>
+                  {otherStockPoints
+                    .filter(sp => sp.stock_point_id !== formData.active_stock_point_id)
+                    .map(sp => (
+                      <option key={sp.stock_point_id} value={sp.stock_point_id}>
+                        {sp.stock_point_name} {sp.user_id ? `(User ID: ${sp.user_id})` : ''}
+                      </option>
+                    ))}
+                </select>
+                {formData.other_stock_point_details && (
+                  <div style={{ marginTop: "8px", fontSize: "12px", color: "#666" }}>
+                    Location: {formData.other_stock_point_details.location} | 
+                    Status: {formData.other_stock_point_details.status} |
+                    {formData.other_stock_point_details.user_id && ` User ID: ${formData.other_stock_point_details.user_id}`}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div> */}
+
           <div
             className="sales-form-section"
             style={{ marginTop: "-20px", marginBottom: "5px" }}
