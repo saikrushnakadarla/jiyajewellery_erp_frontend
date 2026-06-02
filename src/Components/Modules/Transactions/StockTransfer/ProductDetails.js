@@ -73,13 +73,24 @@ const ProductDetails = ({
       .map((product) => ({
         value: product.rbarcode,
         label: product.rbarcode,
+        type: "product"
       })),
-    ...data
-      .filter((tag) => (formData.category ? tag.category === formData.category : true))
-      .map((tag) => ({
-        value: tag.PCode_BarCode,
-        label: tag.PCode_BarCode,
-      })),
+   ...data
+    .filter((tag) => {
+      // Filter by category if selected
+      if (formData.category && tag.category !== formData.category) return false;
+      // Only show Available products
+      if (tag.Status !== 'Available') return false;
+      // Only show products in MAIN STOCK ROOM
+      if (tag.Stock_Point !== 'MAIN STOCK ROOM') return false;
+      return true;
+    })
+    .map((tag) => ({
+      value: tag.PCode_BarCode,
+      label: tag.PCode_BarCode,
+      type: 'tag',
+      tagData: tag  // Store full tag data for reference
+    })),
   ];
 
   if (defaultBarcode && !barcodeOptions.some((option) => option.value === defaultBarcode)) {
