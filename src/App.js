@@ -12,6 +12,7 @@ import Customers_Table from './Components/Modules/Masters/Customer/Customers_Tab
 import RepairsTable from './Components/Modules/Transactions/Repairs/RepairsTable';
 import ItemMasterTable from './Components/Modules/Masters/ItemMaster/ItemMasterTable';
 import Navbar from './Navbar/Navbar';
+import StockNavbar from "./Navbar/StockNavbar";
 import Dashboard from './Components/Pages/Dashboard/Dashboard';
 import Estimate from './Components/Modules/Transactions/Estimate/EstimateForm';
 import Customer_Master from './Components/Modules/Masters/Customer/Customer_Master';
@@ -87,10 +88,17 @@ function App() {
   // Check if the current route is login or signup
   const isAuthPage = location.pathname === "/" || location.pathname === "/";
 
+  const isStockModule = location.pathname === "/stock-dashboard" || 
+                        location.pathname === "/assign-to-salesman" || 
+                        location.pathname === "/receive-from-salesman";
+
   return (
     <>
       <AuthProvider>
-        {!isAuthPage && <Navbar />}
+        {/* {!isAuthPage && <Navbar />} */}
+
+        {!isAuthPage && !isStockModule && <Navbar />}
+        {!isAuthPage && isStockModule && <StockNavbar />}
         
         <Routes>
           <Route path="/" exact element={<Login />} />
