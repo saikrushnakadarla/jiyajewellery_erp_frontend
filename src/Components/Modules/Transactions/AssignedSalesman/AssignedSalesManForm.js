@@ -18,7 +18,7 @@ import PDFLayout from "./TaxInvoiceA4";
 import { useLocation } from "react-router-dom";
 import { saveAs } from "file-saver";
 
-const StockTransferForm = () => {
+const AssignedSalesmanForm = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [showPDFDownload, setShowPDFDownload] = useState(false);
@@ -134,28 +134,32 @@ const StockTransferForm = () => {
   }, []);
 
   // ✅ ADD THIS: Fetch next transfer number on component mount - displays automatically
-  useEffect(() => {
-    const fetchNextTransferNumber = async () => {
-      try {
-        const response = await axios.get(`${baseURL}/api/stock-transfer/lastTransferNumber`);
-        const nextNumber = response.data.lastTransferNumber;
-        console.log("Next Transfer Number to display:", nextNumber);
-        setFormData((prev) => ({
-          ...prev,
-          transfer_number: nextNumber,
-        }));
-      } catch (error) {
-        console.error("Error fetching next transfer number:", error);
-        // Set default if API fails
-        setFormData((prev) => ({
-          ...prev,
-          transfer_number: "STF001",
-        }));
-      }
-    };
+// ✅ FIX THIS: Fetch next assigned number from assigned-salesman API
+useEffect(() => {
+  const fetchNextAssignedNumber = async () => {
+    try {
+      // Change from stock-transfer to assigned-salesman
+      const response = await axios.get(`${baseURL}/api/assigned-salesman/lastAssignedNumber`);
+      const nextNumber = response.data.lastAssignedNumber;
+      console.log("Next Assigned Number to display:", nextNumber);
+      setFormData((prev) => ({
+        ...prev,
+        assigned_number: nextNumber,  // Change from transfer_number to assigned_number
+        transfer_number: nextNumber,  // Keep for compatibility
+      }));
+    } catch (error) {
+      console.error("Error fetching next assigned number:", error);
+      // Set default if API fails
+      setFormData((prev) => ({
+        ...prev,
+        assigned_number: "ASN001",
+        transfer_number: "ASN001",
+      }));
+    }
+  };
 
-    fetchNextTransferNumber();
-  }, []); // Empty dependency array - runs once on mount
+  fetchNextAssignedNumber();
+}, []);
 
   // Fetch stock points for dropdown
   useEffect(() => {
@@ -1402,38 +1406,38 @@ const StockTransferForm = () => {
     return savedData ? JSON.parse(savedData) : [];
   });
 
-  const resetForm = () => {
-    setFormData({
-      customer_id: "",
-      mobile: "",
-      account_name: "",
-      email: "",
-      address1: "",
-      address2: "",
-      city: "",
-      pincode: "",
-      state: "",
-      state_code: "",
-      aadhar_card: "",
-      gst_in: "",
-      pan_card: "",
-      date: new Date().toISOString().split("T")[0],
-      transfer_number: "",
-      active_stock_point_id: "",
-      other_stock_point_id: "",
-      active_stock_point_details: null,
-      other_stock_point_details: null
-    });
-    setPaymentDetails({
-      cash_amount: 0,
-      card_amt: 0,
-      chq: "",
-      chq_amt: 0,
-      online: "",
-      online_amt: 0,
-    });
-    setRepairDetails([]);
-  };
+const resetForm = () => {
+  setFormData({
+    customer_id: "",
+    mobile: "",
+    account_name: "",
+    email: "",
+    address1: "",
+    address2: "",
+    city: "",
+    pincode: "",
+    state: "",
+    state_code: "",
+    aadhar_card: "",
+    gst_in: "",
+    pan_card: "",
+    date: new Date().toISOString().split("T")[0],
+    transfer_number: "",
+    active_stock_point_id: "",
+    salesman_id: "",        // Add this
+    salesman_name: "",      // Add this
+    active_stock_point_details: null,
+  });
+  setPaymentDetails({
+    cash_amount: 0,
+    card_amt: 0,
+    chq: "",
+    chq_amt: 0,
+    online: "",
+    online_amt: 0,
+  });
+  setRepairDetails([]);
+};
 
   const resetSaleReturnForm = () => {
     setReturnData({
@@ -1978,38 +1982,38 @@ const StockTransferForm = () => {
     }
   }, []);
 
-  const clearData = () => {
-    setOldSalesData([]);
-    setSchemeSalesData([]);
-    setRepairDetails([]);
-    setPaymentDetails({
-      cash_amount: 0,
-      card_amt: 0,
-      chq: "",
-      chq_amt: 0,
-      online: "",
-      online_amt: 0,
-    });
-    setOldTableData([]);
-    setSchemeTableData([]);
-    setDiscount(0);
-    setFormData(prev => ({
-      ...prev,
-      active_stock_point_id: "",
-      other_stock_point_id: "",
-      active_stock_point_details: null,
-      other_stock_point_details: null
-    }));
-    localStorage.removeItem("oldSalesData");
-    localStorage.removeItem("schemeSalesData");
-    localStorage.removeItem(`repairDetails_${tabId}`);
-    localStorage.removeItem(`paymentDetails_${tabId}`);
-    localStorage.removeItem(`oldTableData_${tabId}`);
-    localStorage.removeItem(`schemeTableData_${tabId}`);
-    localStorage.removeItem(`discount_${tabId}`);
-    localStorage.removeItem(`saleFormData_${tabId}`);
-    console.log("Data cleared successfully");
-  };
+//   const resetForm = () => {
+//   setFormData({
+//     customer_id: "",
+//     mobile: "",
+//     account_name: "",
+//     email: "",
+//     address1: "",
+//     address2: "",
+//     city: "",
+//     pincode: "",
+//     state: "",
+//     state_code: "",
+//     aadhar_card: "",
+//     gst_in: "",
+//     pan_card: "",
+//     date: new Date().toISOString().split("T")[0],
+//     transfer_number: "",
+//     active_stock_point_id: "",
+//     salesman_id: "",        // Add this
+//     salesman_name: "",      // Add this
+//     active_stock_point_details: null,
+//   });
+//   setPaymentDetails({
+//     cash_amount: 0,
+//     card_amt: 0,
+//     chq: "",
+//     chq_amt: 0,
+//     online: "",
+//     online_amt: 0,
+//   });
+//   setRepairDetails([]);
+// };
 
   const [product, setProduct] = useState([]); // State to store table data
   const [company, setCompany] = useState(null);
@@ -2337,18 +2341,22 @@ const StockTransferForm = () => {
   //   }
   // };
 
- const handleSave = async () => {
+
+const handleSave = async () => {
   try {
     const activeStockPointDetails = formData.active_stock_point_details;
-    const otherStockPointDetails = formData.other_stock_point_details;
+    const selectedSalesman = formData.salesman_id ? {
+      salesman_id: formData.salesman_id,
+      salesman_name: formData.salesman_name
+    } : null;
 
     if (!activeStockPointDetails) {
       alert("Please select an Active Stock Point");
       return;
     }
 
-    if (!otherStockPointDetails) {
-      alert("Please select an Other Stock Point");
+    if (!selectedSalesman) {
+      alert("Please select a Salesman");
       return;
     }
 
@@ -2357,23 +2365,21 @@ const StockTransferForm = () => {
       return;
     }
 
-    let nextTransferNumber = formData.transfer_number;
+    // Use assigned_number instead of transfer_number
+    let nextAssignedNumber = formData.assigned_number || formData.transfer_number;
     
-    if (!nextTransferNumber) {
+    if (!nextAssignedNumber) {
       try {
-        const response = await axios.get(`${baseURL}/api/stock-transfer/lastTransferNumber`);
-        nextTransferNumber = response.data.lastTransferNumber;
+        const response = await axios.get(`${baseURL}/api/assigned-salesman/lastAssignedNumber`);
+        nextAssignedNumber = response.data.lastAssignedNumber;
       } catch (error) {
-        console.error("Error fetching next transfer number:", error);
-        const date = new Date();
-        const timestamp = date.getTime().toString().slice(-6);
-        nextTransferNumber = `STF${timestamp}`;
+        console.error("Error fetching next assigned number:", error);
+        nextAssignedNumber = `ASN001`;
       }
     }
 
-    console.log("Saving with Transfer Number:", nextTransferNumber);
+    console.log("Saving with Assigned Number:", nextAssignedNumber);
 
-    // IMPORTANT: Include PCode_BarCode and user_id from stock points
     const transferData = repairDetails.map(item => ({
       product_id: item.product_id || null,
       product_name: item.product_name || null,
@@ -2391,50 +2397,64 @@ const StockTransferForm = () => {
       stone_price: parseFloat(item.stone_price) || 0,
       total_price: parseFloat(item.total_price) || 0,
       remarks: item.remarks || null,
-      PCode_BarCode: item.code  // KEY: Add PCode_BarCode for stock point update
+      PCode_BarCode: item.code
     }));
 
     const payload = {
       transfer_data: transferData,
-      from_warehouse_id: activeStockPointDetails.warehouse_id,
-      to_warehouse_id: otherStockPointDetails.warehouse_id,
       from_stock_point_id: parseInt(formData.active_stock_point_id),
-      to_stock_point_id: parseInt(formData.other_stock_point_id),
+      to_salesman_id: parseInt(selectedSalesman.salesman_id),
       transfer_date: formData.date || new Date().toISOString().split('T')[0],
-      reference_number: nextTransferNumber,
-      remarks: `Transfer from ${activeStockPointDetails.stock_point_name} to ${otherStockPointDetails.stock_point_name}`,
+      reference_number: nextAssignedNumber,  // This will be ASN001 format
+      remarks: `Assigned to ${selectedSalesman.salesman_name} from ${activeStockPointDetails.stock_point_name}`,
       created_by: formData.account_name || "system",
-      // Include user_id from stock points
       from_user_id: activeStockPointDetails.user_id || null,
-      to_user_id: otherStockPointDetails.user_id || null
+      to_user_id: null
     };
 
-    console.log("Sending Stock Transfer Payload:", payload);
+    console.log("Sending Assigned Salesman Payload:", payload);
 
-    const response = await axios.post(`${baseURL}/api/stock-transfer/save-stock-transfer`, payload);
-
+    const response = await axios.post(`${baseURL}/api/assigned-salesman/save-assigned-salesman`, payload);
+   
     if (response.status === 200 || response.status === 201) {
-      alert(`Stock Transfer completed successfully! Transfer Number: ${nextTransferNumber}`);
+      alert(`Assigned to Salesman completed successfully! Assigned Number: ${nextAssignedNumber}`);
       
+      // Clear data
+      setOldSalesData([]);
+      setSchemeSalesData([]);
+      setRepairDetails([]);
+      setPaymentDetails({
+        cash_amount: 0,
+        card_amt: 0,
+        chq: "",
+        chq_amt: 0,
+        online: "",
+        online_amt: 0,
+      });
+      setOldTableData([]);
+      setSchemeTableData([]);
+      setDiscount(0);
       
-      clearData();
+      // Reset form data
       setFormData({
         ...formData,
         active_stock_point_id: "",
-        other_stock_point_id: "",
+        salesman_id: "",
+        salesman_name: "",
         active_stock_point_details: null,
-        other_stock_point_details: null,
+        assigned_number: "",
         transfer_number: "",
       });
       
-      setRepairDetails([]);
-      navigate("/stock-transfer");
+      navigate("/assign-to-salesman");
     }
   } catch (error) {
-    console.error("Error saving stock transfer:", error);
-    alert("Error saving stock transfer: " + (error.response?.data?.message || error.message));
+    console.error("Error saving assigned salesman:", error);
+    alert("Error saving assigned salesman: " + (error.response?.data?.message || error.message));
   }
 };
+
+
 
   const refreshSalesData = () => {
     setOldSalesData([]);
@@ -2753,4 +2773,4 @@ const StockTransferForm = () => {
   );
 };
 
-export default StockTransferForm;
+export default AssignedSalesmanForm;

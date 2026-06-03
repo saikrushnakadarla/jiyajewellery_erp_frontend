@@ -81,6 +81,8 @@ import StockPoints from "./Components/Modules/Masters/Stockpoints/StockPoints";
 import StockTransferTable from "./Components/Modules/Transactions/StockTransfer/StockTransferTable";
 import StockTransferForm from "./Components/Modules/Transactions/StockTransfer/StockTransferForm"
 import StockPointDashboard from "./Components/Pages/Dashboard/StockPointsDashboard";
+import AssignSalesmanTable from "./Components/Modules/Transactions/AssignedSalesman/AssignedSalesManTable";
+import AssignSalesmanForm from "./Components/Modules/Transactions/AssignedSalesman/AssignedSalesManForm";
 
 function App() {
   const location = useLocation();
@@ -90,7 +92,8 @@ function App() {
 
   const isStockModule = location.pathname === "/stock-dashboard" || 
                         location.pathname === "/assign-to-salesman" || 
-                        location.pathname === "/receive-from-salesman";
+                        location.pathname === "/receive-from-salesman" ||
+                        location.pathname === "/add-assign-salesmantransfer";
 
   return (
     <>
@@ -164,7 +167,7 @@ function App() {
           <Route path="/barcodeprinting" element={<BarCodePrinting />} />
           <Route path="/sales/details/:invoice_number" element={<RepairDetails />} />
 
-          <Route path="/salesNew" element={<SalesNew />} />
+          <Route path="/salesNew" element = {<SalesNew />} />
 
           <Route path="/salesreturn" element={<SalesReturn />} />
           <Route path="/estimatereceipt" element={<EstimateReceipt />} />
@@ -192,6 +195,15 @@ function App() {
              
               <Route path="/stock-transfer" element={<StockTransferTable />} />
               <Route path="/add-stocktransfer" element={<StockTransferForm />} />
+
+
+               <Route path="/assign-to-salesman" element={<AssignSalesmanTable />} />
+              <Route path="/add-assign-salesmantransfer" element={<AssignSalesmanForm />} />
+
+
+
+
+
 
 
 

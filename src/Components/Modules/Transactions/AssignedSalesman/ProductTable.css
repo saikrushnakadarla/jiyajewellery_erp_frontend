@@ -1,0 +1,6 @@
+.dataTable_headerCell1 {
+    white-space: nowrap;  /* Prevent text wrapping */
+  }
+  .table-values-sales{
+    font-size: 12px;
+  }
