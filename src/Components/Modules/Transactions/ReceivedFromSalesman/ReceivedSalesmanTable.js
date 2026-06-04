@@ -8,7 +8,7 @@ import baseURL from '../../../../Url/NodeBaseURL';
 import { AuthContext } from "../../../Pages/Login/Context";
 import Swal from 'sweetalert2';
 
-const AssignedSalesmanTable = () => {
+const ReceivedSalesmanTable = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [data, setData] = useState([]);
@@ -176,7 +176,7 @@ const AssignedSalesmanTable = () => {
 
   const handleEdit = (transfer) => {
     const tabId = crypto.randomUUID();
-    navigate("/add-assign-salesmantransfer", { 
+    navigate("/add-receive-from-salesman", { 
       state: { 
         tabId,
         editData: transfer,
@@ -212,7 +212,7 @@ const AssignedSalesmanTable = () => {
 
   const handleCreate = () => {
     const tabId = crypto.randomUUID();
-    navigate("/add-assign-salesmantransfer", { state: { tabId } });
+    navigate("/add-receive-from-salesman", { state: { tabId } });
   };
 
   const fetchAssignedTransfers = async () => {
@@ -277,7 +277,7 @@ const AssignedSalesmanTable = () => {
       <div className="sales-table-container">
         <Row className="mb-3">
           <Col className="d-flex justify-content-between align-items-center">
-            <h3>Assigned to Salesman</h3>
+            <h3>Received From Salesman</h3>
             <Button
               className="create_but"
               onClick={handleCreate}
@@ -421,4 +421,4 @@ const AssignedSalesmanTable = () => {
   );
 };
 
-export default AssignedSalesmanTable;
+export default ReceivedSalesmanTable;

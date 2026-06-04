@@ -18,7 +18,7 @@ import PDFLayout from "./TaxInvoiceA4";
 import { useLocation } from "react-router-dom";
 import { saveAs } from "file-saver";
 
-const AssignedSalesmanForm = () => {
+const ReceivedSalesmanForm = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [showPDFDownload, setShowPDFDownload] = useState(false);
@@ -187,6 +187,46 @@ useEffect(() => {
     };
     fetchStockPoints();
   }, []);
+
+
+  // Add this function to ReceivedSalesmanForm.js
+const fetchAssignedProducts = async (stockPointId) => {
+  try {
+    const loggedInUserId = localStorage.getItem('userId');
+    
+    if (!stockPointId) {
+      console.log("No stock point selected");
+      return;
+    }
+    
+    if (!loggedInUserId) {
+      console.log("No logged-in user found");
+      return;
+    }
+    
+    const response = await axios.get(`${baseURL}/api/assigned-salesman/get-assigned-products`, {
+      params: {
+        from_stock_point_id: stockPointId,
+        from_user_id: loggedInUserId
+      }
+    });
+    
+    console.log("Fetched assigned products:", response.data);
+    
+    // Extract all unique PCode_BarCode values
+    const barcodeList = response.data.map(item => item.PCode_BarCode).filter(Boolean);
+    console.log("Available Barcodes:", barcodeList);
+    
+    // You can also get the full product details
+    const productsList = response.data;
+    console.log("Full product details:", productsList);
+    
+    return { barcodes: barcodeList, products: productsList };
+  } catch (error) {
+    console.error("Error fetching assigned products:", error);
+    return { barcodes: [], products: [] };
+  }
+};
 
   // Handle Active Stock Point Selection
   const handleActiveStockPointChange = (e) => {
@@ -2818,4 +2858,4 @@ const handleSave = async () => {
   );
 };
 
-export default AssignedSalesmanForm;
+export default ReceivedSalesmanForm;

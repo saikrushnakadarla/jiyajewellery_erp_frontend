@@ -83,6 +83,8 @@ import StockTransferForm from "./Components/Modules/Transactions/StockTransfer/S
 import StockPointDashboard from "./Components/Pages/Dashboard/StockPointsDashboard";
 import AssignSalesmanTable from "./Components/Modules/Transactions/AssignedSalesman/AssignedSalesManTable";
 import AssignSalesmanForm from "./Components/Modules/Transactions/AssignedSalesman/AssignedSalesManForm";
+import ReceivedSalesmanTable from "./Components/Modules/Transactions/ReceivedFromSalesman/ReceivedSalesmanTable";
+import ReceivedSalesmanForm from "./Components/Modules/Transactions/ReceivedFromSalesman/ReceivedSalesmanForm"
 
 function App() {
   const location = useLocation();
@@ -199,6 +201,10 @@ function App() {
 
                <Route path="/assign-to-salesman" element={<AssignSalesmanTable />} />
               <Route path="/add-assign-salesmantransfer" element={<AssignSalesmanForm />} />
+
+
+               <Route path="/receive-from-salesman" element={<ReceivedSalesmanTable />} />
+              <Route path="/add-receive-from-salesman" element={<ReceivedSalesmanForm />} />
 
 
 
