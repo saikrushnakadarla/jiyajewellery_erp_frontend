@@ -95,7 +95,8 @@ function App() {
   const isStockModule = location.pathname === "/stock-dashboard" || 
                         location.pathname === "/assign-to-salesman" || 
                         location.pathname === "/receive-from-salesman" ||
-                        location.pathname === "/add-assign-salesmantransfer";
+                        location.pathname === "/add-assign-salesmantransfer" ||
+                        location.pathname === "/add-receive-from-salesman";
 
   return (
     <>

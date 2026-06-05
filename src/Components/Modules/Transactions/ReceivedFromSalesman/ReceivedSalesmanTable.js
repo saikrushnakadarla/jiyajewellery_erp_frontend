@@ -89,27 +89,27 @@ const ReceivedSalesmanTable = () => {
         Cell: ({ row }) => row.index + 1,
       },
       {
-        Header: 'Assigned No',
-        accessor: 'assigned_number',
+        Header: 'Received No',
+        accessor: 'received_number',
       },
       {
-        Header: 'Assigned Date',
+        Header: 'Received Date',
         accessor: 'transfer_date',
         Cell: ({ value }) => formatDate(value),
       },
       {
-        Header: 'From Stock Point',
-        accessor: 'from_stock_point_name',
-        Cell: ({ value }) => value || 'N/A',
-      },
-      {
-        Header: 'To Salesman',
-        accessor: 'to_salesman_name',
+        Header: 'From Salesman',
+        accessor: 'from_salesman_name',
         Cell: ({ value }) => value || 'N/A',
       },
       {
         Header: 'Salesman Mobile',
         accessor: 'salesman_mobile',
+        Cell: ({ value }) => value || 'N/A',
+      },
+      {
+        Header: 'To Stock Point',
+        accessor: 'to_stock_point_name',
         Cell: ({ value }) => value || 'N/A',
       },
       {
@@ -144,7 +144,7 @@ const ReceivedSalesmanTable = () => {
             <div>
               <FaEye
                 style={{ cursor: 'pointer', marginLeft: '10px', color: 'green' }}
-                onClick={() => handleViewDetails(row.original.assigned_id)}
+                onClick={() => handleViewDetails(row.original.received_id)}
               />
               {isAdmin && canEdit && (
                 <FaEdit
@@ -163,7 +163,7 @@ const ReceivedSalesmanTable = () => {
                     marginLeft: '10px',
                     color: 'red',
                   }}
-                  onClick={() => handleDelete(row.original.assigned_id)}
+                  onClick={() => handleDelete(row.original.received_id)}
                 />
               )}
             </div>
@@ -185,10 +185,10 @@ const ReceivedSalesmanTable = () => {
     });
   };
 
-  const handleDelete = async (assignedId) => {
+  const handleDelete = async (receivedId) => {
     Swal.fire({
       title: 'Are you sure?',
-      text: `Do you really want to delete this assigned transfer?`,
+      text: `Do you really want to delete this received transfer?`,
       icon: 'warning',
       showCancelButton: true,
       confirmButtonColor: '#d33',
@@ -197,14 +197,14 @@ const ReceivedSalesmanTable = () => {
     }).then(async (result) => {
       if (result.isConfirmed) {
         try {
-          const response = await axios.delete(`${baseURL}/api/assigned-salesman/delete-assigned-transfer/${assignedId}`);
+          const response = await axios.delete(`${baseURL}/api/received-salesman/delete-received-transfer/${receivedId}`);
           if (response.status === 200) {
             Swal.fire('Deleted!', response.data.message, 'success');
-            fetchAssignedTransfers();
+            fetchReceivedTransfers();
           }
         } catch (error) {
-          console.error('Error deleting assigned transfer:', error);
-          Swal.fire('Error!', 'Failed to delete assigned transfer. Please try again.', 'error');
+          console.error('Error deleting received transfer:', error);
+          Swal.fire('Error!', 'Failed to delete received transfer. Please try again.', 'error');
         }
       }
     });
@@ -215,21 +215,22 @@ const ReceivedSalesmanTable = () => {
     navigate("/add-receive-from-salesman", { state: { tabId } });
   };
 
-  const fetchAssignedTransfers = async () => {
+  const fetchReceivedTransfers = async () => {
     try {
       setLoading(true);
-      const response = await axios.get(`${baseURL}/api/assigned-salesman/get-assigned-transfers`);
-      console.log("Assigned Transfers Response: ", response.data);
+      // Use the RECEIVED SALESMAN API endpoint
+      const response = await axios.get(`${baseURL}/api/received-salesman/get-received-transfers`);
+      console.log("Received Transfers Response: ", response.data);
       
       // Get logged-in user ID
       const loggedInUserId = getLoggedInUserId();
       console.log("Logged in User ID:", loggedInUserId);
       
-      // Filter data based on from_user_id matching logged-in user
+      // Filter data based on from_user_id or to_user_id matching logged-in user
       let filteredTransfers = response.data;
       if (loggedInUserId) {
         filteredTransfers = response.data.filter(
-          transfer => transfer.from_user_id === loggedInUserId
+          transfer => transfer.from_user_id === loggedInUserId || transfer.to_user_id === loggedInUserId
         );
         console.log("Filtered Transfers by user_id:", filteredTransfers);
       }
@@ -238,19 +239,22 @@ const ReceivedSalesmanTable = () => {
       setFilteredData(filteredTransfers);
       setLoading(false);
     } catch (error) {
-      console.error('Error fetching assigned transfers:', error);
+      console.error('Error fetching received transfers:', error);
       setLoading(false);
     }
   };
 
-  const handleViewDetails = async (assigned_id) => {
+  const handleViewDetails = async (receivedId) => {
     try {
-      const response = await axios.get(`${baseURL}/api/assigned-salesman/get-assigned-transfer/${assigned_id}`);
-      console.log("Fetched assigned details: ", response.data);
+      // Use the RECEIVED SALESMAN API endpoint
+      const response = await axios.get(`${baseURL}/api/received-salesman/get-received-transfer/${receivedId}`);
+      console.log("Fetched received details: ", response.data);
       
       // Optional: Also verify that the user has access to view this transfer
       const loggedInUserId = getLoggedInUserId();
-      if (loggedInUserId && response.data.transfer_details.from_user_id !== loggedInUserId) {
+      if (loggedInUserId && 
+          response.data.transfer_details.from_user_id !== loggedInUserId && 
+          response.data.transfer_details.to_user_id !== loggedInUserId) {
         Swal.fire('Access Denied', 'You do not have permission to view this transfer', 'error');
         return;
       }
@@ -258,8 +262,8 @@ const ReceivedSalesmanTable = () => {
       setTransferDetails(response.data);
       setShowModal(true);
     } catch (error) {
-      console.error("Error fetching assigned details:", error);
-      Swal.fire('Error', 'Failed to fetch assigned details', 'error');
+      console.error("Error fetching received details:", error);
+      Swal.fire('Error', 'Failed to fetch received details', 'error');
     }
   };
 
@@ -269,7 +273,7 @@ const ReceivedSalesmanTable = () => {
   };
 
   useEffect(() => {
-    fetchAssignedTransfers();
+    fetchReceivedTransfers();
   }, []);
 
   return (
@@ -296,33 +300,33 @@ const ReceivedSalesmanTable = () => {
 
       <Modal show={showModal} onHide={handleCloseModal} size="xl" className="m-auto">
         <Modal.Header closeButton>
-          <Modal.Title>Assigned Salesman Details</Modal.Title>
+          <Modal.Title>Received Salesman Details</Modal.Title>
         </Modal.Header>
         <Modal.Body style={{ fontSize: '13px' }}>
           {transferDetails && (
             <>
-              <h5>Assigned Information</h5>
+              <h5>Received Information</h5>
               <Table bordered>
                 <tbody>
                   <tr>
-                    <td width="30%"><strong>Assigned Number</strong></td>
-                    <td>{transferDetails.transfer_details.assigned_number}</td>
+                    <td width="30%"><strong>Received Number</strong></td>
+                    <td>{transferDetails.transfer_details.received_number}</td>
                   </tr>
                   <tr>
-                    <td><strong>Assigned Date</strong></td>
+                    <td><strong>Received Date</strong></td>
                     <td>{formatDate(transferDetails.transfer_details.transfer_date)}</td>
                   </tr>
                   <tr>
-                    <td><strong>From Stock Point</strong></td>
-                    <td>{transferDetails.transfer_details.from_stock_point_name || 'N/A'}</td>
-                  </tr>
-                  <tr>
-                    <td><strong>To Salesman</strong></td>
-                    <td>{transferDetails.transfer_details.to_salesman_name || 'N/A'}</td>
+                    <td><strong>From Salesman</strong></td>
+                    <td>{transferDetails.transfer_details.from_salesman_name || 'N/A'}</td>
                   </tr>
                   <tr>
                     <td><strong>Salesman Mobile</strong></td>
                     <td>{transferDetails.transfer_details.salesman_mobile || 'N/A'}</td>
+                  </tr>
+                  <tr>
+                    <td><strong>To Stock Point</strong></td>
+                    <td>{transferDetails.transfer_details.to_stock_point_name || 'N/A'}</td>
                   </tr>
                   <tr>
                     <td><strong>Status</strong></td>
@@ -343,7 +347,7 @@ const ReceivedSalesmanTable = () => {
                 </tbody>
               </Table>
 
-              <h5>Assigned Items</h5>
+              <h5>Received Items</h5>
               <div className="table-responsive">
                 <Table bordered>
                   <thead style={{ whiteSpace: 'nowrap', fontSize: '13px' }}>

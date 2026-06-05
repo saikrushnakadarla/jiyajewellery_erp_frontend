@@ -56,7 +56,8 @@ const ProductDetails = ({
   offers,
   handleOrderChange,
   selectedOrder,
-  orderData
+  orderData,
+    selectedSalesmanProducts = []
 }) => {
 
   const [showModal, setShowModal] = useState(false);
@@ -78,7 +79,16 @@ const ProductDetails = ({
 
  // In ProductDetails.js, update the barcodeOptions filter section
 
+// In ProductDetails.js, update the barcodeOptions to include assigned products from salesman
 const barcodeOptions = [
+  // Assigned products from selected salesman (show these first)
+  ...(selectedSalesmanProducts || []).map((product) => ({
+    value: product.PCode_BarCode,
+    label: `${product.PCode_BarCode} - ${product.product_name || product.sub_category || ''}`,
+    type: "assigned",
+    productData: product
+  })),
+  // Original product options
   ...products
     .filter((product) => (formData.category ? product.product_name === formData.category : true))
     .map((product) => ({
@@ -86,33 +96,34 @@ const barcodeOptions = [
       label: product.rbarcode,
       type: "product"
     })),
+  // Tag options from opening_tags_entry (only if not assigned to salesman)
   ...data
     .filter((tag) => {
-      // Filter by category if selected
       if (formData.category && tag.category !== formData.category) return false;
-      
-      // Only show Available products
       if (tag.Status !== 'Available') return false;
-      
-      // REMOVED: MAIN STOCK ROOM filter - now fetch all stock points
-      // if (tag.Stock_Point !== 'MAIN STOCK ROOM') return false;
-      
-      // Check if user_id matches logged-in user
-      // If user_id is null or undefined in tag, exclude it
       if (tag.user_id === null || tag.user_id === undefined) return false;
-      
-      // Compare tag.user_id with logged-in user ID
       if (loggedInUserId && tag.user_id !== loggedInUserId) return false;
+      
+      // Check if this tag is already assigned to the selected salesman
+      const isAssigned = selectedSalesmanProducts?.some(
+        assigned => assigned.PCode_BarCode === tag.PCode_BarCode
+      );
+      
+      // If salesman selected, only show assigned products
+      if (formData.salesman_id) {
+        return isAssigned;
+      }
       
       return true;
     })
     .map((tag) => ({
       value: tag.PCode_BarCode,
-      label: tag.PCode_BarCode,
+      label: `${tag.PCode_BarCode} - ${tag.sub_category || tag.category || 'Product'}`,
       type: 'tag',
-      tagData: tag  // Store full tag data for reference
+      tagData: tag
     })),
 ];
+
 
   if (defaultBarcode && !barcodeOptions.some((option) => option.value === defaultBarcode)) {
     barcodeOptions.unshift({ value: defaultBarcode, label: defaultBarcode });

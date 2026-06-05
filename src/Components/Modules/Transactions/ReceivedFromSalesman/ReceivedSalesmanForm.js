@@ -31,6 +31,10 @@ const ReceivedSalesmanForm = () => {
 
   const [loggedInUserId, setLoggedInUserId] = useState(null);
 
+  const [assignedProducts, setAssignedProducts] = useState([]);
+const [selectedSalesmanProducts, setSelectedSalesmanProducts] = useState([]);
+
+
   const [oldSalesData, setOldSalesData] = useState(
     JSON.parse(localStorage.getItem("oldSalesData")) || [],
   );
@@ -68,6 +72,58 @@ const ReceivedSalesmanForm = () => {
   //   }
   // );
 
+
+  const fetchAssignedProductsBySalesman = async (salesmanId) => {
+  if (!salesmanId) {
+    setAssignedProducts([]);
+    setSelectedSalesmanProducts([]);
+    return;
+  }
+  
+  try {
+    console.log("Fetching assigned products for salesman ID:", salesmanId);
+    const response = await axios.get(`${baseURL}/api/assigned-salesman/get-assigned-products-by-salesman`, {
+      params: { salesman_id: salesmanId }
+    });
+    
+    console.log("Assigned products fetched:", response.data);
+    setAssignedProducts(response.data);
+    
+    // Extract unique PCode_BarCode values for dropdown
+    const uniqueBarcodes = [...new Map(response.data.map(item => 
+      [item.PCode_BarCode, { 
+        PCode_BarCode: item.PCode_BarCode, 
+        product_name: item.product_name,
+        product_id: item.product_id,
+        metal_type: item.metal_type,
+        purity: item.purity,
+        category: item.category,
+        sub_category: item.sub_category,
+        design_name: item.design_name,
+        qty: item.qty,
+        gross_weight: item.gross_weight,
+        stone_weight: item.stone_weight,
+        net_weight: item.net_weight,
+        rate: item.rate,
+        making_charges: item.making_charges,
+        stone_price: item.stone_price,
+        total_price: item.total_price,
+        assigned_id: item.assigned_id,
+        item_id: item.item_id
+      }
+    ])).values()];
+    
+    setSelectedSalesmanProducts(uniqueBarcodes);
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching assigned products by salesman:", error);
+    setAssignedProducts([]);
+    setSelectedSalesmanProducts([]);
+    return [];
+  }
+};
+
+// ===== CALL useProductHandlers HERE (before using formData in useEffect) =====
   const {
     formData,
     setFormData,
@@ -108,7 +164,61 @@ const ReceivedSalesmanForm = () => {
     isTotalPriceCleared,
     setIsTotalPriceCleared,
     manualTotalPriceRef,
-  } = useProductHandlers();
+  } = useProductHandlers(selectedSalesmanProducts);
+
+// Add useEffect to watch for salesman selection and fetch products
+useEffect(() => {
+  if (formData.salesman_id) {
+    fetchAssignedProductsBySalesman(formData.salesman_id);
+  } else {
+    setAssignedProducts([]);
+    setSelectedSalesmanProducts([]);
+  }
+}, [formData.salesman_id]);
+
+
+
+  // const {
+  //   formData,
+  //   setFormData,
+  //   products,
+  //   data,
+  //   isQtyEditable,
+  //   handleChange,
+  //   handleBarcodeChange,
+  //   handleProductChange,
+  //   handleProductNameChange,
+  //   handleMetalTypeChange,
+  //   handleDesignNameChange,
+  //   filteredDesignOptions,
+  //   filteredPurityOptions,
+  //   filteredMetalTypes,
+  //   uniqueProducts,
+  //   metaltypeOptions,
+  //   purityOptions,
+  //   categoryOptions,
+  //   subcategoryOptions,
+  //   designOptions,
+  //   isBarcodeSelected,
+  //   handleImageChange,
+  //   image,
+  //   fileInputRef,
+  //   clearImage,
+  //   captureImage,
+  //   setShowWebcam,
+  //   showWebcam,
+  //   webcamRef,
+  //   setShowOptions,
+  //   showOptions,
+  //   fetchCategory,
+  //   fetchSubCategory,
+  //   isManualTotalPriceChange,
+  //   setIsManualTotalPriceChange,
+  //   tabId,
+  //   isTotalPriceCleared,
+  //   setIsTotalPriceCleared,
+  //   manualTotalPriceRef,
+  // } = useProductHandlers(selectedSalesmanProducts);
 
   const [repairDetails, setRepairDetails] = useState(() => {
     const savedData = localStorage.getItem(`repairDetails_${tabId}`);
@@ -146,30 +256,31 @@ const ReceivedSalesmanForm = () => {
 
   // ✅ ADD THIS: Fetch next transfer number on component mount - displays automatically
 // ✅ FIX THIS: Fetch next assigned number from assigned-salesman API
+// Replace this useEffect (it's fetching assigned number, not received number)
 useEffect(() => {
-  const fetchNextAssignedNumber = async () => {
+  const fetchNextReceivedNumber = async () => {
     try {
-      // Change from stock-transfer to assigned-salesman
-      const response = await axios.get(`${baseURL}/api/assigned-salesman/lastAssignedNumber`);
-      const nextNumber = response.data.lastAssignedNumber;
-      console.log("Next Assigned Number to display:", nextNumber);
+      // Change to received-salesman API
+      const response = await axios.get(`${baseURL}/api/received-salesman/lastReceivedNumber`);
+      const nextNumber = response.data.lastReceivedNumber;
+      console.log("Next Received Number to display:", nextNumber);
       setFormData((prev) => ({
         ...prev,
-        assigned_number: nextNumber,  // Change from transfer_number to assigned_number
-        transfer_number: nextNumber,  // Keep for compatibility
+        received_number: nextNumber,
+        transfer_number: nextNumber,
       }));
     } catch (error) {
-      console.error("Error fetching next assigned number:", error);
+      console.error("Error fetching next received number:", error);
       // Set default if API fails
       setFormData((prev) => ({
         ...prev,
-        assigned_number: "ASN001",
-        transfer_number: "ASN001",
+        received_number: "RCN001",
+        transfer_number: "RCN001",
       }));
     }
   };
 
-  fetchNextAssignedNumber();
+  fetchNextReceivedNumber();
 }, []);
 
   // Fetch stock points for dropdown
@@ -2450,22 +2561,25 @@ const handleSave = async () => {
       return;
     }
 
-    // Use assigned_number instead of transfer_number
-    let nextAssignedNumber = formData.assigned_number || formData.transfer_number;
+    // Get next received number from API
+    let nextReceivedNumber = formData.received_number;
     
-    if (!nextAssignedNumber) {
+    if (!nextReceivedNumber) {
       try {
-        const response = await axios.get(`${baseURL}/api/assigned-salesman/lastAssignedNumber`);
-        nextAssignedNumber = response.data.lastAssignedNumber;
+        const response = await axios.get(`${baseURL}/api/received-salesman/lastReceivedNumber`);
+        nextReceivedNumber = response.data.lastReceivedNumber;
       } catch (error) {
-        console.error("Error fetching next assigned number:", error);
-        nextAssignedNumber = `ASN001`;
+        console.error("Error fetching next received number:", error);
+        nextReceivedNumber = `RCN001`;
       }
     }
 
-    console.log("Saving with Assigned Number:", nextAssignedNumber);
+    console.log("Saving with Received Number:", nextReceivedNumber);
 
+    // Prepare transfer data with proper fields for received salesman
     const transferData = repairDetails.map(item => ({
+      item_id: item.item_id || null,           // Original assigned item ID
+      assigned_id: item.assigned_id || null,   // Original assigned transfer ID
       product_id: item.product_id || null,
       product_name: item.product_name || null,
       metal_type: item.metal_type || null,
@@ -2485,24 +2599,26 @@ const handleSave = async () => {
       PCode_BarCode: item.code
     }));
 
+    // Build payload for Received Salesman API
     const payload = {
       transfer_data: transferData,
-      from_stock_point_id: parseInt(formData.active_stock_point_id),
-      to_salesman_id: parseInt(selectedSalesman.salesman_id),
+      from_salesman_id: parseInt(selectedSalesman.salesman_id),
+      to_stock_point_id: parseInt(formData.active_stock_point_id),
       transfer_date: formData.date || new Date().toISOString().split('T')[0],
-      reference_number: nextAssignedNumber,  // This will be ASN001 format
-      remarks: `Assigned to ${selectedSalesman.salesman_name} from ${activeStockPointDetails.stock_point_name}`,
+      reference_number: nextReceivedNumber,  // This will be RCN001 format
+      remarks: `Received from ${selectedSalesman.salesman_name} to ${activeStockPointDetails.stock_point_name}`,
       created_by: formData.account_name || "system",
-      from_user_id: activeStockPointDetails.user_id || null,
-      to_user_id: null
+      from_user_id: selectedSalesman.salesman_id ? parseInt(selectedSalesman.salesman_id) : null,
+      to_user_id: activeStockPointDetails.user_id || null
     };
 
-    console.log("Sending Assigned Salesman Payload:", payload);
+    console.log("Sending Received Salesman Payload:", payload);
 
-    const response = await axios.post(`${baseURL}/api/assigned-salesman/save-assigned-salesman`, payload);
+    // Call the RECEIVED SALESMAN API (not assigned-salesman)
+    const response = await axios.post(`${baseURL}/api/received-salesman/save-received-salesman`, payload);
    
     if (response.status === 200 || response.status === 201) {
-      alert(`Assigned to Salesman completed successfully! Assigned Number: ${nextAssignedNumber}`);
+      alert(`Received from Salesman completed successfully! Received Number: ${nextReceivedNumber}`);
       
       // Clear data
       setOldSalesData([]);
@@ -2527,15 +2643,15 @@ const handleSave = async () => {
         salesman_id: "",
         salesman_name: "",
         active_stock_point_details: null,
-        assigned_number: "",
+        received_number: "",
         transfer_number: "",
       });
       
-      navigate("/assign-to-salesman");
+      navigate("/received-from-salesman");
     }
   } catch (error) {
-    console.error("Error saving assigned salesman:", error);
-    alert("Error saving assigned salesman: " + (error.response?.data?.message || error.message));
+    console.error("Error saving received salesman:", error);
+    alert("Error saving received salesman: " + (error.response?.data?.message || error.message));
   }
 };
 
@@ -2670,6 +2786,7 @@ const handleSave = async () => {
             style={{ marginTop: "-20px", marginBottom: "5px" }}
           >
             <ProductDetails
+               selectedSalesmanProducts={selectedSalesmanProducts}
               formData={formData}
               setFormData={setFormData}
               handleChange={handleChange}
