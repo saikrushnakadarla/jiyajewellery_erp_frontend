@@ -108,6 +108,21 @@ function StockNavbar() {
             RECEIVE FROM SALESMAN
           </Link>
         </div>
+
+         {/* Return to Main Stock Link - NEW */}
+        <div>
+          <Link
+            to="/return-to-main-stock" // Replace with your actual route
+            onClick={handleItemClick}
+            style={{
+              color: location.pathname === "/return-to-main-stock" ? "#a36e29" : "black",
+              backgroundColor: "transparent",
+              textDecoration: "none",
+            }}
+          >
+            RETURN TO MAIN STOCK
+          </Link>
+        </div>
       </nav>
 
       <div className="username">{userName}</div>
