@@ -85,6 +85,8 @@ import AssignSalesmanTable from "./Components/Modules/Transactions/AssignedSales
 import AssignSalesmanForm from "./Components/Modules/Transactions/AssignedSalesman/AssignedSalesManForm";
 import ReceivedSalesmanTable from "./Components/Modules/Transactions/ReceivedFromSalesman/ReceivedSalesmanTable";
 import ReceivedSalesmanForm from "./Components/Modules/Transactions/ReceivedFromSalesman/ReceivedSalesmanForm"
+import ReturnMainStockTable from "./Components/Modules/Transactions/ReturnMainStock/ReturnMainStockTable";
+import ReturnMainStockForm from "./Components/Modules/Transactions/ReturnMainStock/ReturnMainStockForm";
 
 function App() {
   const location = useLocation();
@@ -96,7 +98,9 @@ function App() {
                         location.pathname === "/assign-to-salesman" || 
                         location.pathname === "/receive-from-salesman" ||
                         location.pathname === "/add-assign-salesmantransfer" ||
-                        location.pathname === "/add-receive-from-salesman";
+                        location.pathname === "/add-receive-from-salesman" ||
+                        location.pathname === "/return-to-main-stock" ||
+                        location.pathname === "/add-return-to-main-stock";
 
   return (
     <>
@@ -207,6 +211,8 @@ function App() {
               <Route path="/add-receive-from-salesman" element={<ReceivedSalesmanForm />} />
 
 
+                 <Route path="/return-to-main-stock" element={<ReturnMainStockTable />} />
+              <Route path="/add-return-to-main-stock" element={<ReturnMainStockForm />} />
 
 
 
