@@ -171,7 +171,6 @@ function App() {
           <Route path="/sales/details/:invoice_number" element={<RepairDetails />} />
 
           <Route path="/salesNew" element = {<SalesNew />} />
-
           <Route path="/salesreturn" element={<SalesReturn />} />
           <Route path="/estimatereceipt" element={<EstimateReceipt />} />
 
