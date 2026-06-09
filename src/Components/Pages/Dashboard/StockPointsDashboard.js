@@ -1,82 +1,207 @@
 import React, { useContext, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AuthContext } from "../Login/Context";
+import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts';
 import './Dashboard.css';
 
 function StockPointDashboard() {
   const { userName, userId, userType, authToken } = useContext(AuthContext);
   const navigate = useNavigate();
   
-  // State for dummy data
-  const [stockData, setStockData] = useState([]);
+  // State for API data
+  const [stockInwardCount, setStockInwardCount] = useState(0);
+  const [stockOutwardCount, setStockOutwardCount] = useState(0);
+  const [assignedToSalesmanCount, setAssignedToSalesmanCount] = useState(0);
+  const [receivedFromSalesmanCount, setReceivedFromSalesmanCount] = useState(0);
+  
+  // State for table data
   const [assignedData, setAssignedData] = useState([]);
   const [receivedData, setReceivedData] = useState([]);
-  const [selectedCategory, setSelectedCategory] = useState('all');
+  const [openingTagsData, setOpeningTagsData] = useState([]);
+  
+  const [loading, setLoading] = useState({
+    inward: true,
+    outward: true,
+    assigned: true,
+    received: true
+  });
 
-  // Dummy Data for Stock
+  // Get userName from localStorage
+  const getCurrentStockPoint = () => {
+    const storedUserName = localStorage.getItem('userName');
+    return storedUserName || userName || '';
+  };
+
+  // Fetch Stock Inward count (filter by Stock_Point === current login user)
+  const fetchStockInward = async () => {
+    try {
+      const currentStockPoint = getCurrentStockPoint();
+      const response = await fetch('http://localhost:5001/get/opening-tags-entry');
+      const data = await response.json();
+      
+      if (data.result) {
+        // Filter where Stock_Point matches current login user
+        const filteredData = data.result.filter(item => item.Stock_Point === currentStockPoint);
+        setStockInwardCount(filteredData.length);
+        setOpeningTagsData(filteredData);
+      }
+    } catch (error) {
+      console.error('Error fetching stock inward data:', error);
+      setStockInwardCount(0);
+    } finally {
+      setLoading(prev => ({ ...prev, inward: false }));
+    }
+  };
+
+  // Fetch Stock Outward count (Status === "Selected" AND Stock_Point === "MAIN STOCK ROOM")
+  const fetchStockOutward = async () => {
+    try {
+      const response = await fetch('http://localhost:5001/get/opening-tags-entry');
+      const data = await response.json();
+      
+      if (data.result) {
+        // Filter where Status is "Selected" and Stock_Point is "MAIN STOCK ROOM"
+        const filteredData = data.result.filter(item => 
+          item.Status === "Selected" && item.Stock_Point === "MAIN STOCK ROOM"
+        );
+        setStockOutwardCount(filteredData.length);
+      }
+    } catch (error) {
+      console.error('Error fetching stock outward data:', error);
+      setStockOutwardCount(0);
+    } finally {
+      setLoading(prev => ({ ...prev, outward: false }));
+    }
+  };
+
+  // Fetch Assigned to Salesman data and count
+  const fetchAssignedToSalesman = async () => {
+    try {
+      const response = await fetch('http://localhost:5001/api/assigned-salesman/get-assigned-transfers');
+      const data = await response.json();
+      
+      if (Array.isArray(data)) {
+        setAssignedToSalesmanCount(data.length);
+        setAssignedData(data);
+      }
+    } catch (error) {
+      console.error('Error fetching assigned to salesman data:', error);
+      setAssignedToSalesmanCount(0);
+      setAssignedData([]);
+    } finally {
+      setLoading(prev => ({ ...prev, assigned: false }));
+    }
+  };
+
+  // Fetch Received from Salesman data and count
+  const fetchReceivedFromSalesman = async () => {
+    try {
+      const response = await fetch('http://localhost:5001/api/received-salesman/get-received-transfers');
+      const data = await response.json();
+      
+      if (Array.isArray(data)) {
+        setReceivedFromSalesmanCount(data.length);
+        setReceivedData(data);
+      }
+    } catch (error) {
+      console.error('Error fetching received from salesman data:', error);
+      setReceivedFromSalesmanCount(0);
+      setReceivedData([]);
+    } finally {
+      setLoading(prev => ({ ...prev, received: false }));
+    }
+  };
+
+  // Fetch all data on component mount
   useEffect(() => {
-    // Stock Inventory Data
-    const dummyStock = [
-      { id: 1, product: 'Gold Ring', category: 'Jewelry', quantity: 150, value: 750000, minStock: 50 },
-      { id: 2, product: 'Silver Chain', category: 'Jewelry', quantity: 200, value: 400000, minStock: 80 },
-      { id: 3, product: 'Diamond Necklace', category: 'Premium', quantity: 25, value: 1250000, minStock: 10 },
-      { id: 4, product: 'Platinum Earrings', category: 'Premium', quantity: 40, value: 800000, minStock: 15 },
-      { id: 5, product: 'Gold Coin', category: 'Investment', quantity: 500, value: 2500000, minStock: 100 },
-      { id: 6, product: 'Silver Utensils', category: 'Home', quantity: 300, value: 600000, minStock: 150 },
-      { id: 7, product: 'Diamond Ring', category: 'Premium', quantity: 15, value: 900000, minStock: 5 },
-      { id: 8, product: 'Gold Earrings', category: 'Jewelry', quantity: 120, value: 480000, minStock: 40 }
-    ];
-    setStockData(dummyStock);
-
-    // Assigned to Salesman Data
-    const dummyAssigned = [
-      { id: 1, salesman: 'Rahul Sharma', product: 'Gold Ring', quantity: 10, assignedDate: '2024-06-01', status: 'Pending', value: 50000 },
-      { id: 2, salesman: 'Priya Patel', product: 'Silver Chain', quantity: 15, assignedDate: '2024-06-02', status: 'In Progress', value: 30000 },
-      { id: 3, salesman: 'Amit Kumar', product: 'Diamond Necklace', quantity: 2, assignedDate: '2024-06-03', status: 'Pending', value: 100000 },
-      { id: 4, salesman: 'Sneha Reddy', product: 'Gold Coin', quantity: 25, assignedDate: '2024-06-01', status: 'Completed', value: 125000 },
-      { id: 5, salesman: 'Vikram Singh', product: 'Platinum Earrings', quantity: 5, assignedDate: '2024-06-04', status: 'In Progress', value: 100000 },
-      { id: 6, salesman: 'Neha Gupta', product: 'Gold Earrings', quantity: 8, assignedDate: '2024-06-05', status: 'Pending', value: 32000 },
-      { id: 7, salesman: 'Rajesh Kumar', product: 'Diamond Ring', quantity: 1, assignedDate: '2024-06-03', status: 'Completed', value: 60000 }
-    ];
-    setAssignedData(dummyAssigned);
-
-    // Received from Salesman Data
-    const dummyReceived = [
-      { id: 1, salesman: 'Rahul Sharma', product: 'Gold Ring', quantity: 8, receivedDate: '2024-06-05', status: 'Completed', value: 40000, condition: 'Good' },
-      { id: 2, salesman: 'Priya Patel', product: 'Silver Chain', quantity: 12, receivedDate: '2024-06-06', status: 'Completed', value: 24000, condition: 'Excellent' },
-      { id: 3, salesman: 'Sneha Reddy', product: 'Gold Coin', quantity: 20, receivedDate: '2024-06-05', status: 'Completed', value: 100000, condition: 'Good' },
-      { id: 4, salesman: 'Amit Kumar', product: 'Diamond Necklace', quantity: 1, receivedDate: '2024-06-07', status: 'Pending', value: 50000, condition: 'Pending' },
-      { id: 5, salesman: 'Rajesh Kumar', product: 'Diamond Ring', quantity: 1, receivedDate: '2024-06-08', status: 'Completed', value: 60000, condition: 'Excellent' }
-    ];
-    setReceivedData(dummyReceived);
+    fetchStockInward();
+    fetchStockOutward();
+    fetchAssignedToSalesman();
+    fetchReceivedFromSalesman();
   }, []);
 
-  // Calculate category-wise stock for simple chart
-  const categoryWiseStock = stockData.reduce((acc, item) => {
-    acc[item.category] = (acc[item.category] || 0) + item.quantity;
-    return acc;
-  }, {});
+  // Prepare data for pie chart - Stock Distribution by Status
+  const getStockStatusData = () => {
+    if (!openingTagsData.length) return [];
+    
+    const statusCount = {};
+    openingTagsData.forEach(item => {
+      const status = item.Status || 'Pending';
+      statusCount[status] = (statusCount[status] || 0) + 1;
+    });
+    
+    return Object.keys(statusCount).map(key => ({
+      name: key,
+      value: statusCount[key]
+    }));
+  };
 
-  const totalStockValue = stockData.reduce((sum, item) => sum + item.value, 0);
-  const totalAssignedValue = assignedData.reduce((sum, item) => sum + item.value, 0);
-  const totalReceivedValue = receivedData.reduce((sum, item) => sum + item.value, 0);
-  const pendingAssigned = assignedData.filter(item => item.status !== 'Completed').length;
-  const pendingReceived = receivedData.filter(item => item.status === 'Pending').length;
-  
-  const totalQuantity = stockData.reduce((sum, item) => sum + item.quantity, 0);
-  
-  // Calculate max quantity for chart scaling
-  const maxCategoryQuantity = Math.max(...Object.values(categoryWiseStock));
+  // Prepare data for bar chart - Stock by Category/Type
+  const getStockByCategoryData = () => {
+    if (!openingTagsData.length) return [];
+    
+    const categoryCount = {};
+    openingTagsData.forEach(item => {
+      const category = item.Category || item.category || 'Uncategorized';
+      categoryCount[category] = (categoryCount[category] || 0) + 1;
+    });
+    
+    return Object.keys(categoryCount).map(key => ({
+      name: key.length > 10 ? key.substring(0, 10) + '...' : key,
+      fullName: key,
+      count: categoryCount[key]
+    }));
+  };
 
-  const filteredStockData = selectedCategory === 'all' 
-    ? stockData 
-    : stockData.filter(item => item.category === selectedCategory);
+  // Prepare data for line chart - Monthly trend (using dummy data based on actual counts)
+  const getMonthlyTrendData = () => {
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
+    const totalStock = stockInwardCount + stockOutwardCount + assignedToSalesmanCount + receivedFromSalesmanCount;
+    const baseValue = totalStock > 0 ? Math.max(5, Math.floor(totalStock / 6)) : 10;
+    
+    return months.map((month, index) => ({
+      month: month,
+      inward: Math.floor(stockInwardCount * (0.3 + Math.random() * 0.5)) || 5,
+      outward: Math.floor(stockOutwardCount * (0.2 + Math.random() * 0.5)) || 3,
+      assigned: Math.floor(assignedToSalesmanCount * (0.2 + Math.random() * 0.5)) || 4,
+      received: Math.floor(receivedFromSalesmanCount * (0.2 + Math.random() * 0.5)) || 2
+    }));
+  };
+
+  // Prepare data for donut chart - Stock Overview
+  const getStockOverviewData = () => {
+    return [
+      { name: 'Stock Inward', value: stockInwardCount, color: '#14b8d4' },
+      { name: 'Stock Outward', value: stockOutwardCount, color: '#34d399' },
+      { name: 'Assigned', value: assignedToSalesmanCount, color: '#fbbf24' },
+      { name: 'Received', value: receivedFromSalesmanCount, color: '#fb7185' }
+    ];
+  };
+
+  const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D'];
+  
+  // Card click handlers
+  const handleStockInwardClick = () => {
+    console.log('Stock Inward clicked - Count:', stockInwardCount);
+  };
+
+  const handleStockOutwardClick = () => {
+    navigate("/receive-from-salesman");
+  };
+
+  const handleAssignedToSalesmanClick = () => {
+    navigate("/assign-to-salesman");
+  };
+
+  const handleReceivedFromSalesmanClick = () => {
+    navigate("/return-to-main-stock");
+  };
 
   return (
     <div className="main-container" style={{ backgroundColor: '#b7721834', minHeight: '100vh' }}>
       <div className="dashboard-header">
         <h2 style={{ marginTop: "65px", marginLeft: "15px" }}>
-          Welcome, {userName || 'Stock Point User'}
+          Welcome, {userName || getCurrentStockPoint() || 'Stock Point User'}
         </h2>
         <p style={{ marginLeft: "15px", color: "#666" }}>
           Stock Management Dashboard
@@ -86,243 +211,173 @@ function StockPointDashboard() {
       <div className="dashboard-container" style={{ padding: '20px' }}>
         
         {/* Summary Cards */}
-        <div className="row-cards">
-          <div className="metric-card" style={{ background: 'linear-gradient(135deg, #b77318 0%, #e8963e 100%)', color: 'white' }}>
-            <div style={{ padding: '20px', textAlign: 'center' }}>
-              <h3>📦 Total Stock Value</h3>
-              <h2 style={{ fontSize: '32px', margin: '10px 0' }}>₹{totalStockValue.toLocaleString()}</h2>
-              <p>Total Items: {totalQuantity}</p>
+        <div className="sp-dashboard-cards">
+          <div
+            className="sp-dashboard-card sp-card-blue"
+            onClick={handleStockInwardClick}
+            style={{ cursor: 'pointer' }}
+          >
+            <div className="sp-card-left">
+              <h2>{loading.inward ? "..." : stockInwardCount}</h2>
+              <h5>Stock Inward</h5>
+              <p>Available Stock Items</p>
+            </div>
+            <div className="sp-card-icon">
+              📦
             </div>
           </div>
 
-          <div className="metric-card" style={{ background: 'linear-gradient(135deg, #d4842e 0%, #f4a460 100%)', color: 'white' }}>
-            <div style={{ padding: '20px', textAlign: 'center' }}>
-              <h3>👨‍💼 Assigned to Salesman</h3>
-              <h2 style={{ fontSize: '32px', margin: '10px 0' }}>₹{totalAssignedValue.toLocaleString()}</h2>
-              <p>Pending: {pendingAssigned} orders</p>
+          <div
+            className="sp-dashboard-card sp-card-green"
+            onClick={handleStockOutwardClick}
+            style={{ cursor: 'pointer' }}
+          >
+            <div className="sp-card-left">
+              <h2>{loading.outward ? "..." : stockOutwardCount}</h2>
+              <h5>Stock Outward</h5>
+              <p>Selected Items</p>
+            </div>
+            <div className="sp-card-icon">
+              📤
             </div>
           </div>
 
-          <div className="metric-card" style={{ background: 'linear-gradient(135deg, #c47a2a 0%, #e8963e 100%)', color: 'white' }}>
-            <div style={{ padding: '20px', textAlign: 'center' }}>
-              <h3>📥 Received from Salesman</h3>
-              <h2 style={{ fontSize: '32px', margin: '10px 0' }}>₹{totalReceivedValue.toLocaleString()}</h2>
-              <p>Pending: {pendingReceived} receipts</p>
+          <div
+            className="sp-dashboard-card sp-card-yellow"
+            onClick={handleAssignedToSalesmanClick}
+            style={{ cursor: 'pointer' }}
+          >
+            <div className="sp-card-left">
+              <h2>{loading.assigned ? "..." : assignedToSalesmanCount}</h2>
+              <h5>Assigned</h5>
+              <p>Items With Salesmen</p>
+            </div>
+            <div className="sp-card-icon">
+              👨‍💼
             </div>
           </div>
-        </div>
 
-        {/* Simple Bar Chart - Category Distribution */}
-        <div className="row-cards" style={{ marginTop: '20px' }}>
-          <div className="metric-card" style={{ padding: '20px', width: '100%' }}>
-            <h3 style={{ color: '#b77318', marginBottom: '20px' }}>Stock Distribution by Category</h3>
-            <div style={{ display: 'flex', justifyContent: 'space-around', alignItems: 'flex-end', height: '300px', padding: '20px' }}>
-              {Object.entries(categoryWiseStock).map(([category, quantity]) => (
-                <div key={category} style={{ textAlign: 'center', width: '100px' }}>
-                  <div style={{
-                    height: `${(quantity / maxCategoryQuantity) * 250}px`,
-                    width: '60px',
-                    backgroundColor: '#b77318',
-                    margin: '0 auto',
-                    borderRadius: '5px 5px 0 0',
-                    transition: 'height 0.5s ease'
-                  }}>
-                    <div style={{
-                      position: 'relative',
-                      top: '-25px',
-                      fontWeight: 'bold',
-                      color: '#b77318'
-                    }}>
-                      {quantity}
-                    </div>
-                  </div>
-                  <div style={{ marginTop: '10px', fontWeight: 'bold' }}>{category}</div>
-                </div>
-              ))}
+          <div
+            className="sp-dashboard-card sp-card-red"
+            onClick={handleReceivedFromSalesmanClick}
+            style={{ cursor: 'pointer' }}
+          >
+            <div className="sp-card-left">
+              <h2>{loading.received ? "..." : receivedFromSalesmanCount}</h2>
+              <h5>Received</h5>
+              <p>Returned Items</p>
             </div>
-          </div>
-        </div>
-
-        {/* Stock Section */}
-        <div className="row-cards" style={{ marginTop: '20px' }}>
-          <div className="metric-card" style={{ padding: '20px', width: '100%' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap' }}>
-              <h3 style={{ color: '#b77318', margin: 0 }}>📊 Stock Inventory</h3>
-              <select 
-                className="form-select" 
-                style={{ width: '200px', borderColor: '#b77318', padding: '5px', borderRadius: '5px' }}
-                value={selectedCategory}
-                onChange={(e) => setSelectedCategory(e.target.value)}
-              >
-                <option value="all">All Categories</option>
-                <option value="Jewelry">Jewelry</option>
-                <option value="Premium">Premium</option>
-                <option value="Investment">Investment</option>
-                <option value="Home">Home</option>
-              </select>
-            </div>
-            <div style={{ overflowX: 'auto' }}>
-              <table className="table" style={{ width: '100%', borderCollapse: 'collapse' }}>
-                <thead>
-                  <tr style={{ backgroundColor: '#b77318', color: 'white' }}>
-                    <th style={{ padding: '12px', textAlign: 'left' }}>Product</th>
-                    <th style={{ padding: '12px', textAlign: 'left' }}>Category</th>
-                    <th style={{ padding: '12px', textAlign: 'right' }}>Quantity</th>
-                    <th style={{ padding: '12px', textAlign: 'right' }}>Value (₹)</th>
-                    <th style={{ padding: '12px', textAlign: 'center' }}>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredStockData.map(item => (
-                    <tr key={item.id} style={{ borderBottom: '1px solid #ddd' }}>
-                      <td style={{ padding: '12px' }}>{item.product}</td>
-                      <td style={{ padding: '12px' }}>{item.category}</td>
-                      <td style={{ padding: '12px', textAlign: 'right' }}>{item.quantity}</td>
-                      <td style={{ padding: '12px', textAlign: 'right' }}>₹{item.value.toLocaleString()}</td>
-                      <td style={{ padding: '12px', textAlign: 'center' }}>
-                        <span style={{ 
-                          backgroundColor: item.quantity < item.minStock ? '#dc3545' : '#28a745',
-                          color: 'white',
-                          padding: '4px 8px',
-                          borderRadius: '4px',
-                          fontSize: '12px',
-                          display: 'inline-block'
-                        }}>
-                          {item.quantity < item.minStock ? '⚠️ Low Stock' : '✓ In Stock'}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="sp-card-icon">
+              📥
             </div>
           </div>
         </div>
 
-        {/* Assigned to Salesman Section */}
-        <div className="row-cards" style={{ marginTop: '20px' }}>
-          <div className="metric-card" style={{ padding: '20px', width: '100%' }}>
-            <h3 style={{ color: '#b77318', marginBottom: '20px' }}>👨‍💼 Assigned to Salesman</h3>
-            <div style={{ overflowX: 'auto' }}>
-              <table className="table" style={{ width: '100%', borderCollapse: 'collapse' }}>
-                <thead>
-                  <tr style={{ backgroundColor: '#e8963e', color: 'white' }}>
-                    <th style={{ padding: '12px', textAlign: 'left' }}>Salesman</th>
-                    <th style={{ padding: '12px', textAlign: 'left' }}>Product</th>
-                    <th style={{ padding: '12px', textAlign: 'right' }}>Quantity</th>
-                    <th style={{ padding: '12px', textAlign: 'right' }}>Value (₹)</th>
-                    <th style={{ padding: '12px', textAlign: 'center' }}>Assigned Date</th>
-                    <th style={{ padding: '12px', textAlign: 'center' }}>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {assignedData.map(item => (
-                    <tr key={item.id} style={{ borderBottom: '1px solid #ddd' }}>
-                      <td style={{ padding: '12px' }}>{item.salesman}</td>
-                      <td style={{ padding: '12px' }}>{item.product}</td>
-                      <td style={{ padding: '12px', textAlign: 'right' }}>{item.quantity}</td>
-                      <td style={{ padding: '12px', textAlign: 'right' }}>₹{item.value.toLocaleString()}</td>
-                      <td style={{ padding: '12px', textAlign: 'center' }}>{item.assignedDate}</td>
-                      <td style={{ padding: '12px', textAlign: 'center' }}>
-                        <span style={{
-                          backgroundColor: item.status === 'Completed' ? '#28a745' : 
-                                         item.status === 'In Progress' ? '#ffc107' : '#dc3545',
-                          color: item.status === 'In Progress' ? '#000' : 'white',
-                          padding: '4px 8px',
-                          borderRadius: '4px',
-                          fontSize: '12px',
-                          display: 'inline-block'
-                        }}>
-                          {item.status === 'Completed' ? '✓' : item.status === 'In Progress' ? '⟳' : '⏳'} {item.status}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+        {/* Charts Section */}
+        <div className="charts-container">
+          {/* Row 1: Pie Chart and Donut Chart */}
+          <div className="charts-row">
+            <div className="chart-card">
+              <h3 className="chart-title">📊 Stock Status Distribution</h3>
+              <div className="chart-wrapper">
+                <ResponsiveContainer width="100%" height={300}>
+                  <PieChart>
+                    <Pie
+                      data={getStockStatusData()}
+                      cx="50%"
+                      cy="50%"
+                      labelLine={true}
+                      label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                      outerRadius={100}
+                      fill="#8884d8"
+                      dataKey="value"
+                    >
+                      {getStockStatusData().map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                    <Legend />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            <div className="chart-card">
+              <h3 className="chart-title">🥧 Stock Overview</h3>
+              <div className="chart-wrapper">
+                <ResponsiveContainer width="100%" height={300}>
+                  <PieChart>
+                    <Pie
+                      data={getStockOverviewData()}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={60}
+                      outerRadius={100}
+                      labelLine={true}
+                      label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                      fill="#8884d8"
+                      dataKey="value"
+                    >
+                      {getStockOverviewData().map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color || COLORS[index % COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                    <Legend />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          </div>
+
+          {/* Row 2: Bar Chart */}
+          {/* <div className="charts-row">
+            <div className="chart-card-full">
+              <h3 className="chart-title">📊 Stock by Category</h3>
+              <div className="chart-wrapper">
+                <ResponsiveContainer width="100%" height={350}>
+                  <BarChart data={getStockByCategoryData()}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="name" />
+                    <YAxis />
+                    <Tooltip 
+                      formatter={(value, name, props) => [`${value} items`, props.payload.fullName || 'Category']}
+                    />
+                    <Legend />
+                    <Bar dataKey="count" fill="#8884d8" name="Items Count">
+                      {getStockByCategoryData().map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          </div> */}
+
+          {/* Row 3: Line Chart for Monthly Trend */}
+          <div className="charts-row">
+            <div className="chart-card-full">
+              <h3 className="chart-title">📈 Monthly Stock Movement Trend</h3>
+              <div className="chart-wrapper">
+                <ResponsiveContainer width="100%" height={350}>
+                  <LineChart data={getMonthlyTrendData()}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="month" />
+                    <YAxis />
+                    <Tooltip />
+                    <Legend />
+                    <Line type="monotone" dataKey="inward" stroke="#14b8d4" name="Stock Inward" strokeWidth={2} />
+                    <Line type="monotone" dataKey="outward" stroke="#34d399" name="Stock Outward" strokeWidth={2} />
+                    <Line type="monotone" dataKey="assigned" stroke="#fbbf24" name="Assigned" strokeWidth={2} />
+                    <Line type="monotone" dataKey="received" stroke="#fb7185" name="Received" strokeWidth={2} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
             </div>
           </div>
         </div>
-
-        {/* Received from Salesman Section */}
-        <div className="row-cards" style={{ marginTop: '20px', marginBottom: '20px' }}>
-          <div className="metric-card" style={{ padding: '20px', width: '100%' }}>
-            <h3 style={{ color: '#b77318', marginBottom: '20px' }}>📥 Received from Salesman</h3>
-            <div style={{ overflowX: 'auto' }}>
-              <table className="table" style={{ width: '100%', borderCollapse: 'collapse' }}>
-                <thead>
-                  <tr style={{ backgroundColor: '#28a745', color: 'white' }}>
-                    <th style={{ padding: '12px', textAlign: 'left' }}>Salesman</th>
-                    <th style={{ padding: '12px', textAlign: 'left' }}>Product</th>
-                    <th style={{ padding: '12px', textAlign: 'right' }}>Quantity</th>
-                    <th style={{ padding: '12px', textAlign: 'right' }}>Value (₹)</th>
-                    <th style={{ padding: '12px', textAlign: 'center' }}>Received Date</th>
-                    <th style={{ padding: '12px', textAlign: 'center' }}>Condition</th>
-                    <th style={{ padding: '12px', textAlign: 'center' }}>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {receivedData.map(item => (
-                    <tr key={item.id} style={{ borderBottom: '1px solid #ddd' }}>
-                      <td style={{ padding: '12px' }}>{item.salesman}</td>
-                      <td style={{ padding: '12px' }}>{item.product}</td>
-                      <td style={{ padding: '12px', textAlign: 'right' }}>{item.quantity}</td>
-                      <td style={{ padding: '12px', textAlign: 'right' }}>₹{item.value.toLocaleString()}</td>
-                      <td style={{ padding: '12px', textAlign: 'center' }}>{item.receivedDate}</td>
-                      <td style={{ padding: '12px', textAlign: 'center' }}>
-                        <span style={{
-                          backgroundColor: item.condition === 'Excellent' ? '#28a745' :
-                                         item.condition === 'Good' ? '#17a2b8' : '#ffc107',
-                          color: 'white',
-                          padding: '4px 8px',
-                          borderRadius: '4px',
-                          fontSize: '12px',
-                          display: 'inline-block'
-                        }}>
-                          {item.condition}
-                        </span>
-                      </td>
-                      <td style={{ padding: '12px', textAlign: 'center' }}>
-                        <span style={{
-                          backgroundColor: item.status === 'Completed' ? '#28a745' : '#ffc107',
-                          color: item.status === 'Pending' ? '#000' : 'white',
-                          padding: '4px 8px',
-                          borderRadius: '4px',
-                          fontSize: '12px',
-                          display: 'inline-block'
-                        }}>
-                          {item.status === 'Completed' ? '✓ Completed' : '⏳ Pending'}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-
-        {/* Simple Stats Cards */}
-        <div className="row-cards" style={{ marginTop: '20px' }}>
-          <div className="metric-card" style={{ padding: '20px', textAlign: 'center' }}>
-            <h3 style={{ color: '#b77318' }}>📊 Total Products</h3>
-            <h2 style={{ fontSize: '36px', color: '#b77318' }}>{stockData.length}</h2>
-            <p>Different Products in Stock</p>
-          </div>
-          
-          <div className="metric-card" style={{ padding: '20px', textAlign: 'center' }}>
-            <h3 style={{ color: '#b77318' }}>🔄 Active Assignments</h3>
-            <h2 style={{ fontSize: '36px', color: '#b77318' }}>{assignedData.filter(i => i.status !== 'Completed').length}</h2>
-            <p>Products Currently with Salesmen</p>
-          </div>
-          
-          <div className="metric-card" style={{ padding: '20px', textAlign: 'center' }}>
-            <h3 style={{ color: '#b77318' }}>✅ Completed This Month</h3>
-            <h2 style={{ fontSize: '36px', color: '#b77318' }}>{receivedData.length}</h2>
-            <p>Products Received Back</p>
-          </div>
-        </div>
-
       </div>
     </div>
   );

@@ -15,7 +15,7 @@ const ReturnMainStockTable = () => {
   const [filteredData, setFilteredData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
-  const [transferDetails, setTransferDetails] = useState(null);
+  const [selectedItem, setSelectedItem] = useState(null);
   const { authToken, userId, userName, role } = useContext(AuthContext);
   const { mobile } = location.state || {};
   const initialSearchValue = location.state?.mobile || '';
@@ -40,18 +40,6 @@ const ReturnMainStockTable = () => {
 
   const tabId = getTabId();
 
-  // Get logged-in user ID from localStorage
-  const getLoggedInUserId = () => {
-    const storedUserId = localStorage.getItem('userId');
-    return storedUserId ? parseInt(storedUserId) : null;
-  };
-
-  useEffect(() => {
-    if (mobile) {
-      console.log('Selected Mobile from Dashboard:', mobile);
-    }
-  }, [mobile]);
-
   const formatDate = (dateString) => {
     if (!dateString) return '';
     const date = new Date(dateString);
@@ -62,10 +50,10 @@ const ReturnMainStockTable = () => {
 
   const getStatusBadge = (status) => {
     const statusColors = {
-      'pending': { color: '#ffc107', text: 'Pending' },
-      'in_transit': { color: '#17a2b8', text: 'In Transit' },
-      'completed': { color: '#28a745', text: 'Completed' },
-      'cancelled': { color: '#dc3545', text: 'Cancelled' }
+      'Available': { color: '#17a2b8', text: 'Available' },
+      'Selected': { color: '#28a745', text: 'Selected' },
+      'Assigned': { color: '#ffc107', text: 'Assigned' },
+      'Sold': { color: '#dc3545', text: 'Sold' }
     };
     const statusInfo = statusColors[status] || { color: '#6c757d', text: status };
     return (
@@ -89,64 +77,93 @@ const ReturnMainStockTable = () => {
         Cell: ({ row }) => row.index + 1,
       },
       {
-        Header: 'Received No',
-        accessor: 'received_number',
+        Header: 'PCode/Barcode',
+        accessor: 'PCode_BarCode',
       },
       {
-        Header: 'Received Date',
-        accessor: 'transfer_date',
-        Cell: ({ value }) => formatDate(value),
-      },
-      {
-        Header: 'From Salesman',
-        accessor: 'from_salesman_name',
+        Header: 'Product Name',
+        accessor: 'product_Name',
         Cell: ({ value }) => value || 'N/A',
       },
       {
-        Header: 'Salesman Mobile',
-        accessor: 'salesman_mobile',
+        Header: 'Design Master',
+        accessor: 'design_master',
         Cell: ({ value }) => value || 'N/A',
       },
       {
-        Header: 'To Stock Point',
-        accessor: 'to_stock_point_name',
-        Cell: ({ value }) => value || 'N/A',
+        Header: 'Category',
+        accessor: 'category',
       },
       {
-        Header: 'Total Items',
-        accessor: 'total_items',
+        Header: 'Sub Category',
+        accessor: 'sub_category',
       },
       {
-        Header: 'Total Qty',
-        accessor: 'total_quantity',
+        Header: 'Metal Type',
+        accessor: 'metal_type',
       },
       {
-        Header: 'Total Gross Wt',
-        accessor: 'total_gross_weight',
+        Header: 'Purity',
+        accessor: 'Purity',
       },
       {
-        Header: 'Total Net Wt',
-        accessor: 'total_net_weight',
+        Header: 'Gross Weight',
+        accessor: 'Gross_Weight',
+      },
+      {
+        Header: 'Stone Weight',
+        accessor: 'Stones_Weight',
+      },
+      {
+        Header: 'Net Weight',
+        accessor: 'Weight_BW',
+      },
+      {
+        Header: 'Total Weight (AW)',
+        accessor: 'TotalWeight_AW',
+      },
+      {
+        Header: 'Rate',
+        accessor: 'rate',
+      },
+      {
+        Header: 'Making Charges',
+        accessor: 'Making_Charges',
+      },
+      {
+        Header: 'Stone Price',
+        accessor: 'Stones_Price',
+      },
+      {
+        Header: 'Total Price',
+        accessor: 'total_price',
       },
       {
         Header: 'Status',
-        accessor: 'status',
+        accessor: 'Status',
         Cell: ({ value }) => getStatusBadge(value),
+      },
+      {
+        Header: 'Stock Point',
+        accessor: 'Stock_Point',
+      },
+      {
+        Header: 'Source',
+        accessor: 'Source',
       },
       {
         Header: 'Actions',
         id: 'actions',
         Cell: ({ row }) => {
           const isAdmin = userName === "ADMIN";
-          const canEdit = row.original.status === 'pending';
           
           return (
             <div>
               <FaEye
                 style={{ cursor: 'pointer', marginLeft: '10px', color: 'green' }}
-                onClick={() => handleViewDetails(row.original.received_id)}
+                onClick={() => handleViewDetails(row.original)}
               />
-              {isAdmin && canEdit && (
+              {isAdmin && (
                 <FaEdit
                   style={{
                     cursor: 'pointer',
@@ -156,16 +173,14 @@ const ReturnMainStockTable = () => {
                   onClick={() => handleEdit(row.original)}
                 />
               )}
-              {isAdmin && (
-                <FaTrash
-                  style={{
-                    cursor: 'pointer',
-                    marginLeft: '10px',
-                    color: 'red',
-                  }}
-                  onClick={() => handleDelete(row.original.received_id)}
-                />
-              )}
+              <FaTrash
+                style={{
+                  cursor: 'pointer',
+                  marginLeft: '10px',
+                  color: 'red',
+                }}
+                onClick={() => handleDelete(row.original.opentag_id)}
+              />
             </div>
           );
         },
@@ -174,21 +189,21 @@ const ReturnMainStockTable = () => {
     [userName]
   );
 
-  const handleEdit = (transfer) => {
+  const handleEdit = (item) => {
     const tabId = crypto.randomUUID();
     navigate("/add-return-to-main-stock", { 
       state: { 
         tabId,
-        editData: transfer,
+        editData: item,
         isEdit: true 
       } 
     });
   };
 
-  const handleDelete = async (receivedId) => {
+  const handleDelete = async (opentagId) => {
     Swal.fire({
       title: 'Are you sure?',
-      text: `Do you really want to delete this received transfer?`,
+      text: `Do you really want to delete this item?`,
       icon: 'warning',
       showCancelButton: true,
       confirmButtonColor: '#d33',
@@ -197,14 +212,15 @@ const ReturnMainStockTable = () => {
     }).then(async (result) => {
       if (result.isConfirmed) {
         try {
-          const response = await axios.delete(`${baseURL}/api/received-salesman/delete-received-transfer/${receivedId}`);
+          // Update the API endpoint as per your backend
+          const response = await axios.delete(`${baseURL}/api/opening-tags/delete/${opentagId}`);
           if (response.status === 200) {
             Swal.fire('Deleted!', response.data.message, 'success');
-            fetchReceivedTransfers();
+            fetchOpeningTags();
           }
         } catch (error) {
-          console.error('Error deleting received transfer:', error);
-          Swal.fire('Error!', 'Failed to delete received transfer. Please try again.', 'error');
+          console.error('Error deleting item:', error);
+          Swal.fire('Error!', 'Failed to delete item. Please try again.', 'error');
         }
       }
     });
@@ -215,65 +231,44 @@ const ReturnMainStockTable = () => {
     navigate("/add-return-to-main-stock", { state: { tabId } });
   };
 
-  const fetchReceivedTransfers = async () => {
+  const fetchOpeningTags = async () => {
     try {
       setLoading(true);
-      // Use the RECEIVED SALESMAN API endpoint
-      const response = await axios.get(`${baseURL}/api/received-salesman/get-received-transfers`);
-      console.log("Received Transfers Response: ", response.data);
+      // Fetch data from the opening-tags-entry API
+      const response = await axios.get('http://localhost:5001/get/opening-tags-entry');
+      console.log("Opening Tags Response: ", response.data);
       
-      // Get logged-in user ID
-      const loggedInUserId = getLoggedInUserId();
-      console.log("Logged in User ID:", loggedInUserId);
-      
-      // Filter data based on from_user_id or to_user_id matching logged-in user
-      let filteredTransfers = response.data;
-      if (loggedInUserId) {
-        filteredTransfers = response.data.filter(
-          transfer => transfer.from_user_id === loggedInUserId || transfer.to_user_id === loggedInUserId
+      // Filter data based on Status === "Selected" and Stock_Point === "MAIN STOCK ROOM"
+      let filteredItems = [];
+      if (response.data.result && Array.isArray(response.data.result)) {
+        filteredItems = response.data.result.filter(
+          item => item.Status === "Selected" && item.Stock_Point === "MAIN STOCK ROOM"
         );
-        console.log("Filtered Transfers by user_id:", filteredTransfers);
+        console.log("Filtered Items (Selected & MAIN STOCK ROOM):", filteredItems);
       }
       
-      setData(filteredTransfers);
-      setFilteredData(filteredTransfers);
+      setData(filteredItems);
+      setFilteredData(filteredItems);
       setLoading(false);
     } catch (error) {
-      console.error('Error fetching received transfers:', error);
+      console.error('Error fetching opening tags:', error);
       setLoading(false);
+      Swal.fire('Error!', 'Failed to fetch data from server.', 'error');
     }
   };
 
-  const handleViewDetails = async (receivedId) => {
-    try {
-      // Use the RECEIVED SALESMAN API endpoint
-      const response = await axios.get(`${baseURL}/api/received-salesman/get-received-transfer/${receivedId}`);
-      console.log("Fetched received details: ", response.data);
-      
-      // Optional: Also verify that the user has access to view this transfer
-      const loggedInUserId = getLoggedInUserId();
-      if (loggedInUserId && 
-          response.data.transfer_details.from_user_id !== loggedInUserId && 
-          response.data.transfer_details.to_user_id !== loggedInUserId) {
-        Swal.fire('Access Denied', 'You do not have permission to view this transfer', 'error');
-        return;
-      }
-      
-      setTransferDetails(response.data);
-      setShowModal(true);
-    } catch (error) {
-      console.error("Error fetching received details:", error);
-      Swal.fire('Error', 'Failed to fetch received details', 'error');
-    }
+  const handleViewDetails = (item) => {
+    setSelectedItem(item);
+    setShowModal(true);
   };
 
   const handleCloseModal = () => {
     setShowModal(false);
-    setTransferDetails(null);
+    setSelectedItem(null);
   };
 
   useEffect(() => {
-    fetchReceivedTransfers();
+    fetchOpeningTags();
   }, []);
 
   return (
@@ -281,7 +276,7 @@ const ReturnMainStockTable = () => {
       <div className="sales-table-container">
         <Row className="mb-3">
           <Col className="d-flex justify-content-between align-items-center">
-            <h3>Return to Main Stock</h3>
+            <h3>Return to Main Stock - Selected Items</h3>
             <Button
               className="create_but"
               onClick={handleCreate}
@@ -300,118 +295,130 @@ const ReturnMainStockTable = () => {
 
       <Modal show={showModal} onHide={handleCloseModal} size="xl" className="m-auto">
         <Modal.Header closeButton>
-          <Modal.Title>Received Salesman Details</Modal.Title>
+          <Modal.Title>Item Details</Modal.Title>
         </Modal.Header>
         <Modal.Body style={{ fontSize: '13px' }}>
-          {transferDetails && (
+          {selectedItem && (
             <>
-              <h5>Received Information</h5>
+              <h5>Product Information</h5>
               <Table bordered>
                 <tbody>
                   <tr>
-                    <td width="30%"><strong>Received Number</strong></td>
-                    <td>{transferDetails.transfer_details.received_number}</td>
+                    <td width="30%"><strong>PCode/Barcode</strong></td>
+                    <td>{selectedItem.PCode_BarCode}</td>
                   </tr>
                   <tr>
-                    <td><strong>Received Date</strong></td>
-                    <td>{formatDate(transferDetails.transfer_details.transfer_date)}</td>
+                    <td><strong>Product Name</strong></td>
+                    <td>{selectedItem.product_Name || 'N/A'}</td>
                   </tr>
                   <tr>
-                    <td><strong>From Salesman</strong></td>
-                    <td>{transferDetails.transfer_details.from_salesman_name || 'N/A'}</td>
+                    <td><strong>Design Master</strong></td>
+                    <td>{selectedItem.design_master || 'N/A'}</td>
                   </tr>
                   <tr>
-                    <td><strong>Salesman Mobile</strong></td>
-                    <td>{transferDetails.transfer_details.salesman_mobile || 'N/A'}</td>
+                    <td><strong>Category</strong></td>
+                    <td>{selectedItem.category}</td>
                   </tr>
                   <tr>
-                    <td><strong>To Stock Point</strong></td>
-                    <td>{transferDetails.transfer_details.to_stock_point_name || 'N/A'}</td>
+                    <td><strong>Sub Category</strong></td>
+                    <td>{selectedItem.sub_category}</td>
+                  </tr>
+                  <tr>
+                    <td><strong>Metal Type</strong></td>
+                    <td>{selectedItem.metal_type}</td>
+                  </tr>
+                  <tr>
+                    <td><strong>Purity</strong></td>
+                    <td>{selectedItem.Purity}</td>
                   </tr>
                   <tr>
                     <td><strong>Status</strong></td>
-                    <td>{getStatusBadge(transferDetails.transfer_details.status)}</td>
+                    <td>{getStatusBadge(selectedItem.Status)}</td>
                   </tr>
                   <tr>
-                    <td><strong>Remarks</strong></td>
-                    <td>{transferDetails.transfer_details.remarks || 'N/A'}</td>
+                    <td><strong>Stock Point</strong></td>
+                    <td>{selectedItem.Stock_Point}</td>
                   </tr>
                   <tr>
-                    <td><strong>Created By</strong></td>
-                    <td>{transferDetails.transfer_details.created_by || 'System'}</td>
+                    <td><strong>Source</strong></td>
+                    <td>{selectedItem.Source}</td>
                   </tr>
                   <tr>
-                    <td><strong>Created At</strong></td>
-                    <td>{formatDate(transferDetails.transfer_details.created_at)}</td>
+                    <td><strong>Account Name</strong></td>
+                    <td>{selectedItem.account_name || 'N/A'}</td>
+                  </tr>
+                  <tr>
+                    <td><strong>Invoice</strong></td>
+                    <td>{selectedItem.invoice || 'N/A'}</td>
+                  </tr>
+                  <tr>
+                    <td><strong>Date</strong></td>
+                    <td>{formatDate(selectedItem.date)}</td>
                   </tr>
                 </tbody>
               </Table>
 
-              <h5>Received Items</h5>
-              <div className="table-responsive">
-                <Table bordered>
-                  <thead style={{ whiteSpace: 'nowrap', fontSize: '13px' }}>
-                    <tr>
-                      <th>SI</th>
-                      <th>Product Name</th>
-                      <th>PCode/Barcode</th>
-                      <th>Metal Type</th>
-                      <th>Purity</th>
-                      <th>Category</th>
-                      <th>Sub Category</th>
-                      <th>Design Name</th>
-                      <th>Qty</th>
-                      <th>Gross Wt</th>
-                      <th>Stone Wt</th>
-                      <th>Net Wt</th>
-                      <th>Rate</th>
-                      <th>MC</th>
-                      <th>Stone Price</th>
-                      <th>Total Price</th>
-                    </tr>
-                  </thead>
-                  <tbody style={{ whiteSpace: 'nowrap', fontSize: '13px' }}>
-                    {transferDetails.transfer_items && transferDetails.transfer_items.length > 0 ? (
-                      transferDetails.transfer_items.map((item, index) => (
-                        <tr key={index}>
-                          <td>{index + 1}</td>
-                          <td>{item.product_name || 'N/A'}</td>
-                          <td>{item.PCode_BarCode || 'N/A'}</td>
-                          <td>{item.metal_type || 'N/A'}</td>
-                          <td>{item.purity || 'N/A'}</td>
-                          <td>{item.category || 'N/A'}</td>
-                          <td>{item.sub_category || 'N/A'}</td>
-                          <td>{item.design_name || 'N/A'}</td>
-                          <td>{item.qty}</td>
-                          <td>{item.gross_weight}</td>
-                          <td>{item.stone_weight}</td>
-                          <td>{item.net_weight}</td>
-                          <td>{item.rate}</td>
-                          <td>{item.making_charges}</td>
-                          <td>{item.stone_price}</td>
-                          <td><strong>{item.total_price}</strong></td>
-                        </tr>
-                      ))
-                    ) : (
-                      <tr>
-                        <td colSpan="16" className="text-center">No items found</td>
-                      </tr>
-                    )}
-                    {transferDetails.transfer_items && transferDetails.transfer_items.length > 0 && (
-                      <tr style={{ fontWeight: 'bold', backgroundColor: '#f8f9fa' }}>
-                        <td colSpan="8" className="text-end"><strong>Totals:</strong></td>
-                        <td><strong>{transferDetails.transfer_items.reduce((sum, item) => sum + parseFloat(item.qty || 0), 0).toFixed(3)}</strong></td>
-                        <td><strong>{transferDetails.transfer_items.reduce((sum, item) => sum + parseFloat(item.gross_weight || 0), 0).toFixed(3)}</strong></td>
-                        <td><strong>{transferDetails.transfer_items.reduce((sum, item) => sum + parseFloat(item.stone_weight || 0), 0).toFixed(3)}</strong></td>
-                        <td><strong>{transferDetails.transfer_items.reduce((sum, item) => sum + parseFloat(item.net_weight || 0), 0).toFixed(3)}</strong></td>
-                        <td colSpan="2"></td>
-                        <td></td>
-                        <td><strong>{transferDetails.transfer_items.reduce((sum, item) => sum + parseFloat(item.total_price || 0), 0).toFixed(2)}</strong></td>
-                      </tr>
-                    )}
-                  </tbody>
-                </Table>
-              </div>
+              <h5>Weight & Pricing Details</h5>
+              <Table bordered>
+                <tbody>
+                  <tr>
+                    <td width="30%"><strong>Gross Weight</strong></td>
+                    <td>{selectedItem.Gross_Weight} g</td>
+                  </tr>
+                  <tr>
+                    <td><strong>Stone Weight</strong></td>
+                    <td>{selectedItem.Stones_Weight} g</td>
+                  </tr>
+                  <tr>
+                    <td><strong>Net Weight (BW)</strong></td>
+                    <td>{selectedItem.Weight_BW} g</td>
+                  </tr>
+                  <tr>
+                    <td><strong>Wastage %</strong></td>
+                    <td>{selectedItem.Wastage_Percentage}%</td>
+                  </tr>
+                  <tr>
+                    <td><strong>Wastage Weight</strong></td>
+                    <td>{selectedItem.WastageWeight} g</td>
+                  </tr>
+                  <tr>
+                    <td><strong>Total Weight (AW)</strong></td>
+                    <td>{selectedItem.TotalWeight_AW} g</td>
+                  </tr>
+                  <tr>
+                    <td><strong>MC Per Gram</strong></td>
+                    <td>{selectedItem.MC_Per_Gram}</td>
+                  </tr>
+                  <tr>
+                    <td><strong>Making Charges</strong></td>
+                    <td>₹{selectedItem.Making_Charges}</td>
+                  </tr>
+                  <tr>
+                    <td><strong>Rate</strong></td>
+                    <td>₹{selectedItem.rate}</td>
+                  </tr>
+                  <tr>
+                    <td><strong>Stone Price</strong></td>
+                    <td>₹{selectedItem.Stones_Price}</td>
+                  </tr>
+                  <tr>
+                    <td><strong>Tax</strong></td>
+                    <td>{selectedItem.tax}</td>
+                  </tr>
+                  <tr>
+                    <td><strong>Tax Amount</strong></td>
+                    <td>₹{selectedItem.tax_amt}</td>
+                  </tr>
+                  <tr>
+                    <td><strong>Total Price</strong></td>
+                    <td><strong>₹{selectedItem.total_price}</strong></td>
+                  </tr>
+                  <tr>
+                    <td><strong>Pieces</strong></td>
+                    <td>{selectedItem.pcs}</td>
+                  </tr>
+                </tbody>
+              </Table>
             </>
           )}
         </Modal.Body>
