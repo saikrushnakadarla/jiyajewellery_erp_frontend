@@ -87,6 +87,8 @@ import ReceivedSalesmanTable from "./Components/Modules/Transactions/ReceivedFro
 import ReceivedSalesmanForm from "./Components/Modules/Transactions/ReceivedFromSalesman/ReceivedSalesmanForm"
 import ReturnMainStockTable from "./Components/Modules/Transactions/ReturnMainStock/ReturnMainStockTable";
 import ReturnMainStockForm from "./Components/Modules/Transactions/ReturnMainStock/ReturnMainStockForm";
+import QRCodePrinting from "./Components/Modules/Masters/QRCodePrinting/QRCodePrinting"
+import QRCodeNavbar from "./Navbar/QRCodeNavbar"
 
 function App() {
   const location = useLocation();
@@ -102,13 +104,17 @@ function App() {
                         location.pathname === "/return-to-main-stock" ||
                         location.pathname === "/add-return-to-main-stock";
 
+
+   const isERPModule = location.pathname === "/qrcodeprinting";
+
   return (
     <>
       <AuthProvider>
         {/* {!isAuthPage && <Navbar />} */}
 
-        {!isAuthPage && !isStockModule && <Navbar />}
+        {!isAuthPage && !isStockModule && !isERPModule && <Navbar />}
         {!isAuthPage && isStockModule && <StockNavbar />}
+        {!isAuthPage && isERPModule && <QRCodeNavbar />}
         
         <Routes>
           <Route path="/" exact element={<Login />} />
@@ -214,6 +220,10 @@ function App() {
 
                  <Route path="/return-to-main-stock" element={<ReturnMainStockTable />} />
               <Route path="/add-return-to-main-stock" element={<ReturnMainStockForm />} />
+
+
+              <Route path="/qrcodeprinting" exact element={<QRCodePrinting />} />
+
 
 
 
