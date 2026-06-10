@@ -79,6 +79,23 @@ function StockNavbar() {
           </Link>
         </div>
 
+
+        {/* Stock Inward Link - NEW (Added after Dashboard) */}
+
+        <div>
+          <Link
+            to="/stock-inward"
+            onClick={handleItemClick}
+            style={{
+              color: location.pathname === "/stock-inward" ? "#a36e29" : "black",
+              backgroundColor: "transparent",
+              textDecoration: "none",
+            }}
+          >
+            STOCK INWARD
+          </Link>
+        </div>
+
         {/* Assign to Salesman Link */}
         <div>
           <Link

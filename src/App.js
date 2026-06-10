@@ -89,6 +89,8 @@ import ReturnMainStockTable from "./Components/Modules/Transactions/ReturnMainSt
 import ReturnMainStockForm from "./Components/Modules/Transactions/ReturnMainStock/ReturnMainStockForm";
 import QRCodePrinting from "./Components/Modules/Masters/QRCodePrinting/QRCodePrinting"
 import QRCodeNavbar from "./Navbar/QRCodeNavbar"
+import StockInward from "./Components/Modules/Transactions/StockInward/StockInward"; // Adjust the import path
+
 
 function App() {
   const location = useLocation();
@@ -102,7 +104,8 @@ function App() {
                         location.pathname === "/add-assign-salesmantransfer" ||
                         location.pathname === "/add-receive-from-salesman" ||
                         location.pathname === "/return-to-main-stock" ||
-                        location.pathname === "/add-return-to-main-stock";
+                        location.pathname === "/add-return-to-main-stock" ||
+                        location.pathname === "/stock-inward"
 
 
    const isERPModule = location.pathname === "/qrcodeprinting";
@@ -222,6 +225,9 @@ function App() {
 
 
               <Route path="/qrcodeprinting" exact element={<QRCodePrinting />} />
+
+              <Route path="/stock-inward" element={<StockInward />} />
+
 
 
 
