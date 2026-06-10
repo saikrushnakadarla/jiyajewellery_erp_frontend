@@ -5,11 +5,11 @@ import { faChevronDown, faChevronUp } from "@fortawesome/free-solid-svg-icons";
 import { FaSignOutAlt } from "react-icons/fa";
 // import logo from './sadashri.png';
 import logo from "./jiya_logo.png";
-import "./Navbar.css";
+import "./QRCodeNavbar.css";
 import { AuthContext } from "../Components/Pages/Login/Context";
 import Swal from "sweetalert2";
 
-function Navbar() {
+function QRCodeNavbar() {
   const [isOpen, setIsOpen] = useState(false);
   const [mastersDropdownOpen, setMastersDropdownOpen] = useState(false);
   const [transactionsDropdownOpen, setTransactionsDropdownOpen] =
@@ -163,7 +163,7 @@ function Navbar() {
   console.log("userRole=", userRole);
 
   return (
-    <header className="navbar-header">
+    <header className="qr-navbar-header">
       <div className="navbar-brand">
         {/* <img src={logo} alt="Logo" className="" style={{ width: "200px" }} /> */}
         <img
@@ -664,4 +664,4 @@ function Navbar() {
   );
 }
 
-export default Navbar;
+export default QRCodeNavbar;
