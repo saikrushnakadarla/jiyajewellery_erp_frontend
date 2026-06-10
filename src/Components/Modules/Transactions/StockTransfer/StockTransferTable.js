@@ -1,8 +1,8 @@
-import React, { useEffect, useState, useContext } from 'react';
+import React, { useEffect, useState, useContext, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import DataTable from '../../../Pages/InputField/TableLayout';
-import { FaEye, FaEdit, FaTrash } from 'react-icons/fa';
-import { Button, Row, Col, Modal, Table } from 'react-bootstrap';
+import { FaEye, FaEdit, FaTrash, FaChevronRight, FaChevronDown, FaWarehouse, FaBuilding, FaStore } from 'react-icons/fa';
+import { Button, Row, Col, Modal, Table, Badge, Spinner, Alert } from 'react-bootstrap';
 import axios from 'axios';
 import baseURL from '../../../../Url/NodeBaseURL';
 import { AuthContext } from "../../../Pages/Login/Context";
@@ -18,6 +18,13 @@ const StockTransferTable = () => {
   const { authToken, userId, userName, role } = useContext(AuthContext);
   const { mobile } = location.state || {};
   const initialSearchValue = location.state?.mobile || '';
+  
+  // State for view mode (hierarchical or flat)
+  const [viewMode, setViewMode] = useState('hierarchical'); // 'hierarchical' or 'flat'
+  
+  // State for expanded sections
+  const [expandedFromStockPoints, setExpandedFromStockPoints] = useState({});
+  const [expandedToStockPoints, setExpandedToStockPoints] = useState({});
 
   const getTabId = () => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -75,6 +82,50 @@ const StockTransferTable = () => {
     );
   };
 
+  // Build hierarchical data structure based on Stock Points
+  const hierarchicalData = useMemo(() => {
+    const grouped = {};
+
+    data.forEach(transfer => {
+      const fromStockPoint = transfer.from_stock_point_name || 'Unknown Stock Point';
+      const toStockPoint = transfer.to_stock_point_name || 'Unknown Stock Point';
+
+      if (!grouped[fromStockPoint]) {
+        grouped[fromStockPoint] = {
+          transfers: [],
+          totalTransfers: 0,
+          toStockPoints: {}
+        };
+      }
+
+      if (!grouped[fromStockPoint].toStockPoints[toStockPoint]) {
+        grouped[fromStockPoint].toStockPoints[toStockPoint] = [];
+      }
+
+      grouped[fromStockPoint].toStockPoints[toStockPoint].push(transfer);
+      grouped[fromStockPoint].totalTransfers++;
+    });
+
+    return grouped;
+  }, [data]);
+
+  // Toggle expand/collapse for From Stock Points
+  const toggleFromStockPoint = (fromStockPoint) => {
+    setExpandedFromStockPoints(prev => ({
+      ...prev,
+      [fromStockPoint]: !prev[fromStockPoint]
+    }));
+  };
+
+  // Toggle expand/collapse for To Stock Points
+  const toggleToStockPoint = (fromStockPoint, toStockPoint) => {
+    const key = `${fromStockPoint}-${toStockPoint}`;
+    setExpandedToStockPoints(prev => ({
+      ...prev,
+      [key]: !prev[key]
+    }));
+  };
+
   const columns = React.useMemo(
     () => [
       {
@@ -91,20 +142,12 @@ const StockTransferTable = () => {
         Cell: ({ value }) => formatDate(value),
       },
       {
-        Header: 'From Warehouse',
-        accessor: 'from_warehouse_name',
-      },
-      {
-        Header: 'To Warehouse',
-        accessor: 'to_warehouse_name',
-      },
-      {
-        Header: 'From Stock Point',
+        Header: 'From Warehouse Point',
         accessor: 'from_stock_point_name',
         Cell: ({ value }) => value || 'N/A',
       },
       {
-        Header: 'To Stock Point',
+        Header: 'To Warehouse Point',
         accessor: 'to_stock_point_name',
         Cell: ({ value }) => value || 'N/A',
       },
@@ -117,23 +160,10 @@ const StockTransferTable = () => {
         accessor: 'total_quantity',
       },
       {
-        Header: 'Total Gross Wt',
-        accessor: 'total_gross_weight',
+        Header: 'Status',
+        accessor: 'status',
+        Cell: ({ value }) => getStatusBadge(value),
       },
-      {
-        Header: 'Total Net Wt',
-        accessor: 'total_net_weight',
-      },
-      // {
-      //   Header: 'Status',
-      //   accessor: 'status',
-      //   Cell: ({ value }) => getStatusBadge(value),
-      // },
-      // {
-      //   Header: 'Created By',
-      //   accessor: 'created_by',
-      //   Cell: ({ value }) => value || 'System',
-      // },
       {
         Header: 'Actions',
         id: 'actions',
@@ -250,28 +280,244 @@ const StockTransferTable = () => {
     fetchStockTransfers();
   }, []);
 
+  if (loading) {
+    return (
+      <div className="main-container">
+        <div className="sales-table-container">
+          <div className="d-flex justify-content-center align-items-center" style={{ height: '50vh' }}>
+            <Spinner animation="border" role="status">
+              <span className="visually-hidden">Loading...</span>
+            </Spinner>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="main-container">
       <div className="sales-table-container">
         <Row className="mb-3">
           <Col className="d-flex justify-content-between align-items-center">
-            <h3>Stock Transfers</h3>
+            <div>
+              <h3>Stock Transfers</h3>
+              {/* View Mode Toggle */}
+              <div className="btn-group me-3 mt-2">
+                <Button
+                  variant={viewMode === 'hierarchical' ? 'primary' : 'outline-primary'}
+                  size="sm"
+                  onClick={() => setViewMode('hierarchical')}
+                >
+                  🗂️ Hierarchical View
+                </Button>
+                <Button
+                  variant={viewMode === 'flat' ? 'primary' : 'outline-primary'}
+                  size="sm"
+                  onClick={() => setViewMode('flat')}
+                >
+                  📋 Flat View
+                </Button>
+              </div>
+            </div>
             <Button
               className="create_but"
               onClick={handleCreate}
               style={{ backgroundColor: '#a36e29', borderColor: '#a36e29' }}
             >
-              + Create
+              + Create Transfer
             </Button>
           </Col>
         </Row>
-        {loading ? (
-          <p>Loading...</p>
+
+        {/* Hierarchical View */}
+        {viewMode === 'hierarchical' ? (
+          <div className="hierarchical-view">
+            <style>
+              {`
+                .stock-point-row {
+                  background-color: #f8f9fa;
+                  font-weight: 500;
+                  cursor: pointer;
+                }
+                .stock-point-row:hover {
+                  background-color: #e9ecef;
+                }
+                .to-stock-point-row {
+                  background-color: #fff3e0;
+                }
+                .to-stock-point-row:hover {
+                  background-color: #ffe4b5;
+                }
+                .transfer-row {
+                  background-color: #ffffff;
+                }
+                .transfer-row:hover {
+                  background-color: #f1f3f5;
+                }
+                .expand-btn {
+                  background: none;
+                  border: none;
+                  cursor: pointer;
+                  padding: 0;
+                  color: #a36e29;
+                  font-size: 16px;
+                  transition: transform 0.2s;
+                }
+                .expand-btn:hover {
+                  color: #6b4c1c;
+                }
+                .location-icon {
+                  font-size: 18px;
+                }
+                .from-stock-icon {
+                  color: #a36e29;
+                }
+                .to-stock-icon {
+                  color: #28a745;
+                }
+                .ps-6 {
+                  padding-left: 4rem !important;
+                }
+                .ps-7 {
+                  padding-left: 6rem !important;
+                }
+                .table-hover tbody tr:hover {
+                  background-color: rgba(0,0,0,.02);
+                }
+              `}
+            </style>
+            <table className="table table-striped table-bordered table-hover">
+              <thead style={{ backgroundColor: '#a36e29', color: 'white' }}>
+                <tr>
+                  <th style={{ width: '50px' }}></th>
+                  <th>Stock Point / Transfer Details</th>
+                  <th>Transfer No</th>
+                  <th>Date</th>
+                  <th>Total Items</th>
+                  <th>Total Qty</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {Object.entries(hierarchicalData)
+                  .sort(([a], [b]) => a.localeCompare(b))
+                  .map(([fromStockPoint, fromData]) => (
+                    <React.Fragment key={fromStockPoint}>
+                      {/* From Stock Point Row */}
+                      <tr className="stock-point-row">
+                        <td className="text-center">
+                          <button
+                            className="expand-btn"
+                            onClick={() => toggleFromStockPoint(fromStockPoint)}
+                          >
+                            {expandedFromStockPoints[fromStockPoint] ? 
+                              <FaChevronDown /> : 
+                              <FaChevronRight />
+                            }
+                          </button>
+                        </td>
+                        <td colSpan="6">
+                          <div className="d-flex align-items-center">
+                            <FaWarehouse className="location-icon from-stock-icon me-2" />
+                            <strong>{fromStockPoint}</strong>
+                            <Badge bg="primary" className="ms-2">
+                              {fromData.totalTransfers} Transfer(s)
+                            </Badge>
+                          </div>
+                        </td>
+                        <td></td>
+                      </tr>
+
+                      {/* To Stock Points for this From Stock Point */}
+                      {expandedFromStockPoints[fromStockPoint] && 
+                        Object.entries(fromData.toStockPoints)
+                          .sort(([a], [b]) => a.localeCompare(b))
+                          .map(([toStockPoint, transfers]) => (
+                            <React.Fragment key={`${fromStockPoint}-${toStockPoint}`}>
+                              {/* To Stock Point Row */}
+                              <tr className="to-stock-point-row">
+                                <td className="text-center">
+                                  <button
+                                    className="expand-btn ms-3"
+                                    onClick={() => toggleToStockPoint(fromStockPoint, toStockPoint)}
+                                  >
+                                    {expandedToStockPoints[`${fromStockPoint}-${toStockPoint}`] ? 
+                                      <FaChevronDown /> : 
+                                      <FaChevronRight />
+                                    }
+                                  </button>
+                                </td>
+                                <td colSpan="6">
+                                  <div className="d-flex align-items-center">
+                                    <FaStore className="location-icon to-stock-icon me-2" />
+                                    <strong>→ {toStockPoint}</strong>
+                                    <Badge bg="success" className="ms-2">
+                                      {transfers.length} Transfer(s)
+                                    </Badge>
+                                  </div>
+                                </td>
+                                <td></td>
+                              </tr>
+
+                              {/* Individual Transfer Rows */}
+                              {expandedToStockPoints[`${fromStockPoint}-${toStockPoint}`] && 
+                                transfers.map((transfer, idx) => (
+                                  <tr key={transfer.transfer_id} className="transfer-row">
+                                    <td className="ps-6"></td>
+                                    <td className="ps-7">
+                                      <div>
+                                        <strong>Transfer #{transfer.transfer_number}</strong>
+                                        {transfer.remarks && (
+                                          <div className="small text-muted">{transfer.remarks}</div>
+                                        )}
+                                      </div>
+                                    </td>
+                                    <td>{transfer.transfer_number}</td>
+                                    <td>{formatDate(transfer.transfer_date)}</td>
+                                    <td>{transfer.total_items}</td>
+                                    <td>{transfer.total_quantity}</td>
+                                    <td>{getStatusBadge(transfer.status)}</td>
+                                    <td>
+                                      <FaEye
+                                        style={{ cursor: 'pointer', marginLeft: '10px', color: 'green' }}
+                                        onClick={() => handleViewDetails(transfer.transfer_id)}
+                                      />
+                                      {userName === "ADMIN" && transfer.status === 'pending' && (
+                                        <FaEdit
+                                          style={{ cursor: 'pointer', marginLeft: '10px', color: 'blue' }}
+                                          onClick={() => handleEdit(transfer)}
+                                        />
+                                      )}
+                                      {userName === "ADMIN" && (
+                                        <FaTrash
+                                          style={{ cursor: 'pointer', marginLeft: '10px', color: 'red' }}
+                                          onClick={() => handleDelete(transfer.transfer_id)}
+                                        />
+                                      )}
+                                    </td>
+                                  </tr>
+                                ))
+                              }
+                            </React.Fragment>
+                          ))
+                      }
+                    </React.Fragment>
+                  ))}
+              </tbody>
+            </table>
+          </div>
         ) : (
-          <DataTable columns={columns} data={[...data].reverse()} initialSearchValue={initialSearchValue} />
+          /* Flat View with DataTable */
+          <DataTable 
+            columns={columns} 
+            data={[...data].reverse()} 
+            initialSearchValue={initialSearchValue} 
+          />
         )}
       </div>
 
+      {/* Modal for Transfer Details */}
       <Modal show={showModal} onHide={handleCloseModal} size="xl" className="m-auto">
         <Modal.Header closeButton>
           <Modal.Title>Stock Transfer Details</Modal.Title>

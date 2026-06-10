@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { AuthContext } from "../Login/Context";
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts';
 import './Dashboard.css';
+import baseurl from "../../../Url/NodeBaseURL"
 
 function StockPointDashboard() {
   const { userName, userId, userType, authToken } = useContext(AuthContext);
@@ -33,30 +34,43 @@ function StockPointDashboard() {
   };
 
   // Fetch Stock Inward count (filter by Stock_Point === current login user)
-  const fetchStockInward = async () => {
-    try {
-      const currentStockPoint = getCurrentStockPoint();
-      const response = await fetch('http://localhost:5001/get/opening-tags-entry');
-      const data = await response.json();
-      
-      if (data.result) {
-        // Filter where Stock_Point matches current login user
-        const filteredData = data.result.filter(item => item.Stock_Point === currentStockPoint);
-        setStockInwardCount(filteredData.length);
-        setOpeningTagsData(filteredData);
-      }
-    } catch (error) {
-      console.error('Error fetching stock inward data:', error);
+  // Update the fetchStockInward function
+const fetchStockInward = async () => {
+  try {
+    const currentStockPoint = getCurrentStockPoint();
+    const response = await fetch(`${baseurl}/api/stock-transfer/get-stock-transfers`);
+    const data = await response.json();
+    
+    if (Array.isArray(data)) {
+      // Filter where to_stock_point_name matches current login user
+      const filteredData = data.filter(item => 
+        item.to_stock_point_name === currentStockPoint && 
+        item.status === "completed" // Only count completed transfers
+      );
+      setStockInwardCount(filteredData.length);
+      setOpeningTagsData(filteredData);
+    } else {
       setStockInwardCount(0);
-    } finally {
-      setLoading(prev => ({ ...prev, inward: false }));
+      setOpeningTagsData([]);
     }
-  };
+  } catch (error) {
+    console.error('Error fetching stock inward data:', error);
+    setStockInwardCount(0);
+    setOpeningTagsData([]);
+  } finally {
+    setLoading(prev => ({ ...prev, inward: false }));
+  }
+};
+
+// Update the card click handler for Stock Inward
+const handleStockInwardClick = () => {
+  navigate("/stock-inward");
+};
 
   // Fetch Stock Outward count (Status === "Selected" AND Stock_Point === "MAIN STOCK ROOM")
   const fetchStockOutward = async () => {
     try {
-      const response = await fetch('http://localhost:5001/get/opening-tags-entry');
+      const response = await fetch(`${baseurl}/get/opening-tags-entry`);
       const data = await response.json();
       
       if (data.result) {
@@ -77,7 +91,7 @@ function StockPointDashboard() {
   // Fetch Assigned to Salesman data and count
   const fetchAssignedToSalesman = async () => {
     try {
-      const response = await fetch('http://localhost:5001/api/assigned-salesman/get-assigned-transfers');
+      const response = await fetch(`${baseurl}/api/assigned-salesman/get-assigned-transfers`);
       const data = await response.json();
       
       if (Array.isArray(data)) {
@@ -96,7 +110,7 @@ function StockPointDashboard() {
   // Fetch Received from Salesman data and count
   const fetchReceivedFromSalesman = async () => {
     try {
-      const response = await fetch('http://localhost:5001/api/received-salesman/get-received-transfers');
+      const response = await fetch(`${baseurl}/api/received-salesman/get-received-transfers`);
       const data = await response.json();
       
       if (Array.isArray(data)) {
@@ -179,14 +193,10 @@ function StockPointDashboard() {
   };
 
   const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D'];
-  
-  // Card click handlers
-  const handleStockInwardClick = () => {
-    console.log('Stock Inward clicked - Count:', stockInwardCount);
-  };
 
+  
   const handleStockOutwardClick = () => {
-    navigate("/receive-from-salesman");
+    navigate("/return-to-main-stock");
   };
 
   const handleAssignedToSalesmanClick = () => {
@@ -194,7 +204,7 @@ function StockPointDashboard() {
   };
 
   const handleReceivedFromSalesmanClick = () => {
-    navigate("/return-to-main-stock");
+    navigate("/receive-from-salesman");
   };
 
   return (
