@@ -2575,6 +2575,7 @@ const handleSave = async () => {
     }
 
     console.log("Saving with Received Number:", nextReceivedNumber);
+    console.log("Logged in User ID (to_user_id):", loggedInUserId);
 
     // Prepare transfer data with proper fields for received salesman
     const transferData = repairDetails.map(item => ({
@@ -2609,7 +2610,7 @@ const handleSave = async () => {
       remarks: `Received from ${selectedSalesman.salesman_name} to ${activeStockPointDetails.stock_point_name}`,
       created_by: formData.account_name || "system",
       from_user_id: selectedSalesman.salesman_id ? parseInt(selectedSalesman.salesman_id) : null,
-      to_user_id: activeStockPointDetails.user_id || null
+      to_user_id: loggedInUserId
     };
 
     console.log("Sending Received Salesman Payload:", payload);
@@ -2647,7 +2648,7 @@ const handleSave = async () => {
         transfer_number: "",
       });
       
-      navigate("/received-from-salesman");
+      navigate("/receive-from-salesman");
     }
   } catch (error) {
     console.error("Error saving received salesman:", error);
