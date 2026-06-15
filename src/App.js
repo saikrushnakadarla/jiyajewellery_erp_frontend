@@ -87,9 +87,10 @@ import ReceivedSalesmanTable from "./Components/Modules/Transactions/ReceivedFro
 import ReceivedSalesmanForm from "./Components/Modules/Transactions/ReceivedFromSalesman/ReceivedSalesmanForm"
 import ReturnMainStockTable from "./Components/Modules/Transactions/ReturnMainStock/ReturnMainStockTable";
 import ReturnMainStockForm from "./Components/Modules/Transactions/ReturnMainStock/ReturnMainStockForm";
-import QRCodePrinting from "./Components/Modules/Masters/QRCodePrinting/QRCodePrinting"
-import QRCodeNavbar from "./Navbar/QRCodeNavbar"
+import QRCodePrinting from "./Components/Modules/Masters/QRCodePrinting/QRCodePrinting";
+import QRCodeNavbar from "./Navbar/QRCodeNavbar";
 import StockInward from "./Components/Modules/Transactions/StockInward/StockInward"; // Adjust the import path
+import Selections from "./Components/Modules/Transactions/Selections/Selections";
 
 
 function App() {
@@ -98,17 +99,17 @@ function App() {
   // Check if the current route is login or signup
   const isAuthPage = location.pathname === "/" || location.pathname === "/";
 
-  const isStockModule = location.pathname === "/stock-dashboard" || 
-                        location.pathname === "/assign-to-salesman" || 
-                        location.pathname === "/receive-from-salesman" ||
-                        location.pathname === "/add-assign-salesmantransfer" ||
-                        location.pathname === "/add-receive-from-salesman" ||
-                        location.pathname === "/return-to-main-stock" ||
-                        location.pathname === "/add-return-to-main-stock" ||
-                        location.pathname === "/stock-inward"
+  const isStockModule = location.pathname === "/stock-dashboard" ||
+    location.pathname === "/assign-to-salesman" ||
+    location.pathname === "/receive-from-salesman" ||
+    location.pathname === "/add-assign-salesmantransfer" ||
+    location.pathname === "/add-receive-from-salesman" ||
+    location.pathname === "/return-to-main-stock" ||
+    location.pathname === "/add-return-to-main-stock" ||
+    location.pathname === "/stock-inward"
 
 
-   const isERPModule = location.pathname === "/qrcodeprinting";
+  const isERPModule = location.pathname === "/qrcodeprinting";
 
   return (
     <>
@@ -118,10 +119,10 @@ function App() {
         {!isAuthPage && !isStockModule && !isERPModule && <Navbar />}
         {!isAuthPage && isStockModule && <StockNavbar />}
         {!isAuthPage && isERPModule && <QRCodeNavbar />}
-        
+
         <Routes>
           <Route path="/" exact element={<Login />} />
-           <Route path="/ledger" exact element={<Ledger />} />
+          <Route path="/ledger" exact element={<Ledger />} />
           <Route path="/dashboard" exact element={<Dashboard />} />
           <Route path="/stock-dashboard" exact element={<StockPointDashboard />} />
           <Route path="/itemmaster" exact element={<ItemMaster />} />
@@ -183,7 +184,7 @@ function App() {
           <Route path="/barcodeprinting" element={<BarCodePrinting />} />
           <Route path="/sales/details/:invoice_number" element={<RepairDetails />} />
 
-          <Route path="/salesNew" element = {<SalesNew />} />
+          <Route path="/salesNew" element={<SalesNew />} />
           <Route path="/salesreturn" element={<SalesReturn />} />
           <Route path="/estimatereceipt" element={<EstimateReceipt />} />
 
@@ -202,31 +203,32 @@ function App() {
           <Route path="/purchase-payment" element={<PurchasePayment />} />
           <Route path="/ratecuts" element={<RateCuts />} />
           <Route path="/itemsales" element={<ItemSales />} />
-          <Route path="/stockReport" element={<StockReport />} /> 
+          <Route path="/stockReport" element={<StockReport />} />
 
-           <Route path="/salesratecut" element={<SalesRateCut />} />
+          <Route path="/salesratecut" element={<SalesRateCut />} />
 
-              <Route path="/stockpoints" element={<StockPoints />} /> 
-             
-              <Route path="/stock-transfer" element={<StockTransferTable />} />
-              <Route path="/add-stocktransfer" element={<StockTransferForm />} />
+          <Route path="/stockpoints" element={<StockPoints />} />
 
-
-               <Route path="/assign-to-salesman" element={<AssignSalesmanTable />} />
-              <Route path="/add-assign-salesmantransfer" element={<AssignSalesmanForm />} />
+          <Route path="/stock-transfer" element={<StockTransferTable />} />
+          <Route path="/add-stocktransfer" element={<StockTransferForm />} />
 
 
-               <Route path="/receive-from-salesman" element={<ReceivedSalesmanTable />} />
-              <Route path="/add-receive-from-salesman" element={<ReceivedSalesmanForm />} />
+          <Route path="/assign-to-salesman" element={<AssignSalesmanTable />} />
+          <Route path="/add-assign-salesmantransfer" element={<AssignSalesmanForm />} />
 
 
-                 <Route path="/return-to-main-stock" element={<ReturnMainStockTable />} />
-              <Route path="/add-return-to-main-stock" element={<ReturnMainStockForm />} />
+          <Route path="/receive-from-salesman" element={<ReceivedSalesmanTable />} />
+          <Route path="/add-receive-from-salesman" element={<ReceivedSalesmanForm />} />
 
 
-              <Route path="/qrcodeprinting" exact element={<QRCodePrinting />} />
+          <Route path="/return-to-main-stock" element={<ReturnMainStockTable />} />
+          <Route path="/add-return-to-main-stock" element={<ReturnMainStockForm />} />
 
-              <Route path="/stock-inward" element={<StockInward />} />
+
+          <Route path="/qrcodeprinting" exact element={<QRCodePrinting />} />
+
+          <Route path="/stock-inward" element={<StockInward />} /> 
+          <Route path="/selections" element={<Selections />} />
 
 
 

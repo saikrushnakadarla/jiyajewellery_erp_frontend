@@ -94,6 +94,21 @@ function StockNavbar() {
           >
             STOCK INWARD
           </Link>
+        </div> 
+
+
+          <div>
+          <Link
+            to="/selections"
+            onClick={handleItemClick}
+            style={{
+              color: location.pathname === "/selections" ? "#a36e29" : "black",
+              backgroundColor: "transparent",
+              textDecoration: "none",
+            }}
+          >
+            SELECTIONS
+          </Link>
         </div>
 
         {/* Assign to Salesman Link */}
@@ -107,7 +122,7 @@ function StockNavbar() {
               textDecoration: "none",
             }}
           >
-            ASSIGN TO SALESMAN
+            ASSIGN 
           </Link>
         </div>
 
@@ -122,7 +137,7 @@ function StockNavbar() {
               textDecoration: "none",
             }}
           >
-            RECEIVE FROM SALESMAN
+            RECEIVE 
           </Link>
         </div>
 
