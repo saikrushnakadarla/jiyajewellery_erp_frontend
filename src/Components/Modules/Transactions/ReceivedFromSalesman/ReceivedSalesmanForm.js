@@ -1581,6 +1581,8 @@ const handleAdd = () => {
           ? parseFloat(formData.rate).toFixed(2)
           : "",
       imagePreview: formData.imagePreview,
+      is_packet_selection: formData.is_packet_selection || false,
+      packet_barcode: formData.packet_barcode || null
     },
   ];
 
@@ -2676,10 +2678,15 @@ const handleSave = async () => {
     console.log("Saving with Received Number:", nextReceivedNumber);
     console.log("Logged in User ID (to_user_id):", loggedInUserId);
 
+    // Check if any product was selected via packet barcode
+    const hasPacketSelection = repairDetails.some(item => item.is_packet_selection === true || item.packet_barcode !== null);
+
+    console.log("Has packet selection:", hasPacketSelection);
+
     // Prepare transfer data with proper fields for received salesman
     const transferData = repairDetails.map(item => ({
-      item_id: item.item_id || null,           // Original assigned item ID
-      assigned_id: item.assigned_id || null,   // Original assigned transfer ID
+      item_id: item.item_id || null,
+      assigned_id: item.assigned_id || null,
       product_id: item.product_id || null,
       product_name: item.product_name || null,
       metal_type: item.metal_type || null,
@@ -2696,7 +2703,9 @@ const handleSave = async () => {
       stone_price: parseFloat(item.stone_price) || 0,
       total_price: parseFloat(item.total_price) || 0,
       remarks: item.remarks || null,
-      PCode_BarCode: item.code
+      PCode_BarCode: item.code,
+      is_packet_selection: item.is_packet_selection || false,  // Add this
+      packet_barcode: item.packet_barcode || null              // Add this
     }));
 
     // Build payload for Received Salesman API
@@ -2705,20 +2714,22 @@ const handleSave = async () => {
       from_salesman_id: parseInt(selectedSalesman.salesman_id),
       to_stock_point_id: parseInt(formData.active_stock_point_id),
       transfer_date: formData.date || new Date().toISOString().split('T')[0],
-      reference_number: nextReceivedNumber,  // This will be RCN001 format
+      reference_number: nextReceivedNumber,
       remarks: `Received from ${selectedSalesman.salesman_name} to ${activeStockPointDetails.stock_point_name}`,
       created_by: formData.account_name || "system",
       from_user_id: selectedSalesman.salesman_id ? parseInt(selectedSalesman.salesman_id) : null,
-      to_user_id: loggedInUserId
+      to_user_id: loggedInUserId,
+      is_packet_selection: hasPacketSelection  // Add this flag
     };
 
     console.log("Sending Received Salesman Payload:", payload);
 
-    // Call the RECEIVED SALESMAN API (not assigned-salesman)
+    // Call the RECEIVED SALESMAN API
     const response = await axios.post(`${baseURL}/api/received-salesman/save-received-salesman`, payload);
    
     if (response.status === 200 || response.status === 201) {
-      alert(`Received from Salesman completed successfully! Received Number: ${nextReceivedNumber}`);
+      const statusUsed = response.data.status_used || 'Available';
+      alert(`Received from Salesman completed successfully! Received Number: ${nextReceivedNumber}\nStatus set to: ${statusUsed}`);
       
       // Clear data
       setOldSalesData([]);

@@ -16,7 +16,7 @@ const ProductDetails = ({
   isEditing,
   formData,
   setFormData,
-  setRepairDetails,  // <-- ADDED THIS PROP
+  setRepairDetails,
   data,
   handleChange,
   handleImageChange,
@@ -68,6 +68,7 @@ const ProductDetails = ({
   const [estimatesData, setEstimatesData] = useState([]);
   const [loggedInUserId, setLoggedInUserId] = useState(null);
   const [groupedPacketProducts, setGroupedPacketProducts] = useState({});
+  const [isPacketAdded, setIsPacketAdded] = useState(false);
 
   useEffect(() => {
     const userId = localStorage.getItem('userId');
@@ -84,68 +85,76 @@ const ProductDetails = ({
         console.log("Estimates data fetched in ProductDetails:", response.data);
         setEstimatesData(response.data);
         
-        // Group products by packet barcode
+        // Group products by packet barcode - ONLY for products assigned to the selected salesman
         const grouped = {};
         response.data.forEach(est => {
           if (est.code && est.packet_barcode) {
-            if (!grouped[est.packet_barcode]) {
-              grouped[est.packet_barcode] = [];
+            // Check if this product is assigned to the selected salesman
+            const isAssignedToSalesman = selectedSalesmanProducts.some(
+              assigned => assigned.PCode_BarCode === est.code
+            );
+            
+            // Only include if assigned to the selected salesman
+            if (isAssignedToSalesman) {
+              if (!grouped[est.packet_barcode]) {
+                grouped[est.packet_barcode] = [];
+              }
+              // Add product info to the group
+              grouped[est.packet_barcode].push({
+                code: est.code,
+                product_name: est.product_name,
+                metal_type: est.metal_type,
+                purity: est.purity,
+                category: est.category,
+                sub_category: est.sub_category,
+                gross_weight: est.gross_weight,
+                stone_weight: est.stone_weight,
+                stone_price: est.stone_price,
+                weight_bw: est.weight_bw,
+                va_on: est.va_on,
+                va_percent: est.va_percent,
+                wastage_weight: est.wastage_weight,
+                total_weight_av: est.total_weight_av,
+                mc_on: est.mc_on,
+                mc_per_gram: est.mc_per_gram,
+                making_charges: est.making_charges,
+                rate: est.rate,
+                rate_amt: est.rate_amt,
+                tax_percent: est.tax_percent,
+                tax_amt: est.tax_amt,
+                total_price: est.total_price,
+                pricing: est.pricing,
+                qty: est.qty || 1,
+                packet_barcode: est.packet_barcode,
+                is_estimated: true,
+                design_name: est.design_name,
+                stone_price_per_carat: est.stone_price_per_carat,
+                deduct_st_Wt: est.deduct_st_Wt,
+                pur_Gross_Weight: est.pur_Gross_Weight,
+                pur_Stones_Weight: est.pur_Stones_Weight,
+                pur_deduct_st_Wt: est.pur_deduct_st_Wt,
+                pur_stone_price_per_carat: est.pur_stone_price_per_carat,
+                pur_Stones_Price: est.pur_Stones_Price,
+                pur_Weight_BW: est.pur_Weight_BW,
+                pur_Making_Charges_On: est.pur_Making_Charges_On,
+                pur_MC_Per_Gram: est.pur_MC_Per_Gram,
+                pur_Making_Charges: est.pur_Making_Charges,
+                pur_Wastage_On: est.pur_Wastage_On,
+                pur_Wastage_Percentage: est.pur_Wastage_Percentage,
+                pur_WastageWeight: est.pur_WastageWeight,
+                pur_TotalWeight_AW: est.pur_TotalWeight_AW
+              });
             }
-            // Add product info to the group
-            grouped[est.packet_barcode].push({
-              code: est.code,
-              product_name: est.product_name,
-              metal_type: est.metal_type,
-              purity: est.purity,
-              category: est.category,
-              sub_category: est.sub_category,
-              gross_weight: est.gross_weight,
-              stone_weight: est.stone_weight,
-              stone_price: est.stone_price,
-              weight_bw: est.weight_bw,
-              va_on: est.va_on,
-              va_percent: est.va_percent,
-              wastage_weight: est.wastage_weight,
-              total_weight_av: est.total_weight_av,
-              mc_on: est.mc_on,
-              mc_per_gram: est.mc_per_gram,
-              making_charges: est.making_charges,
-              rate: est.rate,
-              rate_amt: est.rate_amt,
-              tax_percent: est.tax_percent,
-              tax_amt: est.tax_amt,
-              total_price: est.total_price,
-              pricing: est.pricing,
-              qty: est.qty || 1,
-              packet_barcode: est.packet_barcode,
-              is_estimated: true,
-              design_name: est.design_name,
-              stone_price_per_carat: est.stone_price_per_carat,
-              deduct_st_Wt: est.deduct_st_Wt,
-              pur_Gross_Weight: est.pur_Gross_Weight,
-              pur_Stones_Weight: est.pur_Stones_Weight,
-              pur_deduct_st_Wt: est.pur_deduct_st_Wt,
-              pur_stone_price_per_carat: est.pur_stone_price_per_carat,
-              pur_Stones_Price: est.pur_Stones_Price,
-              pur_Weight_BW: est.pur_Weight_BW,
-              pur_Making_Charges_On: est.pur_Making_Charges_On,
-              pur_MC_Per_Gram: est.pur_MC_Per_Gram,
-              pur_Making_Charges: est.pur_Making_Charges,
-              pur_Wastage_On: est.pur_Wastage_On,
-              pur_Wastage_Percentage: est.pur_Wastage_Percentage,
-              pur_WastageWeight: est.pur_WastageWeight,
-              pur_TotalWeight_AW: est.pur_TotalWeight_AW
-            });
           }
         });
         setGroupedPacketProducts(grouped);
-        console.log("Grouped packet products:", grouped);
+        console.log("Grouped packet products for salesman:", grouped);
       } catch (error) {
         console.error("Error fetching estimates:", error);
       }
     };
     fetchEstimates();
-  }, []);
+  }, [selectedSalesmanProducts]);
 
   // Get packet barcode from estimates for a given product code
   const getPacketBarcode = (productCode) => {
@@ -169,24 +178,27 @@ const ProductDetails = ({
     ? products.find((product) => product.product_name === formData.category)?.rbarcode || ""
     : "";
 
-  // Build barcode options - ONLY show packet barcode for estimated products
+  // Build barcode options - ONLY show packet barcode for estimated products assigned to salesman
   const barcodeOptions = [];
   const seenPacketBarcodes = new Set();
 
-  // First, add packet barcodes from grouped products (estimated products)
+  // First, add packet barcodes from grouped products (estimated products assigned to salesman)
   Object.keys(groupedPacketProducts).forEach(packetBarcode => {
     if (!seenPacketBarcodes.has(packetBarcode)) {
       seenPacketBarcodes.add(packetBarcode);
       const productsInPacket = groupedPacketProducts[packetBarcode];
       
-      barcodeOptions.push({
-        value: packetBarcode, // Use packet barcode as value
-        label: packetBarcode, // Show only packet barcode
-        type: "packet",
-        packetBarcode: packetBarcode,
-        isEstimated: true,
-        products: productsInPacket // Store all products in this packet
-      });
+      // Only add if there are products in the packet
+      if (productsInPacket && productsInPacket.length > 0) {
+        barcodeOptions.push({
+          value: packetBarcode, // Use packet barcode as value
+          label: packetBarcode, // Show only packet barcode
+          type: "packet",
+          packetBarcode: packetBarcode,
+          isEstimated: true,
+          products: productsInPacket // Store all products in this packet
+        });
+      }
     }
   });
 
@@ -208,42 +220,6 @@ const ProductDetails = ({
       });
     }
   });
-
-  // Add tag options from opening_tags_entry (non-estimated)
-  data
-    .filter((tag) => {
-      if (formData.category && tag.category !== formData.category) return false;
-      if (tag.Status !== 'Available') return false;
-      if (tag.user_id === null || tag.user_id === undefined) return false;
-      if (loggedInUserId && tag.user_id !== loggedInUserId) return false;
-      
-      const isAssigned = selectedSalesmanProducts?.some(
-        assigned => assigned.PCode_BarCode === tag.PCode_BarCode
-      );
-      
-      if (formData.salesman_id) {
-        return isAssigned;
-      }
-      
-      return true;
-    })
-    .forEach((tag) => {
-      const packetBarcode = getPacketBarcode(tag.PCode_BarCode);
-      const isEstimated = hasEstimate(tag.PCode_BarCode);
-      
-      // Only add if not estimated (no packet barcode)
-      if (!isEstimated || !packetBarcode) {
-        barcodeOptions.push({
-          value: tag.PCode_BarCode,
-          label: `${tag.PCode_BarCode} - ${tag.sub_category || tag.category || 'Product'}`,
-          type: 'tag',
-          tagData: tag,
-          packetBarcode: null,
-          isEstimated: false,
-          products: [tag]
-        });
-      }
-    });
 
   // Remove duplicates
   const uniqueBarcodeOptions = [];
@@ -287,7 +263,8 @@ const ProductDetails = ({
             ...prev,
             code: selectedValue,
             packet_barcode: selectedOption.packetBarcode,
-            is_estimated: true
+            is_estimated: true,
+            is_packet_selection: true
           }));
           return;
         }
@@ -334,7 +311,9 @@ const ProductDetails = ({
             hm_charges: product.hm_charges || "60.00",
             remarks: product.remarks || "",
             printing_purity: product.printing_purity || "",
-            selling_purity: product.selling_purity || ""
+            selling_purity: product.selling_purity || "",
+            is_packet_selection: true,  // Add this flag for packet selections
+            packet_barcode: selectedOption.packetBarcode
           }))
         ];
         
@@ -342,67 +321,73 @@ const ProductDetails = ({
         setRepairDetails(updatedRepairDetails);
         localStorage.setItem(`repairDetails_${tabId}`, JSON.stringify(updatedRepairDetails));
         
-        // Set formData to show the packet barcode
+        // Set isPacketAdded to true to clear the form fields
+        setIsPacketAdded(true);
+        
+        // Clear form fields after packet selection - only show packet barcode info
         setFormData(prev => ({
           ...prev,
           code: selectedValue,
           packet_barcode: selectedOption.packetBarcode,
           is_estimated: true,
-          product_name: newProducts.map(p => p.product_name || p.sub_category).join(', ')
+          is_packet_selection: true,
+          product_name: '',
+          metal_type: '',
+          purity: '',
+          category: '',
+          sub_category: '',
+          gross_weight: '',
+          stone_weight: '',
+          stone_price: '',
+          weight_bw: '',
+          va_on: 'Gross Weight',
+          va_percent: '',
+          wastage_weight: '',
+          total_weight_av: '',
+          mc_on: 'MC %',
+          mc_per_gram: '',
+          making_charges: '',
+          rate: '',
+          rate_amt: '',
+          tax_percent: '03% GST',
+          tax_amt: '',
+          total_price: '',
+          pricing: 'By Weight',
+          qty: '1',
+          design_name: '',
+          selling_purity: '',
+          printing_purity: '',
+          imagePreview: null,
+          disscount: '',
+          disscount_percentage: '',
+          pieace_cost: '',
+          hm_charges: '60.00',
+          remarks: '',
+          piece_taxable_amt: '',
+          festival_discount: '',
+          custom_purity: ''
         }));
-        
-        // Auto select the first product's details for display
-        if (newProducts.length > 0) {
-          const firstProduct = newProducts[0];
-          setFormData(prev => ({
-            ...prev,
-            code: firstProduct.code,
-            product_name: firstProduct.product_name || firstProduct.sub_category,
-            metal_type: firstProduct.metal_type,
-            purity: firstProduct.purity,
-            category: firstProduct.category,
-            sub_category: firstProduct.sub_category,
-            gross_weight: firstProduct.gross_weight,
-            stone_weight: firstProduct.stone_weight,
-            stone_price: firstProduct.stone_price,
-            weight_bw: firstProduct.weight_bw,
-            va_on: firstProduct.va_on || "Gross Weight",
-            va_percent: firstProduct.va_percent,
-            wastage_weight: firstProduct.wastage_weight,
-            total_weight_av: firstProduct.total_weight_av,
-            mc_on: firstProduct.mc_on || "MC %",
-            mc_per_gram: firstProduct.mc_per_gram,
-            making_charges: firstProduct.making_charges,
-            rate: firstProduct.rate,
-            rate_amt: firstProduct.rate_amt,
-            tax_percent: firstProduct.tax_percent || "03% GST",
-            tax_amt: firstProduct.tax_amt,
-            total_price: firstProduct.total_price,
-            pricing: firstProduct.pricing || "By Weight",
-            qty: firstProduct.qty || 1,
-            packet_barcode: selectedOption.packetBarcode,
-            is_estimated: true,
-            design_name: firstProduct.design_name
-          }));
-        }
         
         alert(`Added ${newProducts.length} product(s) from packet ${selectedOption.packetBarcode}`);
         
       } else {
         // Regular barcode selection (non-packet)
+        setIsPacketAdded(false);
         if (selectedOption.packetBarcode) {
           setFormData(prev => ({
             ...prev,
             code: selectedValue,
             packet_barcode: selectedOption.packetBarcode,
-            is_estimated: selectedOption.isEstimated || false
+            is_estimated: selectedOption.isEstimated || false,
+            is_packet_selection: false
           }));
         } else {
           setFormData(prev => ({
             ...prev,
             code: selectedValue,
             packet_barcode: null,
-            is_estimated: false
+            is_estimated: false,
+            is_packet_selection: false
           }));
         }
         handleBarcodeChange(selectedValue);
@@ -411,6 +396,7 @@ const ProductDetails = ({
   };
 
   const handleClear = () => {
+    setIsPacketAdded(false);
     setFormData(prevFormData => ({
       ...prevFormData,
       code: "",
@@ -453,6 +439,7 @@ const ProductDetails = ({
       custom_purity: "",
       packet_barcode: null,
       is_estimated: false,
+      is_packet_selection: false,
     }));
   };
 
@@ -573,7 +560,7 @@ const ProductDetails = ({
             autoFocus
           />
           {/* Display packet barcode if available */}
-          {formData.packet_barcode && (
+          {/* {formData.packet_barcode && (
             <div style={{ fontSize: "12px", color: "#a36e29", marginTop: "2px", fontWeight: "bold" }}>
               Packet: {formData.packet_barcode}
             </div>
@@ -583,6 +570,11 @@ const ProductDetails = ({
               ✓ Estimated
             </div>
           )}
+          {isPacketAdded && (
+            <div style={{ fontSize: "11px", color: "#a36e29", marginTop: "2px", fontWeight: "bold" }}>
+              ✓ Packet Added - Select another or clear
+            </div>
+          )} */}
         </Col>
 
         <Col xs={12} md={2} className="d-flex align-items-center">
@@ -594,6 +586,7 @@ const ProductDetails = ({
               type="select"
               onChange={handleChange}
               options={categoryOptions}
+              disabled={isPacketAdded}
             />
           </div>
           <AiOutlinePlus
@@ -622,6 +615,7 @@ const ProductDetails = ({
             onChange={handleChange}
             type="select"
             options={metaltypeOptions}
+            disabled={isPacketAdded}
           />
         </Col>
 
@@ -634,6 +628,7 @@ const ProductDetails = ({
               onChange={handleChange}
               type="select"
               options={subcategoryOptions}
+              disabled={isPacketAdded}
             />
           </div>
           <AiOutlinePlus
@@ -663,6 +658,7 @@ const ProductDetails = ({
             onChange={handleChange}
             type="select"
             options={designOptions}
+            disabled={isPacketAdded}
           />
         </Col>
 
@@ -675,6 +671,7 @@ const ProductDetails = ({
                 name="printing_purity"
                 value={formData.printing_purity || ""}
                 onChange={handleChange}
+                disabled={isPacketAdded}
               />
             </Col>
             <Col xs={12} md={2}>
@@ -683,6 +680,7 @@ const ProductDetails = ({
                 name="pieace_cost"
                 value={formData.pieace_cost}
                 onChange={handleChange}
+                disabled={isPacketAdded}
               />
             </Col>
             <Col xs={12} md={1}>
@@ -692,6 +690,7 @@ const ProductDetails = ({
                 value={formData.qty}
                 onChange={handleChange}
                 readOnly={!isQtyEditable}
+                disabled={isPacketAdded}
               />
             </Col>
             <Col xs={12} md={4}>
@@ -701,6 +700,7 @@ const ProductDetails = ({
                 variant="primary"
                 size="sm"
                 onClick={() => setShowOptions(!showOptions)}
+                disabled={isPacketAdded}
               >
                 {showOptions && (
                   <>
@@ -792,6 +792,7 @@ const ProductDetails = ({
                     : []),
                   { label: "Manual", value: "Manual" }
                 ]}
+                disabled={isPacketAdded}
               />
             </Col>
 
@@ -802,6 +803,7 @@ const ProductDetails = ({
                   name="custom_purity"
                   value={formData.custom_purity || ""}
                   onChange={handleChange}
+                  disabled={isPacketAdded}
                 />
               </Col>
             )}
@@ -813,6 +815,7 @@ const ProductDetails = ({
                 type='number'
                 value={formData.gross_weight || ""}
                 onChange={handleChange}
+                disabled={isPacketAdded}
               />
             </Col>
             <Col xs={12} md={1}>
@@ -822,6 +825,7 @@ const ProductDetails = ({
                 type='number'
                 value={formData.stone_weight || ""}
                 onChange={handleChange}
+                disabled={isPacketAdded}
               />
             </Col>
             <Col xs={12} md={1}>
@@ -831,6 +835,7 @@ const ProductDetails = ({
                 value={formData.weight_bw || ""}
                 onChange={handleChange}
                 readOnly
+                disabled={isPacketAdded}
               />
             </Col>
 
@@ -849,6 +854,7 @@ const ProductDetails = ({
                     ? [{ value: formData.va_on, label: formData.va_on }]
                     : []),
                 ]}
+                disabled={isPacketAdded}
               />
             </Col>
             <Col xs={12} md={1}>
@@ -858,6 +864,7 @@ const ProductDetails = ({
                 type='number'
                 value={formData.va_percent || "0"}
                 onChange={handleChange}
+                disabled={isPacketAdded}
               />
             </Col>
             <Col xs={12} md={1}>
@@ -867,6 +874,7 @@ const ProductDetails = ({
                 value={formData.wastage_weight || "0.00"}
                 onChange={handleChange}
                 readOnly
+                disabled={isPacketAdded}
               />
             </Col>
             <Col xs={12} md={2}>
@@ -876,6 +884,7 @@ const ProductDetails = ({
                 value={formData.total_weight_av || ""}
                 onChange={handleChange}
                 readOnly
+                disabled={isPacketAdded}
               />
             </Col>
 
@@ -895,6 +904,7 @@ const ProductDetails = ({
                     ? [{ value: formData.mc_on, label: formData.mc_on }]
                     : []),
                 ]}
+                disabled={isPacketAdded}
               />
             </Col>
 
@@ -906,6 +916,7 @@ const ProductDetails = ({
                 value={formData.mc_per_gram || ""}
                 onChange={handleChange}
                 readOnly={formData.mc_on === "MC / Piece"}
+                disabled={isPacketAdded}
               />
             </Col>
             <Col xs={12} md={1}>
@@ -915,7 +926,7 @@ const ProductDetails = ({
                 type='number'
                 value={formData.making_charges || ""}
                 onChange={handleChange}
-                disabled={formData.mc_on === "MC / Gram"}
+                disabled={formData.mc_on === "MC / Gram" || isPacketAdded}
               />
             </Col>
 
@@ -926,6 +937,7 @@ const ProductDetails = ({
                 variant="primary"
                 size="sm"
                 onClick={() => setShowOptions(!showOptions)}
+                disabled={isPacketAdded}
               >
                 {showOptions && (
                   <>
@@ -1012,6 +1024,7 @@ const ProductDetails = ({
               marginLeft: "-1px",
               fontSize: "13px"
             }}
+            disabled={isPacketAdded}
           >
             {isEditing ? "Update" : "Add"}
           </Button>
