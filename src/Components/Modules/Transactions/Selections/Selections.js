@@ -61,6 +61,8 @@ const Selections = () => {
   const [showModal, setShowModal] = useState(false);
   const [selectedImage, setSelectedImage] = useState(null);
   const [showImageModal, setShowImageModal] = useState(false);
+  const [assignedSalesmanId, setAssignedSalesmanId] = useState(null);
+  const [salesmanData, setSalesmanData] = useState(null);
 
   // ---------- Invoice Modal State ----------
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
@@ -86,18 +88,71 @@ const Selections = () => {
   }, [generatedEstimates]);
 
   // ============================================================
-  // Fetch Data
+  // Fetch Assigned Salesman Data
+  // Get the to_salesman_id from the assigned transfer API
+  // ============================================================
+  const fetchAssignedSalesman = useCallback(async () => {
+    try {
+      // Note: '4' is the assigned_id - you should get this dynamically
+      // For example from localStorage, sessionStorage, or user context
+      const assignedId = sessionStorage.getItem('assigned_id') || '4';
+      const response = await axios.get(`http://localhost:5001/api/assigned-salesman/get-assigned-transfer/${assignedId}`);
+      
+      if (response.data && response.data.transfer_details) {
+        const toSalesmanId = response.data.transfer_details.to_salesman_id;
+        setAssignedSalesmanId(toSalesmanId);
+        setSalesmanData(response.data.transfer_details);
+        console.log('Assigned Salesman ID:', toSalesmanId);
+        return toSalesmanId;
+      }
+      return null;
+    } catch (error) {
+      console.error('Error fetching assigned salesman:', error);
+      Swal.fire({ 
+        icon: 'warning', 
+        title: 'Warning', 
+        text: 'Could not fetch salesman assignment. Showing all estimates.' 
+      });
+      return null;
+    }
+  }, []);
+
+  // ============================================================
+  // Fetch Data and Filter by Salesman
   // ============================================================
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
+      
+      // First, get the assigned salesman ID
+      const salesmanId = await fetchAssignedSalesman();
+      
+      // Fetch all estimates
       const response = await axios.get(`${baseURL}/get-unique-estimates`);
       const allEstimatesData = response.data || [];
 
-      const estimatesWithStatus = allEstimatesData.map(estimate => ({
+      let estimatesWithStatus = allEstimatesData.map(estimate => ({
         ...estimate,
         estimate_status: estimate.estimate_status || estimate.status || 'Pending',
       }));
+
+      // Filter estimates based on salesman_id matching to_salesman_id
+      if (salesmanId) {
+        // Convert both to string for comparison (since data has string values)
+        const salesmanIdStr = String(salesmanId);
+        
+        estimatesWithStatus = estimatesWithStatus.filter(estimate => {
+          // Only show estimates where salesperson_id matches the assigned salesman ID
+          // And source_by is 'salesman' (from salesman)
+          return estimate.salesperson_id === salesmanIdStr && estimate.source_by === 'salesman';
+        });
+        
+        console.log(`Filtered estimates for salesman ID ${salesmanId}: ${estimatesWithStatus.length} estimates found`);
+      } else {
+        console.log('No salesman ID found, showing all estimates (fallback)');
+        // If no salesman ID, optionally show no estimates or show all based on requirement
+        // estimatesWithStatus = []; // Uncomment to show no estimates if no assignment
+      }
 
       setData(estimatesWithStatus);
       setFilteredData(estimatesWithStatus);
@@ -107,7 +162,7 @@ const Selections = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [fetchAssignedSalesman]);
 
   useEffect(() => {
     fetchData();
@@ -226,17 +281,8 @@ const Selections = () => {
 
         if (!response.ok) throw new Error('Failed to delete estimate');
 
-        const refreshResponse = await axios.get(`${baseURL}/get-unique-estimates`);
-        const refreshedData = refreshResponse.data || [];
-        setData(refreshedData);
-        setFilteredData(refreshedData);
-
-        // Also remove from session tracking
-        setGeneratedEstimates(prev => {
-          const updated = { ...prev };
-          delete updated[estimateNumber];
-          return updated;
-        });
+        // Refresh data after deletion
+        await fetchData();
 
         Swal.fire('Deleted!', 'The estimate has been deleted.', 'success');
       } catch (error) {
@@ -244,7 +290,7 @@ const Selections = () => {
         Swal.fire('Error!', 'Failed to delete the estimate.', 'error');
       }
     }
-  }, []);
+  }, [fetchData]);
 
   // ============================================================
   // Handle View Details
@@ -338,6 +384,15 @@ const Selections = () => {
       Header: 'Estimate No',
       accessor: 'estimate_number',
       width: 110,
+    },
+    {
+      Header: 'Salesperson',
+      accessor: 'salesperson_id',
+      width: 120,
+      Cell: ({ value }) => {
+        if (!value) return 'N/A';
+        return value;
+      },
     },
     {
       Header: 'Packet Barcode',
@@ -558,10 +613,17 @@ const Selections = () => {
         <div className="main-container">
           <div className="estimates-table-container">
 
-            {/* Header */}
+            {/* Header with Salesman Info */}
             <Row className="mb-3">
               <Col className="d-flex justify-content-between align-items-center">
-                <h3>Selections</h3>
+                <div>
+                  <h3>Selections</h3>
+                  {salesmanData && (
+                    <p className="text-muted mb-0" style={{ fontSize: '14px' }}>
+                      Logged in as: <strong>{salesmanData.to_salesman_name}</strong> (ID: {assignedSalesmanId})
+                    </p>
+                  )}
+                </div>
                 <Button
                   className="create_but"
                   onClick={handleCreate}
@@ -579,77 +641,87 @@ const Selections = () => {
               handleDateFilter={handleDateFilter}
             />
 
+            {/* No Data Message */}
+            {filteredData.length === 0 && !loading && (
+              <div className="alert alert-info text-center">
+                <h5>No Estimates Found</h5>
+                <p>You don't have any estimates assigned to you yet.</p>
+              </div>
+            )}
+
             {/* Table */}
-            <div className="dataTable_wrapper container-fluid">
-              <div className="table-responsive">
-                <table {...getTableProps()} className="table table-striped">
-                  <thead>
-                    {headerGroups.map((headerGroup) => (
-                      <tr {...headerGroup.getHeaderGroupProps()} className="dataTable_headerRow">
-                        {headerGroup.headers.map((column) => (
-                          <th
-                            {...column.getHeaderProps(column.getSortByToggleProps())}
-                            className="dataTable_headerCell"
-                          >
-                            {column.render('Header')}
-                            <span>
-                              {column.isSorted ? (column.isSortedDesc ? ' 🔽' : ' 🔼') : ''}
-                            </span>
-                          </th>
-                        ))}
-                      </tr>
-                    ))}
-                  </thead>
-                  <tbody {...getTableBodyProps()} className="dataTable_body">
-                    {page.map((row) => {
-                      prepareRow(row);
-                      return (
-                        <tr {...row.getRowProps()} className="dataTable_row">
-                          {row.cells.map((cell) => (
-                            <td {...cell.getCellProps()} className="dataTable_cell">
-                              {cell.render('Cell')}
-                            </td>
+            {filteredData.length > 0 && (
+              <div className="dataTable_wrapper container-fluid">
+                <div className="table-responsive">
+                  <table {...getTableProps()} className="table table-striped">
+                    <thead>
+                      {headerGroups.map((headerGroup) => (
+                        <tr {...headerGroup.getHeaderGroupProps()} className="dataTable_headerRow">
+                          {headerGroup.headers.map((column) => (
+                            <th
+                              {...column.getHeaderProps(column.getSortByToggleProps())}
+                              className="dataTable_headerCell"
+                            >
+                              {column.render('Header')}
+                              <span>
+                                {column.isSorted ? (column.isSortedDesc ? ' 🔽' : ' 🔼') : ''}
+                              </span>
+                            </th>
                           ))}
                         </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
+                      ))}
+                    </thead>
+                    <tbody {...getTableBodyProps()} className="dataTable_body">
+                      {page.map((row) => {
+                        prepareRow(row);
+                        return (
+                          <tr {...row.getRowProps()} className="dataTable_row">
+                            {row.cells.map((cell) => (
+                              <td {...cell.getCellProps()} className="dataTable_cell">
+                                {cell.render('Cell')}
+                              </td>
+                            ))}
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
 
-              {/* Pagination */}
-              <div className="d-flex align-items-center justify-content-between mt-3">
-                <div className="dataTable_pageInfo">
-                  Page <strong>{pageIndex + 1} of {pageOptions.length}</strong>
-                </div>
-                <div className="pagebuttons">
-                  <button
-                    className="btn btn-primary me-2 btn1"
-                    onClick={previousPage}
-                    disabled={!canPreviousPage}
+                {/* Pagination */}
+                <div className="d-flex align-items-center justify-content-between mt-3">
+                  <div className="dataTable_pageInfo">
+                    Page <strong>{pageIndex + 1} of {pageOptions.length}</strong>
+                  </div>
+                  <div className="pagebuttons">
+                    <button
+                      className="btn btn-primary me-2 btn1"
+                      onClick={previousPage}
+                      disabled={!canPreviousPage}
+                    >
+                      Prev
+                    </button>
+                    <button
+                      className="btn btn-primary btn1"
+                      onClick={nextPage}
+                      disabled={!canNextPage}
+                    >
+                      Next
+                    </button>
+                  </div>
+                  <select
+                    className="form-select form-select-sm"
+                    value={pageSize}
+                    onChange={(e) => setPageSize(Number(e.target.value))}
+                    style={{ width: 'auto' }}
                   >
-                    Prev
-                  </button>
-                  <button
-                    className="btn btn-primary btn1"
-                    onClick={nextPage}
-                    disabled={!canNextPage}
-                  >
-                    Next
-                  </button>
+                    {[5, 10, 20].map((size) => (
+                      <option key={size} value={size}>Show {size}</option>
+                    ))}
+                  </select>
                 </div>
-                <select
-                  className="form-select form-select-sm"
-                  value={pageSize}
-                  onChange={(e) => setPageSize(Number(e.target.value))}
-                  style={{ width: 'auto' }}
-                >
-                  {[5, 10, 20].map((size) => (
-                    <option key={size} value={size}>Show {size}</option>
-                  ))}
-                </select>
               </div>
-            </div>
+            )}
           </div>
 
           {/* ── View Details Modal ── */}
@@ -664,6 +736,7 @@ const Selections = () => {
                     <tbody>
                       <tr><td>Date</td><td>{formatDate(repairDetails.uniqueData?.date)}</td></tr>
                       <tr><td>Estimate Number</td><td>{repairDetails.uniqueData?.estimate_number}</td></tr>
+                      <tr><td>Salesperson ID</td><td>{repairDetails.uniqueData?.salesperson_id || 'N/A'}</td></tr>
                       <tr>
                         <td>Packet Barcode</td>
                         <td>
