@@ -10,33 +10,38 @@ const CustomerDetails = ({
   tabId
 }) => {
   const [stockPoints, setStockPoints] = useState([]);
-  const [salesmen, setSalesmen] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [defaultSet, setDefaultSet] = useState(false);
-  
+  const [loggedInUserName, setLoggedInUserName] = useState("");
+
   useEffect(() => {
+    // Get logged in user name from localStorage
+    const userName = localStorage.getItem('userName') || '';
+    console.log("===== CUSTOMER DETAILS =====");
+    console.log("Logged in user name from localStorage:", userName);
+    console.log("Raw localStorage userName:", localStorage.getItem('userName'));
+    console.log("============================");
+    setLoggedInUserName(userName);
+    
     fetchStockPoints();
-    fetchSalesmen();
   }, []);
 
-  // Force set MAIN STOCK ROOM as default - always run when stockPoints loads
+  // Force set MAIN STOCK ROOM as default
   useEffect(() => {
     if (stockPoints.length > 0 && !defaultSet) {
       console.log("All Stock Points from API:", stockPoints);
       
-      // Find MAIN STOCK ROOM (exact match)
+      // Find MAIN STOCK ROOM
       let mainStockRoom = stockPoints.find(
         sp => sp.stock_point_name === "MAIN STOCK ROOM"
       );
       
-      // If not found, try case-insensitive
       if (!mainStockRoom) {
         mainStockRoom = stockPoints.find(
           sp => sp.stock_point_name?.toLowerCase() === "main stock room"
         );
       }
       
-      // If still not found, try any stock point with "MAIN" in name
       if (!mainStockRoom) {
         mainStockRoom = stockPoints.find(
           sp => sp.stock_point_name?.toUpperCase().includes("MAIN")
@@ -45,10 +50,6 @@ const CustomerDetails = ({
       
       if (mainStockRoom) {
         console.log("Setting MAIN STOCK ROOM as default:", mainStockRoom);
-        console.log("Stock Point ID:", mainStockRoom.stock_point_id);
-        console.log("Stock Point Name:", mainStockRoom.stock_point_name);
-        
-        // Force set the value regardless of existing formData
         setFormData(prev => ({
           ...prev,
           active_stock_point_id: mainStockRoom.stock_point_id.toString(),
@@ -56,7 +57,6 @@ const CustomerDetails = ({
         }));
         setDefaultSet(true);
       } else if (stockPoints.length > 0) {
-        // Fallback to first stock point if MAIN STOCK ROOM not found
         console.log("MAIN STOCK ROOM not found, using first stock point:", stockPoints[0]);
         setFormData(prev => ({
           ...prev,
@@ -79,34 +79,6 @@ const CustomerDetails = ({
       console.error("Error fetching stock points:", error);
       setIsLoading(false);
     }
-  };
-
-  const fetchSalesmen = async () => {
-    try {
-      const response = await axios.get(`${baseURL}/get/account-details`);
-      console.log("Fetched Salesmen:", response.data);
-      
-      // Filter accounts with account_group as "SALESMAN"
-      const filteredSalesmen = response.data.filter(
-        account => account.account_group === "SALESMAN"
-      );
-      
-      console.log("Filtered Salesmen:", filteredSalesmen);
-      setSalesmen(filteredSalesmen);
-    } catch (error) {
-      console.error("Error fetching salesmen:", error);
-    }
-  };
-
-  const handleSalesmanChange = (e) => {
-    const value = e.target.value;
-    console.log("Salesman selected:", value);
-    
-    setFormData(prev => ({
-      ...prev,
-      salesman_id: value,
-      salesman_name: value ? salesmen.find(s => s.account_id === parseInt(value))?.account_name : null
-    }));
   };
 
   const handleActiveStockPointChange = (e) => {
@@ -134,15 +106,6 @@ const CustomerDetails = ({
     }
   };
 
-  // Prepare salesman options
-  const salesmanOptions = [
-    { value: "", label: "Select Salesman" },
-    ...salesmen.map(salesman => ({
-      value: salesman.account_id.toString(),
-      label: salesman.account_name
-    }))
-  ];
-
   // Prepare active stock point options
   const activeStockPointOptions = [
     { value: "", label: "Select Active Stock Point" },
@@ -159,19 +122,19 @@ const CustomerDetails = ({
   return (
     <Col className="sales-form-section">
       <Row>
-        <Col xs={12} md={5}>
+        <Col xs={12} md={6}>
           <InputField
-            label="Salesman *"
-            name="salesman_id"
-            type="select"
-            value={formData.salesman_id || ""}
-            onChange={handleSalesmanChange}
-            options={salesmanOptions}
+            label="From Warehouse Point *"
+            name="from_warehouse_point"
+            type="text"
+            value={loggedInUserName || "Not logged in"}
+            disabled={true}
             required
+            style={{ backgroundColor: '#f5f5f5', cursor: 'not-allowed' }}
           />
         </Col>
 
-        <Col xs={12} md={5}>
+        <Col xs={12} md={6}>
           <InputField
             label="Active Stock Point *"
             name="active_stock_point_id"

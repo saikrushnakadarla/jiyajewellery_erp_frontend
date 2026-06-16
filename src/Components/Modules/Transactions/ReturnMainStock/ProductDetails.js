@@ -81,11 +81,11 @@ const ProductDetails = ({
 
 // In ProductDetails.js, update the barcodeOptions to include assigned products from salesman
 const barcodeOptions = [
-  // Assigned products from selected salesman (show these first)
+  // Assigned/Selected products from the stock fetch (these are Status = "Selected")
   ...(selectedSalesmanProducts || []).map((product) => ({
     value: product.PCode_BarCode,
     label: `${product.PCode_BarCode} - ${product.product_name || product.sub_category || ''}`,
-    type: "assigned",
+    type: "selected",
     productData: product
   })),
   // Original product options
@@ -96,29 +96,30 @@ const barcodeOptions = [
       label: product.rbarcode,
       type: "product"
     })),
-  // Tag options from opening_tags_entry (only if not assigned to salesman)
+  // Tag options from opening_tags_entry - filter for Status = "Selected" and matching stock point
   ...data
     .filter((tag) => {
       if (formData.category && tag.category !== formData.category) return false;
-      if (tag.Status !== 'Available') return false;
-      if (tag.user_id === null || tag.user_id === undefined) return false;
-      if (loggedInUserId && tag.user_id !== loggedInUserId) return false;
+      // Match the same filter as fetchStock: Status = "Selected" and Stock_Point matches loggedInUserName
+      if (tag.Status !== 'Selected') return false;
       
-      // Check if this tag is already assigned to the selected salesman
-      const isAssigned = selectedSalesmanProducts?.some(
+      // Get logged-in user name from localStorage
+      const loggedInUserName = localStorage.getItem('userName') || '';
+      if (loggedInUserName && tag.Stock_Point !== loggedInUserName) return false;
+      
+      // Check if this tag is already in the selectedSalesmanProducts list (avoid duplicates)
+      const isAlreadySelected = selectedSalesmanProducts?.some(
         assigned => assigned.PCode_BarCode === tag.PCode_BarCode
       );
       
-      // If salesman selected, only show assigned products
-      if (formData.salesman_id) {
-        return isAssigned;
-      }
+      // Don't show if it's already in the selected list (to avoid duplicates)
+      if (isAlreadySelected) return false;
       
       return true;
     })
     .map((tag) => ({
       value: tag.PCode_BarCode,
-      label: `${tag.PCode_BarCode} - ${tag.sub_category || tag.category || 'Product'}`,
+      label: `${tag.PCode_BarCode} - ${tag.sub_category || tag.category || 'Product'} (Selected)`,
       type: 'tag',
       tagData: tag
     })),

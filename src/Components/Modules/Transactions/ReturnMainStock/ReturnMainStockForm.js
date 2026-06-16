@@ -1002,7 +1002,6 @@ const fetchAssignedProducts = async (stockPointId) => {
     fetchEstimate();
   }, []);
 
-// In AssignedSalesmanForm.js - this is already correct (no Stock_Point filter)
 useEffect(() => {
   const fetchStock = async () => {
     try {
@@ -1012,30 +1011,107 @@ useEffect(() => {
       }
       const data = await response.json();
       
-      let stockData = data.result || [];
+      let allStockData = data.result || [];
       
-      // Filter based on logged-in user ID
-      if (loggedInUserId) {
-        stockData = stockData.filter(item => 
-          item.Status === "Available" && 
-          item.user_id === loggedInUserId
-          // Removed Stock_Point filter - now fetch from all stock points
+      // Get logged-in user name from localStorage
+      const loggedInUserName = localStorage.getItem('userName') || '';
+      
+      console.log("========== FETCH STOCK DEBUG ==========");
+      console.log("Logged in user name from localStorage:", loggedInUserName);
+      console.log("Total items from API:", allStockData.length);
+      
+      // Log all Status values to see what's available
+      const statuses = [...new Set(allStockData.map(item => item.Status))];
+      console.log("All Status values in data:", statuses);
+      
+      // Log all Stock_Point values
+      const stockPoints = [...new Set(allStockData.map(item => item.Stock_Point))];
+      console.log("All Stock_Point values in data:", stockPoints);
+      
+      // Log all items with Status = "Selected"
+      const selectedItems = allStockData.filter(item => item.Status === "Selected");
+      console.log("Items with Status 'Selected':", selectedItems.length, selectedItems);
+      
+      // Log all items with Stock_Point = loggedInUserName
+      const stockPointMatchItems = allStockData.filter(item => item.Stock_Point === loggedInUserName);
+      console.log(`Items with Stock_Point '${loggedInUserName}':`, stockPointMatchItems.length, stockPointMatchItems);
+      
+      // Log items that match both conditions
+      const bothMatchItems = allStockData.filter(item => 
+        item.Status === "Selected" && 
+        item.Stock_Point === loggedInUserName
+      );
+      console.log(`Items with BOTH Status='Selected' AND Stock_Point='${loggedInUserName}':`, bothMatchItems.length, bothMatchItems);
+      
+      // Try case-insensitive match if exact match fails
+      if (bothMatchItems.length === 0 && loggedInUserName) {
+        console.log("Trying case-insensitive match...");
+        const caseInsensitiveMatch = allStockData.filter(item => 
+          item.Status === "Selected" && 
+          item.Stock_Point?.toLowerCase() === loggedInUserName.toLowerCase()
         );
-      } else {
-        // If no logged-in user, only show Available items
-        stockData = stockData.filter(item => item.Status === "Available");
+        console.log("Case-insensitive match results:", caseInsensitiveMatch.length, caseInsensitiveMatch);
       }
       
-      console.log("Filtered Stock Data by user_id (all stock points):", stockData);
+      // Filter based on Status = "Selected" and Stock_Point matches logged-in user name (case-sensitive)
+      let stockData = allStockData.filter(item => 
+        item.Status === "Selected" && 
+        item.Stock_Point === loggedInUserName
+      );
+      
+      // If no results with exact match, try case-insensitive
+      if (stockData.length === 0 && loggedInUserName) {
+        stockData = allStockData.filter(item => 
+          item.Status === "Selected" && 
+          item.Stock_Point?.toLowerCase() === loggedInUserName.toLowerCase()
+        );
+        console.log("Using case-insensitive match results:", stockData.length);
+      }
+      
+      console.log("Final filtered Stock Data:", stockData);
       setStock(stockData);
+      
+      // Extract unique barcodes for dropdown
+      const uniqueBarcodes = [...new Map(stockData.map(item => 
+        [item.PCode_BarCode, { 
+          PCode_BarCode: item.PCode_BarCode, 
+          product_name: item.product_Name || item.sub_category || "",
+          product_id: item.product_id,
+          metal_type: item.metal_type,
+          purity: item.Purity,
+          category: item.category,
+          sub_category: item.sub_category,
+          design_name: item.design_master || "",
+          qty: item.pcs || 1,
+          gross_weight: item.Gross_Weight,
+          stone_weight: item.Stones_Weight,
+          net_weight: item.Weight_BW,
+          rate: item.rate,
+          making_charges: item.Making_Charges,
+          stone_price: item.Stones_Price,
+          total_price: item.total_price,
+          assigned_id: item.opentag_id,
+          item_id: item.opentag_id,
+          status: item.Status,
+          stock_point: item.Stock_Point,
+          user_id: item.user_id
+        }
+      ])).values()];
+      
+      console.log("Unique Barcodes for dropdown:", uniqueBarcodes.length, uniqueBarcodes.map(b => b.PCode_BarCode));
+      setSelectedSalesmanProducts(uniqueBarcodes);
+      console.log("========== END DEBUG ==========");
+      
     } catch (error) {
       console.error("Error fetching stock entries:", error);
       setStock([]);
+      setSelectedSalesmanProducts([]);
     }
   };
   
   fetchStock();
 }, [loggedInUserId]);
+
 
   const fetchEstimateDetails = async (estimate_number) => {
   if (!estimate_number) return;
@@ -1443,18 +1519,26 @@ useEffect(() => {
   // };
 
 const handleAdd = () => {
-  // Check if the selected product belongs to the logged-in user and is Available
+  // Check if the selected product has Status = "Selected" and matches the logged-in user's stock point
   const selectedStockItem = stock?.find(s => s.PCode_BarCode === formData.code);
   
   if (selectedStockItem) {
-    if (selectedStockItem.Status !== "Available") {
-      alert("This product is not available for transfer");
+    // The fetchStock already filters for Status = "Selected" and matching Stock_Point
+    // So we just need to verify it exists in the stock list
+    if (selectedStockItem.Status !== "Selected") {
+      alert("This product is not marked as 'Selected' for transfer");
       return;
     }
-    if (loggedInUserId && selectedStockItem.user_id !== loggedInUserId) {
-      alert("This product does not belong to you. You can only transfer products assigned to you.");
+    // Check if the stock point matches the logged-in user
+    const loggedInUserName = localStorage.getItem('userName') || '';
+    if (loggedInUserName && selectedStockItem.Stock_Point !== loggedInUserName) {
+      alert("This product does not belong to your warehouse point");
       return;
     }
+  } else {
+    // If the product is not in the stock list, it's not available for transfer
+    alert("This product is not available for transfer or has already been selected");
+    return;
   }
 
   const storedRepairDetails = JSON.parse(localStorage.getItem(`repairDetails_${tabId}`)) || [];
@@ -2692,6 +2776,7 @@ const handleSave = async () => {
                 setSelectedMobile={setSelectedMobile} // Pass the setSelectedMobile function here
                 mobileRef={mobileRef}
                 tabId={tabId}
+                // setSelectedSalesmanProducts={setSelectedSalesmanProducts}
               />
             </div>
             {/* <div className="sales-form-right">
