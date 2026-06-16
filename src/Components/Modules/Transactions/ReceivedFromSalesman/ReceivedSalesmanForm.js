@@ -11,6 +11,7 @@ import useProductHandlers from "./hooks/useProductHandlers";
 import useCalculations from "./hooks/useCalculations";
 import "./../Sales/SalesForm.css";
 import baseURL from "./../../../../Url/NodeBaseURL";
+import baseURL2 from "./../../../../Url/NodeBaseURL2";
 // import SalesFormSection from "./SalesForm3Section";
 import { pdf } from "@react-pdf/renderer";
 import { PDFDownloadLink } from "@react-pdf/renderer";
@@ -33,6 +34,11 @@ const ReceivedSalesmanForm = () => {
 
   const [assignedProducts, setAssignedProducts] = useState([]);
 const [selectedSalesmanProducts, setSelectedSalesmanProducts] = useState([]);
+
+
+// Add these states with your other states
+const [estimatesData, setEstimatesData] = useState([]);
+const [estimatedProducts, setEstimatedProducts] = useState({});
 
 
   const [oldSalesData, setOldSalesData] = useState(
@@ -60,6 +66,99 @@ const [selectedSalesmanProducts, setSelectedSalesmanProducts] = useState([]);
     console.log("Logged in User ID:", parseInt(userId));
   }
 }, []);
+
+
+// Add this fetch function after your other useEffect hooks
+useEffect(() => {
+  const fetchEstimates = async () => {
+    try {
+      const response = await axios.get(`${baseURL2}/get/estimates`);
+      console.log("Estimates data fetched:", response.data);
+      setEstimatesData(response.data);
+      
+      // Create a map of product codes to their packet barcode and estimate data
+      const estMap = {};
+      response.data.forEach(est => {
+        if (est.code) {
+          estMap[est.code] = {
+            packetBarcode: est.packet_barcode || null,
+            estimateId: est.estimate_id,
+            estimateNumber: est.estimate_number,
+            status: est.estimate_status
+          };
+        }
+      });
+      setEstimatedProducts(estMap);
+      console.log("Estimated products map:", estMap);
+    } catch (error) {
+      console.error("Error fetching estimates:", error);
+    }
+  };
+  
+  fetchEstimates();
+}, []);
+
+// Also modify the existing stock fetch to include estimate data
+// Update the useEffect that fetches stock to combine with estimate data
+useEffect(() => {
+  const fetchStockWithEstimates = async () => {
+    try {
+      // Fetch stock data
+      const stockResponse = await fetch(`${baseURL}/get/opening-tags-entry`);
+      if (!stockResponse.ok) {
+        throw new Error("Failed to fetch stock entries");
+      }
+      const stockData = await stockResponse.json();
+      
+      let stockDataFiltered = stockData.result || [];
+      
+      // Filter based on logged-in user ID
+      if (loggedInUserId) {
+        stockDataFiltered = stockDataFiltered.filter(item => 
+          item.Status === "Available" && 
+          item.user_id === loggedInUserId
+        );
+      } else {
+        stockDataFiltered = stockDataFiltered.filter(item => item.Status === "Available");
+      }
+      
+      // Fetch estimates data
+      const estResponse = await axios.get(`${baseURL2}/get/estimates`);
+      const estData = estResponse.data || [];
+      
+      // Create a map of product codes to packet barcode
+      const estMap = {};
+      estData.forEach(est => {
+        if (est.code && est.packet_barcode) {
+          estMap[est.code] = {
+            packetBarcode: est.packet_barcode,
+            estimateId: est.estimate_id,
+            estimateNumber: est.estimate_number,
+            status: est.estimate_status,
+            customer_name: est.customer_name
+          };
+        }
+      });
+      setEstimatedProducts(estMap);
+      
+      // Combine stock data with estimate info
+      const combinedStock = stockDataFiltered.map(item => ({
+        ...item,
+        packetBarcode: estMap[item.PCode_BarCode]?.packetBarcode || null,
+        isEstimated: !!estMap[item.PCode_BarCode]?.packetBarcode,
+        estimateInfo: estMap[item.PCode_BarCode] || null
+      }));
+      
+      console.log("Combined stock with estimate data:", combinedStock);
+      setStock(combinedStock);
+    } catch (error) {
+      console.error("Error fetching stock entries:", error);
+      setStock([]);
+    }
+  };
+  
+  fetchStockWithEstimates();
+}, [loggedInUserId]);
 
   // const [paymentDetails, setPaymentDetails] = useState(
   //   JSON.parse(localStorage.getItem('paymentDetails')) || {
@@ -2790,6 +2889,7 @@ const handleSave = async () => {
                selectedSalesmanProducts={selectedSalesmanProducts}
               formData={formData}
               setFormData={setFormData}
+              setRepairDetails={setRepairDetails}
               handleChange={handleChange}
               handleBarcodeChange={handleBarcodeChange}
               // handleProductChange={handleProductChange}
