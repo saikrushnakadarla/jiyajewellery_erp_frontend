@@ -152,7 +152,7 @@ function StockNavbar() {
               textDecoration: "none",
             }}
           >
-            RETURN TO MAIN STOCK
+            STOCK OUTWARD
           </Link>
         </div>
       </nav>

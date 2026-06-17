@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
+import baseURL2 from "../../../../Url/NodeBaseURL2";
 import InputField from "./Inputfield"; // Assuming you have this component
 
 const FormWithTable = () => {
@@ -62,7 +63,7 @@ const FormWithTable = () => {
       const updatedFormData = { ...formData, Category: formData.Category || "Gold" };
 
       // Save product details
-      const productResponse = await axios.post("http://localhost:5000/api/products", updatedFormData);
+      const productResponse = await axios.post(`${baseURL2}/api/products`, updatedFormData);
       const { product_id } = productResponse.data;
 
       // Append product_id to openTagsEntries
@@ -73,7 +74,7 @@ const FormWithTable = () => {
 
       // Save opening tag entries
       const saveEntriesPromises = entriesWithProductId.map((entry) =>
-        axios.post("http://localhost:5000/api/opening-tags-entry", entry)
+        axios.post(`${baseURL2}/api/opening-tags-entry`, entry)
       );
 
       await Promise.all(saveEntriesPromises);

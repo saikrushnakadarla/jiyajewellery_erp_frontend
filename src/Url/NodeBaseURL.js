@@ -4,7 +4,8 @@
 
 const baseURL = "http://localhost:5001"; 
 
-// const baseURL = "https://erp.newfriendsjewellers.com:8080";
+// const baseURL = "http://3.26.33.162:9000";
+
 
 
 export default baseURL;

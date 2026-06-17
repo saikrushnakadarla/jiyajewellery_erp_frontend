@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
 import baseURL from "../../../../Url/NodeBaseURL";
+import baseURL2 from "../../../../Url/NodeBaseURL2";
 import { Col, Row, Button, Table } from "react-bootstrap";
 import InputField from "../../../Pages/InputField/InputField"; // Adjust the path as per your project structure.
 
@@ -326,7 +327,7 @@ const SalesFormSection = () => {
           total_old_amount: totalOldAmount, // Add the total amount to each request
         };
   
-        const response = await fetch('http://localhost:5000/olditems', {
+        const response = await fetch(`${baseURL}/olditems`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -357,7 +358,7 @@ const SalesFormSection = () => {
           schemes_total_amount: schemesTotalAmount, // Add the total amount to each request
         };
   
-        const response = await fetch('http://localhost:5000/member-schemes', {
+        const response = await fetch(`${baseURL2}/member-schemes`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

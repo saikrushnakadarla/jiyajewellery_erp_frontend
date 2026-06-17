@@ -3,6 +3,7 @@ import InputField from "../../Masters/ItemMaster/Inputfield";
 import DataTable from "../../../Pages/InputField/TableLayout"; // Adjust the path as needed
 import { FaEdit, FaTrash } from "react-icons/fa";
 import axios from "axios";
+import baseURL from '../../../../Url/NodeBaseURL';
 
 const StoneDetailsModal = ({ showModal, handleCloseModal }) => {
   const [subproductname, setSubProductName] = useState("");
@@ -128,7 +129,7 @@ const StoneDetailsModal = ({ showModal, handleCloseModal }) => {
           totalprice: totalprice,  // Send the total price
         };
   
-        await axios.post("http://localhost:5000/post/addProductstonedetails", payload);
+        await axios.post(`${baseURL}/post/addProductstonedetails`, payload);
       }
       alert("Data saved successfully!");
     } catch (error) {

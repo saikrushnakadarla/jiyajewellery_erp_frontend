@@ -381,7 +381,7 @@ const SalesFormSection = () => {
           total_old_amount: totalOldAmount, // Add the total amount to each request
         };
   
-        const response = await fetch('http://localhost:5000/olditems', {
+        const response = await fetch(`${baseURL}/olditems`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -412,7 +412,7 @@ const SalesFormSection = () => {
           schemes_total_amount: schemesTotalAmount, // Add the total amount to each request
         };
   
-        const response = await fetch('http://localhost:5000/member-schemes', {
+        const response = await fetch(`{baseURL}/member-schemes`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

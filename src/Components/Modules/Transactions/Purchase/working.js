@@ -6,6 +6,7 @@ import { useNavigate } from 'react-router-dom';
 
 import axios from "axios";
 import { AiOutlinePlus } from "react-icons/ai";
+import baseURL from "../../../../Url/NodeBaseURL2";
 
 
 const URDPurchase = () => {
@@ -92,7 +93,7 @@ const URDPurchase = () => {
       };
 
       // Send the data to your backend
-      const response = await axios.post("http://localhost:5000/api/purchase", dataToSave, {
+      const response = await axios.post(`${baseURL}/api/purchase`, dataToSave, {
         headers: {
           "Content-Type": "application/json",
         },

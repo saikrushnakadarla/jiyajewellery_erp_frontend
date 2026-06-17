@@ -53,7 +53,7 @@ const RepairsTable = () => {
                 objectFit: "cover",
                 cursor: "pointer",
               }}
-            // onClick={() => handleImageClick(`http://localhost:5000/uploads/${value[0].filename}`)}
+            // onClick={() => handleImageClick(`${baseURL}/uploads/${value[0].filename}`)}
             />
           ) : (
             "No Image"

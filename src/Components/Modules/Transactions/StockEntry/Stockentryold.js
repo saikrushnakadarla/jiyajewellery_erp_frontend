@@ -5,6 +5,7 @@ import "./StockEntry.css";
 import InputField from "../../Masters/ItemMaster/Inputfield";
 import StoneDetailsModal from "./StoneDetailsModal";
 import { useNavigate } from 'react-router-dom';
+import baseURL from "../../../../Url/NodeBaseURL";
 
 const StockEntry = () => {
     const [metal, setMetal] = useState("");
@@ -68,7 +69,7 @@ const StockEntry = () => {
         try {
             // Make sure formData is correctly passed and contains all required fields
             console.log("Form data before submission:", formData);
-            const response = await axios.post("http://localhost:5000/addStockEntry", formData);
+            const response = await axios.post(`${baseURL}`/addStockEntry``, formData);
             console.log("Data saved successfully:", response.data);
             alert("Product added successfully!");
         } catch (error) {
