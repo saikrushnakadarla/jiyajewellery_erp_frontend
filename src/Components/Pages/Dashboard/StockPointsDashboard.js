@@ -34,38 +34,43 @@ function StockPointDashboard() {
   };
 
   // Fetch Stock Inward count (filter by Stock_Point === current login user)
-  // Update the fetchStockInward function
-const fetchStockInward = async () => {
-  try {
-    const currentStockPoint = getCurrentStockPoint();
-    const response = await fetch(`${baseurl}/api/stock-transfer/get-stock-transfers`);
-    const data = await response.json();
-    
-    if (Array.isArray(data)) {
-      // Filter where to_stock_point_name matches current login user
-      const filteredData = data.filter(item => 
-        item.to_stock_point_name === currentStockPoint && 
-        item.status === "completed" // Only count completed transfers
-      );
-      setStockInwardCount(filteredData.length);
-      setOpeningTagsData(filteredData);
-    } else {
+  const fetchStockInward = async () => {
+    try {
+      const currentStockPoint = getCurrentStockPoint();
+      const response = await fetch(`${baseurl}/api/stock-transfer/get-stock-transfers`);
+      const data = await response.json();
+      
+      if (Array.isArray(data)) {
+        // Filter where to_stock_point_name matches current login user
+        const filteredData = data.filter(item => 
+          item.to_stock_point_name === currentStockPoint && 
+          item.status === "completed" // Only count completed transfers
+        );
+        
+        // Calculate total items count (sum of total_items from all transfers)
+        const totalItems = filteredData.reduce((sum, item) => {
+          return sum + (parseFloat(item.total_items) || 0);
+        }, 0);
+        
+        setStockInwardCount(totalItems); // Set to total items count instead of number of transfers
+        setOpeningTagsData(filteredData);
+      } else {
+        setStockInwardCount(0);
+        setOpeningTagsData([]);
+      }
+    } catch (error) {
+      console.error('Error fetching stock inward data:', error);
       setStockInwardCount(0);
       setOpeningTagsData([]);
+    } finally {
+      setLoading(prev => ({ ...prev, inward: false }));
     }
-  } catch (error) {
-    console.error('Error fetching stock inward data:', error);
-    setStockInwardCount(0);
-    setOpeningTagsData([]);
-  } finally {
-    setLoading(prev => ({ ...prev, inward: false }));
-  }
-};
+  };
 
-// Update the card click handler for Stock Inward
-const handleStockInwardClick = () => {
-  navigate("/stock-inward");
-};
+  // Update the card click handler for Stock Inward
+  const handleStockInwardClick = () => {
+    navigate("/stock-inward");
+  };
 
   // Fetch Stock Outward count (Status === "Selected" AND Stock_Point === "MAIN STOCK ROOM")
   const fetchStockOutward = async () => {
@@ -230,7 +235,7 @@ const handleStockInwardClick = () => {
             <div className="sp-card-left">
               <h2>{loading.inward ? "..." : stockInwardCount}</h2>
               <h5>Stock Inward</h5>
-              <p>Available Stock Items</p>
+              <p>Total Items Received</p>
             </div>
             <div className="sp-card-icon">
               📦
@@ -340,31 +345,6 @@ const handleStockInwardClick = () => {
               </div>
             </div>
           </div>
-
-          {/* Row 2: Bar Chart */}
-          {/* <div className="charts-row">
-            <div className="chart-card-full">
-              <h3 className="chart-title">📊 Stock by Category</h3>
-              <div className="chart-wrapper">
-                <ResponsiveContainer width="100%" height={350}>
-                  <BarChart data={getStockByCategoryData()}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="name" />
-                    <YAxis />
-                    <Tooltip 
-                      formatter={(value, name, props) => [`${value} items`, props.payload.fullName || 'Category']}
-                    />
-                    <Legend />
-                    <Bar dataKey="count" fill="#8884d8" name="Items Count">
-                      {getStockByCategoryData().map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-          </div> */}
 
           {/* Row 3: Line Chart for Monthly Trend */}
           <div className="charts-row">

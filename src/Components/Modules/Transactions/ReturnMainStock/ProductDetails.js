@@ -4,6 +4,7 @@ import InputField from './InputfieldSales';
 import axios from 'axios';
 import { AiOutlinePlus } from "react-icons/ai";
 import baseURL from "../../../../Url/NodeBaseURL";
+import baseURL2 from "../../../../Url/NodeBaseURL2";
 import { useNavigate } from "react-router-dom";
 import { FaTrash, FaCamera, FaUpload } from "react-icons/fa";
 import Webcam from "react-webcam";
@@ -15,6 +16,7 @@ const ProductDetails = ({
   isEditing,
   formData,
   setFormData,
+  setRepairDetails,
   data,
   handleChange,
   handleImageChange,
@@ -57,77 +59,180 @@ const ProductDetails = ({
   handleOrderChange,
   selectedOrder,
   orderData,
-    selectedSalesmanProducts = []
+  selectedSalesmanProducts = []
 }) => {
 
   const [showModal, setShowModal] = useState(false);
   const isByFixed = formData.pricing === "By fixed";
   const navigate = useNavigate();
-
+  const [estimatesData, setEstimatesData] = useState([]);
   const [loggedInUserId, setLoggedInUserId] = useState(null);
+  const [groupedPacketProducts, setGroupedPacketProducts] = useState({});
+  const [isPacketAdded, setIsPacketAdded] = useState(false);
 
   useEffect(() => {
-  const userId = localStorage.getItem('userId'); // or whatever key you're using to store user ID
-  if (userId) {
-    setLoggedInUserId(parseInt(userId));
-  }
-}, []);
+    const userId = localStorage.getItem('userId');
+    if (userId) {
+      setLoggedInUserId(parseInt(userId));
+    }
+  }, []);
+
+  // Fetch estimates data from baseURL2
+  useEffect(() => {
+    const fetchEstimates = async () => {
+      try {
+        const response = await axios.get(`${baseURL2}/get/estimates`);
+        console.log("Estimates data fetched in ProductDetails:", response.data);
+        setEstimatesData(response.data);
+        
+        // Group products by packet barcode - ONLY for products assigned to the selected salesman
+        const grouped = {};
+        response.data.forEach(est => {
+          if (est.code && est.packet_barcode) {
+            // Check if this product is assigned to the selected salesman
+            const isAssignedToSalesman = selectedSalesmanProducts.some(
+              assigned => assigned.PCode_BarCode === est.code
+            );
+            
+            // Only include if assigned to the selected salesman
+            if (isAssignedToSalesman) {
+              if (!grouped[est.packet_barcode]) {
+                grouped[est.packet_barcode] = [];
+              }
+              // Add product info to the group
+              grouped[est.packet_barcode].push({
+                code: est.code,
+                product_name: est.product_name,
+                metal_type: est.metal_type,
+                purity: est.purity,
+                category: est.category,
+                sub_category: est.sub_category,
+                gross_weight: est.gross_weight,
+                stone_weight: est.stone_weight,
+                stone_price: est.stone_price,
+                weight_bw: est.weight_bw,
+                va_on: est.va_on,
+                va_percent: est.va_percent,
+                wastage_weight: est.wastage_weight,
+                total_weight_av: est.total_weight_av,
+                mc_on: est.mc_on,
+                mc_per_gram: est.mc_per_gram,
+                making_charges: est.making_charges,
+                rate: est.rate,
+                rate_amt: est.rate_amt,
+                tax_percent: est.tax_percent,
+                tax_amt: est.tax_amt,
+                total_price: est.total_price,
+                pricing: est.pricing,
+                qty: est.qty || 1,
+                packet_barcode: est.packet_barcode,
+                is_estimated: true,
+                design_name: est.design_name,
+                stone_price_per_carat: est.stone_price_per_carat,
+                deduct_st_Wt: est.deduct_st_Wt,
+                pur_Gross_Weight: est.pur_Gross_Weight,
+                pur_Stones_Weight: est.pur_Stones_Weight,
+                pur_deduct_st_Wt: est.pur_deduct_st_Wt,
+                pur_stone_price_per_carat: est.pur_stone_price_per_carat,
+                pur_Stones_Price: est.pur_Stones_Price,
+                pur_Weight_BW: est.pur_Weight_BW,
+                pur_Making_Charges_On: est.pur_Making_Charges_On,
+                pur_MC_Per_Gram: est.pur_MC_Per_Gram,
+                pur_Making_Charges: est.pur_Making_Charges,
+                pur_Wastage_On: est.pur_Wastage_On,
+                pur_Wastage_Percentage: est.pur_Wastage_Percentage,
+                pur_WastageWeight: est.pur_WastageWeight,
+                pur_TotalWeight_AW: est.pur_TotalWeight_AW
+              });
+            }
+          }
+        });
+        setGroupedPacketProducts(grouped);
+        console.log("Grouped packet products for salesman:", grouped);
+      } catch (error) {
+        console.error("Error fetching estimates:", error);
+      }
+    };
+    fetchEstimates();
+  }, [selectedSalesmanProducts]);
+
+  // Get packet barcode from estimates for a given product code
+  const getPacketBarcode = (productCode) => {
+    if (!estimatesData || !productCode) return null;
+    
+    const estimates = estimatesData.filter(item => item.code === productCode);
+    const packetBarcodes = estimates
+      .map(item => item.packet_barcode)
+      .filter(barcode => barcode && barcode !== null && barcode !== '');
+    
+    return packetBarcodes.length > 0 ? packetBarcodes[0] : null;
+  };
+
+  // Check if a product has an estimate
+  const hasEstimate = (productCode) => {
+    if (!estimatesData || !productCode) return false;
+    return estimatesData.some(item => item.code === productCode);
+  };
 
   const defaultBarcode = formData.category
     ? products.find((product) => product.product_name === formData.category)?.rbarcode || ""
     : "";
 
- // In ProductDetails.js, update the barcodeOptions filter section
+  // Build barcode options - ONLY show packet barcode for estimated products assigned to salesman
+  const barcodeOptions = [];
+  const seenPacketBarcodes = new Set();
 
-// In ProductDetails.js, update the barcodeOptions to include assigned products from salesman
-const barcodeOptions = [
-  // Assigned/Selected products from the stock fetch (these are Status = "Selected")
-  ...(selectedSalesmanProducts || []).map((product) => ({
-    value: product.PCode_BarCode,
-    label: `${product.PCode_BarCode} - ${product.product_name || product.sub_category || ''}`,
-    type: "selected",
-    productData: product
-  })),
-  // Original product options
-  ...products
-    .filter((product) => (formData.category ? product.product_name === formData.category : true))
-    .map((product) => ({
-      value: product.rbarcode,
-      label: product.rbarcode,
-      type: "product"
-    })),
-  // Tag options from opening_tags_entry - filter for Status = "Selected" and matching stock point
-  ...data
-    .filter((tag) => {
-      if (formData.category && tag.category !== formData.category) return false;
-      // Match the same filter as fetchStock: Status = "Selected" and Stock_Point matches loggedInUserName
-      if (tag.Status !== 'Selected') return false;
+  // First, add packet barcodes from grouped products (estimated products assigned to salesman)
+  Object.keys(groupedPacketProducts).forEach(packetBarcode => {
+    if (!seenPacketBarcodes.has(packetBarcode)) {
+      seenPacketBarcodes.add(packetBarcode);
+      const productsInPacket = groupedPacketProducts[packetBarcode];
       
-      // Get logged-in user name from localStorage
-      const loggedInUserName = localStorage.getItem('userName') || '';
-      if (loggedInUserName && tag.Stock_Point !== loggedInUserName) return false;
-      
-      // Check if this tag is already in the selectedSalesmanProducts list (avoid duplicates)
-      const isAlreadySelected = selectedSalesmanProducts?.some(
-        assigned => assigned.PCode_BarCode === tag.PCode_BarCode
-      );
-      
-      // Don't show if it's already in the selected list (to avoid duplicates)
-      if (isAlreadySelected) return false;
-      
-      return true;
-    })
-    .map((tag) => ({
-      value: tag.PCode_BarCode,
-      label: `${tag.PCode_BarCode} - ${tag.sub_category || tag.category || 'Product'} (Selected)`,
-      type: 'tag',
-      tagData: tag
-    })),
-];
+      // Only add if there are products in the packet
+      if (productsInPacket && productsInPacket.length > 0) {
+        barcodeOptions.push({
+          value: packetBarcode, // Use packet barcode as value
+          label: packetBarcode, // Show only packet barcode
+          type: "packet",
+          packetBarcode: packetBarcode,
+          isEstimated: true,
+          products: productsInPacket // Store all products in this packet
+        });
+      }
+    }
+  });
 
+  // Then add non-estimated products (assigned products without packet)
+  (selectedSalesmanProducts || []).forEach((product) => {
+    const packetBarcode = getPacketBarcode(product.PCode_BarCode);
+    const isEstimated = hasEstimate(product.PCode_BarCode);
+    
+    // Only add if not estimated (no packet barcode)
+    if (!isEstimated || !packetBarcode) {
+      barcodeOptions.push({
+        value: product.PCode_BarCode,
+        label: `${product.PCode_BarCode} - ${product.product_name || product.sub_category || ''}`,
+        type: "assigned",
+        productData: product,
+        packetBarcode: null,
+        isEstimated: false,
+        products: [product]
+      });
+    }
+  });
 
-  if (defaultBarcode && !barcodeOptions.some((option) => option.value === defaultBarcode)) {
-    barcodeOptions.unshift({ value: defaultBarcode, label: defaultBarcode });
+  // Remove duplicates
+  const uniqueBarcodeOptions = [];
+  const seenValues = new Set();
+  for (const option of barcodeOptions) {
+    if (!seenValues.has(option.value)) {
+      seenValues.add(option.value);
+      uniqueBarcodeOptions.push(option);
+    }
+  }
+
+  if (defaultBarcode && !uniqueBarcodeOptions.some((option) => option.value === defaultBarcode)) {
+    uniqueBarcodeOptions.unshift({ value: defaultBarcode, label: defaultBarcode });
   }
 
   useEffect(() => {
@@ -136,7 +241,162 @@ const barcodeOptions = [
     }
   }, [formData.category, defaultBarcode]);
 
+  // Handle barcode selection - for packet barcodes, add all products
+  const handleBarcodeSelect = (selectedValue) => {
+    const selectedOption = uniqueBarcodeOptions.find(opt => opt.value === selectedValue);
+    
+    if (selectedOption) {
+      if (selectedOption.type === "packet" && selectedOption.products && selectedOption.products.length > 0) {
+        // This is a packet barcode - add all products to the table
+        console.log("Packet selected with products:", selectedOption.products);
+        
+        // Get existing repair details from localStorage
+        const storedRepairDetails = JSON.parse(localStorage.getItem(`repairDetails_${tabId}`)) || [];
+        
+        // Check for duplicates before adding
+        const existingCodes = new Set(storedRepairDetails.map(item => item.code));
+        const newProducts = selectedOption.products.filter(product => !existingCodes.has(product.code));
+        
+        if (newProducts.length === 0) {
+          alert("All products in this packet are already added");
+          setFormData(prev => ({
+            ...prev,
+            code: selectedValue,
+            packet_barcode: selectedOption.packetBarcode,
+            is_estimated: true,
+            is_packet_selection: true
+          }));
+          return;
+        }
+        
+        // Add all new products to repairDetails
+        const updatedRepairDetails = [
+          ...storedRepairDetails,
+          ...newProducts.map(product => ({
+            ...product,
+            // Map fields to match formData structure
+            code: product.code,
+            product_name: product.product_name || product.sub_category,
+            metal_type: product.metal_type,
+            purity: product.purity,
+            category: product.category,
+            sub_category: product.sub_category,
+            gross_weight: product.gross_weight,
+            stone_weight: product.stone_weight,
+            stone_price: product.stone_price,
+            weight_bw: product.weight_bw,
+            va_on: product.va_on || "Gross Weight",
+            va_percent: product.va_percent,
+            wastage_weight: product.wastage_weight,
+            total_weight_av: product.total_weight_av,
+            mc_on: product.mc_on || "MC %",
+            mc_per_gram: product.mc_per_gram,
+            making_charges: product.making_charges,
+            rate: product.rate,
+            rate_amt: product.rate_amt,
+            tax_percent: product.tax_percent || "03% GST",
+            tax_amt: product.tax_amt,
+            total_price: product.total_price,
+            pricing: product.pricing || "By Weight",
+            qty: product.qty || 1,
+            packet_barcode: selectedOption.packetBarcode,
+            is_estimated: true,
+            design_name: product.design_name,
+            imagePreview: null,
+            sale_status: "Delivered",
+            piece_taxable_amt: product.piece_taxable_amt || "",
+            festival_discount: product.festival_discount || "",
+            disscount: product.disscount || "",
+            disscount_percentage: product.disscount_percentage || "",
+            hm_charges: product.hm_charges || "60.00",
+            remarks: product.remarks || "",
+            printing_purity: product.printing_purity || "",
+            selling_purity: product.selling_purity || "",
+            is_packet_selection: true,  // Add this flag for packet selections
+            packet_barcode: selectedOption.packetBarcode
+          }))
+        ];
+        
+        // Use setRepairDetails to update state
+        setRepairDetails(updatedRepairDetails);
+        localStorage.setItem(`repairDetails_${tabId}`, JSON.stringify(updatedRepairDetails));
+        
+        // Set isPacketAdded to true to clear the form fields
+        setIsPacketAdded(true);
+        
+        // Clear form fields after packet selection - only show packet barcode info
+        setFormData(prev => ({
+          ...prev,
+          code: selectedValue,
+          packet_barcode: selectedOption.packetBarcode,
+          is_estimated: true,
+          is_packet_selection: true,
+          product_name: '',
+          metal_type: '',
+          purity: '',
+          category: '',
+          sub_category: '',
+          gross_weight: '',
+          stone_weight: '',
+          stone_price: '',
+          weight_bw: '',
+          va_on: 'Gross Weight',
+          va_percent: '',
+          wastage_weight: '',
+          total_weight_av: '',
+          mc_on: 'MC %',
+          mc_per_gram: '',
+          making_charges: '',
+          rate: '',
+          rate_amt: '',
+          tax_percent: '03% GST',
+          tax_amt: '',
+          total_price: '',
+          pricing: 'By Weight',
+          qty: '1',
+          design_name: '',
+          selling_purity: '',
+          printing_purity: '',
+          imagePreview: null,
+          disscount: '',
+          disscount_percentage: '',
+          pieace_cost: '',
+          hm_charges: '60.00',
+          remarks: '',
+          piece_taxable_amt: '',
+          festival_discount: '',
+          custom_purity: ''
+        }));
+        
+        alert(`Added ${newProducts.length} product(s) from packet ${selectedOption.packetBarcode}`);
+        
+      } else {
+        // Regular barcode selection (non-packet)
+        setIsPacketAdded(false);
+        if (selectedOption.packetBarcode) {
+          setFormData(prev => ({
+            ...prev,
+            code: selectedValue,
+            packet_barcode: selectedOption.packetBarcode,
+            is_estimated: selectedOption.isEstimated || false,
+            is_packet_selection: false
+          }));
+        } else {
+          setFormData(prev => ({
+            ...prev,
+            code: selectedValue,
+            packet_barcode: null,
+            is_estimated: false,
+            is_packet_selection: false
+          }));
+        }
+        handleBarcodeChange(selectedValue);
+      }
+    }
+  };
+
   const handleClear = () => {
+    setIsPacketAdded(false);
     setFormData(prevFormData => ({
       ...prevFormData,
       code: "",
@@ -177,9 +437,13 @@ const barcodeOptions = [
       imagePreview: null,
       sale_status: "Delivered",
       custom_purity: "",
+      packet_barcode: null,
+      is_estimated: false,
+      is_packet_selection: false,
     }));
   };
 
+  // Calculations for price fields
   useEffect(() => {
     const grossWeight = parseFloat(formData.gross_weight) || 0;
     const stoneWeight = parseFloat(formData.stone_weight) || 0;
@@ -246,16 +510,11 @@ const barcodeOptions = [
       const taxable = rateAmt + stonePrice + makingCharges - totalDiscount;
       taxAmt = (taxable * taxPercent) / 100;
       totalPrice = taxable;
-      setFormData(prev => {
-        const roundedTaxAmt = parseFloat(taxAmt).toFixed(2);
-        const roundedTotalPrice = (Math.round(parseFloat(totalPrice) * 100) / 100).toFixed(2);
-
-        return {
-          ...prev,
-          tax_amt: taxAmt.toFixed(2),
-          total_price: roundedTotalPrice,
-        };
-      });
+      setFormData(prev => ({
+        ...prev,
+        tax_amt: taxAmt.toFixed(2),
+        total_price: totalPrice.toFixed(2),
+      }));
     }
 
     setFormData(prev => ({
@@ -295,11 +554,27 @@ const barcodeOptions = [
             label="BarCode/Rbarcode"
             name="code"
             value={formData.code || defaultBarcode}
-            onChange={(e) => handleBarcodeChange(e.target.value)}
+            onChange={(e) => handleBarcodeSelect(e.target.value)}
             type="select"
-            options={barcodeOptions}
-            autoFocus
+            options={uniqueBarcodeOptions}
+            // autoFocus
           />
+          {/* Display packet barcode if available */}
+          {/* {formData.packet_barcode && (
+            <div style={{ fontSize: "12px", color: "#a36e29", marginTop: "2px", fontWeight: "bold" }}>
+              Packet: {formData.packet_barcode}
+            </div>
+          )}
+          {formData.is_estimated && (
+            <div style={{ fontSize: "11px", color: "#28a745", marginTop: "2px" }}>
+              ✓ Estimated
+            </div>
+          )}
+          {isPacketAdded && (
+            <div style={{ fontSize: "11px", color: "#a36e29", marginTop: "2px", fontWeight: "bold" }}>
+              ✓ Packet Added - Select another or clear
+            </div>
+          )} */}
         </Col>
 
         <Col xs={12} md={2} className="d-flex align-items-center">
@@ -311,6 +586,7 @@ const barcodeOptions = [
               type="select"
               onChange={handleChange}
               options={categoryOptions}
+              disabled={isPacketAdded}
             />
           </div>
           <AiOutlinePlus
@@ -339,6 +615,7 @@ const barcodeOptions = [
             onChange={handleChange}
             type="select"
             options={metaltypeOptions}
+            disabled={isPacketAdded}
           />
         </Col>
 
@@ -351,6 +628,7 @@ const barcodeOptions = [
               onChange={handleChange}
               type="select"
               options={subcategoryOptions}
+              disabled={isPacketAdded}
             />
           </div>
           <AiOutlinePlus
@@ -380,10 +658,9 @@ const barcodeOptions = [
             onChange={handleChange}
             type="select"
             options={designOptions}
+            disabled={isPacketAdded}
           />
         </Col>
-
-        {/* REMOVED: Pricing Field */}
 
         {/* By Fixed Pricing Fields */}
         {isByFixed ? (
@@ -394,6 +671,7 @@ const barcodeOptions = [
                 name="printing_purity"
                 value={formData.printing_purity || ""}
                 onChange={handleChange}
+                disabled={isPacketAdded}
               />
             </Col>
             <Col xs={12} md={2}>
@@ -402,6 +680,7 @@ const barcodeOptions = [
                 name="pieace_cost"
                 value={formData.pieace_cost}
                 onChange={handleChange}
+                disabled={isPacketAdded}
               />
             </Col>
             <Col xs={12} md={1}>
@@ -411,9 +690,9 @@ const barcodeOptions = [
                 value={formData.qty}
                 onChange={handleChange}
                 readOnly={!isQtyEditable}
+                disabled={isPacketAdded}
               />
             </Col>
-            {/* REMOVED: Remarks Field */}
             <Col xs={12} md={4}>
               <DropdownButton
                 id="dropdown-basic-button"
@@ -421,6 +700,7 @@ const barcodeOptions = [
                 variant="primary"
                 size="sm"
                 onClick={() => setShowOptions(!showOptions)}
+                disabled={isPacketAdded}
               >
                 {showOptions && (
                   <>
@@ -512,6 +792,7 @@ const barcodeOptions = [
                     : []),
                   { label: "Manual", value: "Manual" }
                 ]}
+                disabled={isPacketAdded}
               />
             </Col>
 
@@ -522,6 +803,7 @@ const barcodeOptions = [
                   name="custom_purity"
                   value={formData.custom_purity || ""}
                   onChange={handleChange}
+                  disabled={isPacketAdded}
                 />
               </Col>
             )}
@@ -533,6 +815,7 @@ const barcodeOptions = [
                 type='number'
                 value={formData.gross_weight || ""}
                 onChange={handleChange}
+                disabled={isPacketAdded}
               />
             </Col>
             <Col xs={12} md={1}>
@@ -542,6 +825,7 @@ const barcodeOptions = [
                 type='number'
                 value={formData.stone_weight || ""}
                 onChange={handleChange}
+                disabled={isPacketAdded}
               />
             </Col>
             <Col xs={12} md={1}>
@@ -551,6 +835,7 @@ const barcodeOptions = [
                 value={formData.weight_bw || ""}
                 onChange={handleChange}
                 readOnly
+                disabled={isPacketAdded}
               />
             </Col>
 
@@ -569,6 +854,7 @@ const barcodeOptions = [
                     ? [{ value: formData.va_on, label: formData.va_on }]
                     : []),
                 ]}
+                disabled={isPacketAdded}
               />
             </Col>
             <Col xs={12} md={1}>
@@ -578,6 +864,7 @@ const barcodeOptions = [
                 type='number'
                 value={formData.va_percent || "0"}
                 onChange={handleChange}
+                disabled={isPacketAdded}
               />
             </Col>
             <Col xs={12} md={1}>
@@ -587,6 +874,7 @@ const barcodeOptions = [
                 value={formData.wastage_weight || "0.00"}
                 onChange={handleChange}
                 readOnly
+                disabled={isPacketAdded}
               />
             </Col>
             <Col xs={12} md={2}>
@@ -596,6 +884,7 @@ const barcodeOptions = [
                 value={formData.total_weight_av || ""}
                 onChange={handleChange}
                 readOnly
+                disabled={isPacketAdded}
               />
             </Col>
 
@@ -615,6 +904,7 @@ const barcodeOptions = [
                     ? [{ value: formData.mc_on, label: formData.mc_on }]
                     : []),
                 ]}
+                disabled={isPacketAdded}
               />
             </Col>
 
@@ -626,6 +916,7 @@ const barcodeOptions = [
                 value={formData.mc_per_gram || ""}
                 onChange={handleChange}
                 readOnly={formData.mc_on === "MC / Piece"}
+                disabled={isPacketAdded}
               />
             </Col>
             <Col xs={12} md={1}>
@@ -635,11 +926,10 @@ const barcodeOptions = [
                 type='number'
                 value={formData.making_charges || ""}
                 onChange={handleChange}
-                disabled={formData.mc_on === "MC / Gram"}
+                disabled={formData.mc_on === "MC / Gram" || isPacketAdded}
               />
             </Col>
 
-            {/* REMOVED: Remarks Field */}
             <Col xs={12} md={2}>
               <DropdownButton
                 id="dropdown-basic-button"
@@ -647,6 +937,7 @@ const barcodeOptions = [
                 variant="primary"
                 size="sm"
                 onClick={() => setShowOptions(!showOptions)}
+                disabled={isPacketAdded}
               >
                 {showOptions && (
                   <>
@@ -733,6 +1024,7 @@ const barcodeOptions = [
               marginLeft: "-1px",
               fontSize: "13px"
             }}
+            disabled={isPacketAdded}
           >
             {isEditing ? "Update" : "Add"}
           </Button>

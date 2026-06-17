@@ -557,7 +557,7 @@ const ProductDetails = ({
             onChange={(e) => handleBarcodeSelect(e.target.value)}
             type="select"
             options={uniqueBarcodeOptions}
-            autoFocus
+            // autoFocus
           />
           {/* Display packet barcode if available */}
           {/* {formData.packet_barcode && (

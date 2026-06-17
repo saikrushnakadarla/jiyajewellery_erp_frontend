@@ -80,11 +80,11 @@ const ReturnMainStockTable = () => {
         Header: 'PCode/Barcode',
         accessor: 'PCode_BarCode',
       },
-      {
-        Header: 'Product Name',
-        accessor: 'product_Name',
-        Cell: ({ value }) => value || 'N/A',
-      },
+      // {
+      //   Header: 'Product Name',
+      //   accessor: 'product_Name',
+      //   Cell: ({ value }) => value || 'N/A',
+      // },
       {
         Header: 'Design Master',
         accessor: 'design_master',

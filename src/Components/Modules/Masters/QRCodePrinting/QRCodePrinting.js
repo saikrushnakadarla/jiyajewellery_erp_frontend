@@ -15,8 +15,6 @@ const QRCodePrintingERP = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [editId, setEditId] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
-  // Default to 'ERP' to show only ERP records
-  const [sourceFilter, setSourceFilter] = useState("ERP");
   const [stats, setStats] = useState(null);
   
   // Form state
@@ -39,7 +37,6 @@ const QRCodePrintingERP = () => {
   const fetchPacketRecords = async () => {
     try {
       setLoading(true);
-      // Always fetch only ERP records from the API
       const response = await axios.get(`${baseURL}/api/qr-packets?source=ERP`);
       if (response.data.success) {
         setPacketRecords(response.data.data || []);
@@ -73,7 +70,7 @@ const QRCodePrintingERP = () => {
   useEffect(() => {
     fetchPacketRecords();
     fetchStats();
-  }, []); // Remove sourceFilter dependency since we always fetch ERP
+  }, []);
 
   // Get next QR number for a prefix (only for ERP)
   const getNextQRNumber = async (prefix) => {

@@ -11,6 +11,7 @@ import useProductHandlers from "./hooks/useProductHandlers";
 import useCalculations from "./hooks/useCalculations";
 import "./../Sales/SalesForm.css";
 import baseURL from "./../../../../Url/NodeBaseURL";
+import baseURL2 from "./../../../../Url/NodeBaseURL2";
 // import SalesFormSection from "./SalesForm3Section";
 import { pdf } from "@react-pdf/renderer";
 import { PDFDownloadLink } from "@react-pdf/renderer";
@@ -32,8 +33,11 @@ const ReturnMainStockForm = () => {
   const [loggedInUserId, setLoggedInUserId] = useState(null);
 
   const [assignedProducts, setAssignedProducts] = useState([]);
-const [selectedSalesmanProducts, setSelectedSalesmanProducts] = useState([]);
+  const [selectedSalesmanProducts, setSelectedSalesmanProducts] = useState([]);
 
+  // Add these states with your other states
+  const [estimatesData, setEstimatesData] = useState([]);
+  const [estimatedProducts, setEstimatedProducts] = useState({});
 
   const [oldSalesData, setOldSalesData] = useState(
     JSON.parse(localStorage.getItem("oldSalesData")) || [],
@@ -60,6 +64,180 @@ const [selectedSalesmanProducts, setSelectedSalesmanProducts] = useState([]);
     console.log("Logged in User ID:", parseInt(userId));
   }
 }, []);
+
+// Add this fetch function after your other useEffect hooks
+useEffect(() => {
+  const fetchEstimates = async () => {
+    try {
+      const response = await axios.get(`${baseURL2}/get/estimates`);
+      console.log("Estimates data fetched:", response.data);
+      setEstimatesData(response.data);
+      
+      // Create a map of product codes to their packet barcode and estimate data
+      const estMap = {};
+      response.data.forEach(est => {
+        if (est.code) {
+          estMap[est.code] = {
+            packetBarcode: est.packet_barcode || null,
+            estimateId: est.estimate_id,
+            estimateNumber: est.estimate_number,
+            status: est.estimate_status
+          };
+        }
+      });
+      setEstimatedProducts(estMap);
+      console.log("Estimated products map:", estMap);
+    } catch (error) {
+      console.error("Error fetching estimates:", error);
+    }
+  };
+  
+  fetchEstimates();
+}, []);
+
+// Also modify the existing stock fetch to include estimate data
+// Update the useEffect that fetches stock to combine with estimate data
+useEffect(() => {
+  const fetchStockWithEstimates = async () => {
+    try {
+      // Fetch stock data
+      const stockResponse = await fetch(`${baseURL}/get/opening-tags-entry`);
+      if (!stockResponse.ok) {
+        throw new Error("Failed to fetch stock entries");
+      }
+      const stockData = await stockResponse.json();
+      
+      let stockDataFiltered = stockData.result || [];
+      
+      // Get logged-in user name from localStorage
+      const loggedInUserName = localStorage.getItem('userName') || '';
+      
+      console.log("========== FETCH STOCK DEBUG ==========");
+      console.log("Logged in user name from localStorage:", loggedInUserName);
+      console.log("Total items from API:", stockDataFiltered.length);
+      
+      // Log all Status values to see what's available
+      const statuses = [...new Set(stockDataFiltered.map(item => item.Status))];
+      console.log("All Status values in data:", statuses);
+      
+      // Log all Stock_Point values
+      const stockPoints = [...new Set(stockDataFiltered.map(item => item.Stock_Point))];
+      console.log("All Stock_Point values in data:", stockPoints);
+      
+      // Log all items with Status = "Selected"
+      const selectedItems = stockDataFiltered.filter(item => item.Status === "Selected");
+      console.log("Items with Status 'Selected':", selectedItems.length, selectedItems);
+      
+      // Log all items with Stock_Point = loggedInUserName
+      const stockPointMatchItems = stockDataFiltered.filter(item => item.Stock_Point === loggedInUserName);
+      console.log(`Items with Stock_Point '${loggedInUserName}':`, stockPointMatchItems.length, stockPointMatchItems);
+      
+      // Log items that match both conditions
+      const bothMatchItems = stockDataFiltered.filter(item => 
+        item.Status === "Selected" && 
+        item.Stock_Point === loggedInUserName
+      );
+      console.log(`Items with BOTH Status='Selected' AND Stock_Point='${loggedInUserName}':`, bothMatchItems.length, bothMatchItems);
+      
+      // Try case-insensitive match if exact match fails
+      if (bothMatchItems.length === 0 && loggedInUserName) {
+        console.log("Trying case-insensitive match...");
+        const caseInsensitiveMatch = stockDataFiltered.filter(item => 
+          item.Status === "Selected" && 
+          item.Stock_Point?.toLowerCase() === loggedInUserName.toLowerCase()
+        );
+        console.log("Case-insensitive match results:", caseInsensitiveMatch.length, caseInsensitiveMatch);
+      }
+      
+      // Filter based on Status = "Selected" and Stock_Point matches logged-in user name (case-sensitive)
+      let filteredStock = stockDataFiltered.filter(item => 
+        item.Status === "Selected" && 
+        item.Stock_Point === loggedInUserName
+      );
+      
+      // If no results with exact match, try case-insensitive
+      if (filteredStock.length === 0 && loggedInUserName) {
+        filteredStock = stockDataFiltered.filter(item => 
+          item.Status === "Selected" && 
+          item.Stock_Point?.toLowerCase() === loggedInUserName.toLowerCase()
+        );
+        console.log("Using case-insensitive match results:", filteredStock.length);
+      }
+      
+      console.log("Final filtered Stock Data:", filteredStock);
+      
+      // Fetch estimates data
+      const estResponse = await axios.get(`${baseURL2}/get/estimates`);
+      const estData = estResponse.data || [];
+      
+      // Create a map of product codes to packet barcode
+      const estMap = {};
+      estData.forEach(est => {
+        if (est.code && est.packet_barcode) {
+          estMap[est.code] = {
+            packetBarcode: est.packet_barcode,
+            estimateId: est.estimate_id,
+            estimateNumber: est.estimate_number,
+            status: est.estimate_status,
+            customer_name: est.customer_name
+          };
+        }
+      });
+      setEstimatedProducts(estMap);
+      
+      // Combine stock data with estimate info
+      const combinedStock = filteredStock.map(item => ({
+        ...item,
+        packetBarcode: estMap[item.PCode_BarCode]?.packetBarcode || null,
+        isEstimated: !!estMap[item.PCode_BarCode]?.packetBarcode,
+        estimateInfo: estMap[item.PCode_BarCode] || null
+      }));
+      
+      console.log("Combined stock with estimate data:", combinedStock);
+      
+      // Extract unique barcodes for dropdown - only show items with Status = "Selected"
+      const uniqueBarcodes = [...new Map(combinedStock.map(item => 
+        [item.PCode_BarCode, { 
+          PCode_BarCode: item.PCode_BarCode, 
+          product_name: item.product_Name || item.sub_category || "",
+          product_id: item.product_id,
+          metal_type: item.metal_type,
+          purity: item.Purity,
+          category: item.category,
+          sub_category: item.sub_category,
+          design_name: item.design_master || "",
+          qty: item.pcs || 1,
+          gross_weight: item.Gross_Weight,
+          stone_weight: item.Stones_Weight,
+          net_weight: item.Weight_BW,
+          rate: item.rate,
+          making_charges: item.Making_Charges,
+          stone_price: item.Stones_Price,
+          total_price: item.total_price,
+          assigned_id: item.opentag_id,
+          item_id: item.opentag_id,
+          status: item.Status,
+          stock_point: item.Stock_Point,
+          user_id: item.user_id,
+          packetBarcode: estMap[item.PCode_BarCode]?.packetBarcode || null,
+          isEstimated: !!estMap[item.PCode_BarCode]?.packetBarcode
+        }
+      ])).values()];
+      
+      console.log("Unique Barcodes for dropdown:", uniqueBarcodes.length, uniqueBarcodes.map(b => b.PCode_BarCode));
+      setSelectedSalesmanProducts(uniqueBarcodes);
+      setStock(combinedStock);
+      console.log("========== END DEBUG ==========");
+      
+    } catch (error) {
+      console.error("Error fetching stock entries:", error);
+      setStock([]);
+      setSelectedSalesmanProducts([]);
+    }
+  };
+  
+  fetchStockWithEstimates();
+}, [loggedInUserId]);
 
   // const [paymentDetails, setPaymentDetails] = useState(
   //   JSON.parse(localStorage.getItem('paymentDetails')) || {
@@ -988,7 +1166,7 @@ const fetchAssignedProducts = async (stockPointId) => {
   const [estimate, setEstimate] = useState([]);
   const [selectedEstimate, setSelectedEstimate] = useState("");
   const [estimateDetails, setEstimateDetails] = useState(null);
-  const [stock, setStock] = useState(null);
+  const [stock, setStock] = useState([]);
 
   useEffect(() => {
     const fetchEstimate = async () => {
@@ -1002,116 +1180,40 @@ const fetchAssignedProducts = async (stockPointId) => {
     fetchEstimate();
   }, []);
 
-useEffect(() => {
-  const fetchStock = async () => {
-    try {
-      const response = await fetch(`${baseURL}/get/opening-tags-entry`);
-      if (!response.ok) {
-        throw new Error("Failed to fetch stock entries");
-      }
-      const data = await response.json();
+// In AssignedSalesmanForm.js - this is already correct (no Stock_Point filter)
+// useEffect(() => {
+//   const fetchStock = async () => {
+//     try {
+//       const response = await fetch(`${baseURL}/get/opening-tags-entry`);
+//       if (!response.ok) {
+//         throw new Error("Failed to fetch stock entries");
+//       }
+//       const data = await response.json();
       
-      let allStockData = data.result || [];
+//       let stockData = data.result || [];
       
-      // Get logged-in user name from localStorage
-      const loggedInUserName = localStorage.getItem('userName') || '';
+//       // Filter based on logged-in user ID
+//       if (loggedInUserId) {
+//         stockData = stockData.filter(item => 
+//           item.Status === "Available" && 
+//           item.user_id === loggedInUserId
+//           // Removed Stock_Point filter - now fetch from all stock points
+//         );
+//       } else {
+//         // If no logged-in user, only show Available items
+//         stockData = stockData.filter(item => item.Status === "Available");
+//       }
       
-      console.log("========== FETCH STOCK DEBUG ==========");
-      console.log("Logged in user name from localStorage:", loggedInUserName);
-      console.log("Total items from API:", allStockData.length);
-      
-      // Log all Status values to see what's available
-      const statuses = [...new Set(allStockData.map(item => item.Status))];
-      console.log("All Status values in data:", statuses);
-      
-      // Log all Stock_Point values
-      const stockPoints = [...new Set(allStockData.map(item => item.Stock_Point))];
-      console.log("All Stock_Point values in data:", stockPoints);
-      
-      // Log all items with Status = "Selected"
-      const selectedItems = allStockData.filter(item => item.Status === "Selected");
-      console.log("Items with Status 'Selected':", selectedItems.length, selectedItems);
-      
-      // Log all items with Stock_Point = loggedInUserName
-      const stockPointMatchItems = allStockData.filter(item => item.Stock_Point === loggedInUserName);
-      console.log(`Items with Stock_Point '${loggedInUserName}':`, stockPointMatchItems.length, stockPointMatchItems);
-      
-      // Log items that match both conditions
-      const bothMatchItems = allStockData.filter(item => 
-        item.Status === "Selected" && 
-        item.Stock_Point === loggedInUserName
-      );
-      console.log(`Items with BOTH Status='Selected' AND Stock_Point='${loggedInUserName}':`, bothMatchItems.length, bothMatchItems);
-      
-      // Try case-insensitive match if exact match fails
-      if (bothMatchItems.length === 0 && loggedInUserName) {
-        console.log("Trying case-insensitive match...");
-        const caseInsensitiveMatch = allStockData.filter(item => 
-          item.Status === "Selected" && 
-          item.Stock_Point?.toLowerCase() === loggedInUserName.toLowerCase()
-        );
-        console.log("Case-insensitive match results:", caseInsensitiveMatch.length, caseInsensitiveMatch);
-      }
-      
-      // Filter based on Status = "Selected" and Stock_Point matches logged-in user name (case-sensitive)
-      let stockData = allStockData.filter(item => 
-        item.Status === "Selected" && 
-        item.Stock_Point === loggedInUserName
-      );
-      
-      // If no results with exact match, try case-insensitive
-      if (stockData.length === 0 && loggedInUserName) {
-        stockData = allStockData.filter(item => 
-          item.Status === "Selected" && 
-          item.Stock_Point?.toLowerCase() === loggedInUserName.toLowerCase()
-        );
-        console.log("Using case-insensitive match results:", stockData.length);
-      }
-      
-      console.log("Final filtered Stock Data:", stockData);
-      setStock(stockData);
-      
-      // Extract unique barcodes for dropdown
-      const uniqueBarcodes = [...new Map(stockData.map(item => 
-        [item.PCode_BarCode, { 
-          PCode_BarCode: item.PCode_BarCode, 
-          product_name: item.product_Name || item.sub_category || "",
-          product_id: item.product_id,
-          metal_type: item.metal_type,
-          purity: item.Purity,
-          category: item.category,
-          sub_category: item.sub_category,
-          design_name: item.design_master || "",
-          qty: item.pcs || 1,
-          gross_weight: item.Gross_Weight,
-          stone_weight: item.Stones_Weight,
-          net_weight: item.Weight_BW,
-          rate: item.rate,
-          making_charges: item.Making_Charges,
-          stone_price: item.Stones_Price,
-          total_price: item.total_price,
-          assigned_id: item.opentag_id,
-          item_id: item.opentag_id,
-          status: item.Status,
-          stock_point: item.Stock_Point,
-          user_id: item.user_id
-        }
-      ])).values()];
-      
-      console.log("Unique Barcodes for dropdown:", uniqueBarcodes.length, uniqueBarcodes.map(b => b.PCode_BarCode));
-      setSelectedSalesmanProducts(uniqueBarcodes);
-      console.log("========== END DEBUG ==========");
-      
-    } catch (error) {
-      console.error("Error fetching stock entries:", error);
-      setStock([]);
-      setSelectedSalesmanProducts([]);
-    }
-  };
+//       console.log("Filtered Stock Data by user_id (all stock points):", stockData);
+//       setStock(stockData);
+//     } catch (error) {
+//       console.error("Error fetching stock entries:", error);
+//       setStock([]);
+//     }
+//   };
   
-  fetchStock();
-}, [loggedInUserId]);
-
+//   fetchStock();
+// }, [loggedInUserId]);
 
   const fetchEstimateDetails = async (estimate_number) => {
   if (!estimate_number) return;
@@ -1566,6 +1668,8 @@ const handleAdd = () => {
           ? parseFloat(formData.rate).toFixed(2)
           : "",
       imagePreview: formData.imagePreview,
+      is_packet_selection: formData.is_packet_selection || false,
+      packet_barcode: formData.packet_barcode || null
     },
   ];
 
@@ -1667,6 +1771,8 @@ const handleAdd = () => {
       sale_status: "Delivered",
       piece_taxable_amt: "",
       festival_discount: "",
+      is_packet_selection: false,
+      packet_barcode: null,
     }));
   };
 
@@ -2635,10 +2741,10 @@ const handleSave = async () => {
       return;
     }
 
-    if (!selectedSalesman) {
-      alert("Please select a Salesman");
-      return;
-    }
+    // if (!selectedSalesman) {
+    //   alert("Please select a Salesman");
+    //   return;
+    // }
 
     if (!repairDetails || repairDetails.length === 0) {
       alert("Please add items to transfer");
@@ -2655,16 +2761,17 @@ const handleSave = async () => {
 
     console.log("Updating opening tags for barcodes:", barcodes);
 
-    // Update opening_tags_entry table - Set Status to "Selected" and Stock_Point to "MAIN STOCK ROOM"
+    // Update opening_tags_entry table - Set Status to "Selected", Stock_Point to "MAIN STOCK ROOM", and user_id to NULL
     const updateResponse = await axios.put(`${baseURL}/update-opening-tags-status`, {
       barcodes: barcodes,
       status: "Selected",
-      stock_point: "MAIN STOCK ROOM"
+      stock_point: "MAIN STOCK ROOM",
+      user_id: null  // Add this to set user_id to NULL
     });
 
     if (updateResponse.status === 200) {
       console.log("Opening tags updated successfully:", updateResponse.data);
-      alert(`Successfully updated ${barcodes.length} product(s). Status changed to "Selected" and Stock Point to "MAIN STOCK ROOM"`);
+      alert(`Successfully updated ${barcodes.length} product(s). Status changed to "Selected", Stock Point to "MAIN STOCK ROOM", and user_id set to NULL`);
       
       // Clear all data after successful save
       setOldSalesData([]);
@@ -2717,7 +2824,6 @@ const handleSave = async () => {
     alert("Error updating product status: " + (error.response?.data?.message || error.message));
   }
 };
-
 
 
   const refreshSalesData = () => {
@@ -2850,9 +2956,10 @@ const handleSave = async () => {
             style={{ marginTop: "-20px", marginBottom: "5px" }}
           >
             <ProductDetails
-               selectedSalesmanProducts={selectedSalesmanProducts}
+              selectedSalesmanProducts={selectedSalesmanProducts}
               formData={formData}
               setFormData={setFormData}
+              setRepairDetails={setRepairDetails}
               handleChange={handleChange}
               handleBarcodeChange={handleBarcodeChange}
               // handleProductChange={handleProductChange}
