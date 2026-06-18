@@ -723,163 +723,10 @@ const useProductHandlers = () => {
     fetchPurity();
   }, [formData.metal_type]);
 
-const handleBarcodeChange = async (code) => {
-  try {
-    if (!code) {
-      setIsBarcodeSelected(false);
-      setFormData((prevData) => ({
-        ...prevData,
-        code: "",
-        product_id: "",
-        product_name: "",
-        metal_type: "",
-        design_name: "",
-        purity: "",
-        selling_purity: "",
-        printing_purity: "",
-        category: "",
-        sub_category: "",
-        gross_weight: "",
-        stone_weight: "",
-        stone_price: "",
-        weight_bw: "",
-        va_on: "Gross Weight",
-        va_percent: "",
-        wastage_weight: "",
-        total_weight_aw: "",
-        mc_on: "MC %",
-        mc_per_gram: "",
-        making_charges: "",
-        disscount_percentage: "",
-        disscount: "",
-        rate: "",
-        pieace_cost: "",
-        mrp_price: "",
-        rate_amt: "",
-        tax_percent: "03% GST",
-        tax_amt: "",
-        total_price: "",
-        qty: "",
-        remarks: "",
-        sale_status: "Delivered",
-        piece_taxable_amt: "",
-        festival_discount: "",
-        custom_purity: "",
-      }));
-      setIsQtyEditable(true);
-      return;
-    }
-
-    // First check if it's a product from products table
-    const product = products.find((prod) => String(prod.rbarcode) === String(code));
-    if (product) {
-      setIsBarcodeSelected(true);
-      const metalType = product.Category || "";
-      const mcOnValue = metalType.toLowerCase() === "silver" ? "MC / Gram" : "MC %";
-      setFormData((prevData) => ({
-        ...prevData,
-        code: product.rbarcode,
-        product_id: product.product_id,
-        product_name: "",
-        metal_type: product.Category,
-        design_name: "",
-        category: product.product_name,
-        sub_category: "",
-        gross_weight: "",
-        stone_weight: "",
-        stone_price: "",
-        weight_bw: "",
-        va_on: "Gross Weight",
-        va_percent: "",
-        wastage_weight: "",
-        total_weight_aw: "",
-        pieace_cost: "",
-        mrp_price: "",
-        mc_on: mcOnValue,
-        mc_per_gram: "",
-        making_charges: "",
-        disscount_percentage: "",
-        disscount: "",
-        tax_percent: product.tax_slab,
-        qty: 1,
-        festival_discount: "",
-        custom_purity: "",
-      }));
-      setIsQtyEditable(true);
-    } else {
-      // Check if it's a tag from opening_tags_entry
-      const tag = data.find((tag) => String(tag.PCode_BarCode) === String(code));
-      if (tag) {
-        // CHECK CONDITIONS: Status must be Available AND Stock_Point must be MAIN STOCK ROOM
-        if (tag.Status !== "Available") {
-          alert("This product is not available (Status: " + tag.Status + ")");
-          setFormData((prevData) => ({
-            ...prevData,
-            code: "",
-          }));
-          setIsQtyEditable(true);
-          return;
-        }
-
-        if (tag.Stock_Point !== "MAIN STOCK ROOM") {
-          alert("This product is not in MAIN STOCK ROOM. Current location: " + tag.Stock_Point);
-          setFormData((prevData) => ({
-            ...prevData,
-            code: "",
-          }));
-          setIsQtyEditable(true);
-          return;
-        }
-
-        const productId = tag.product_id;
-        const productDetails = products.find((prod) => String(prod.product_id) === String(productId));
-
-        let rateValue = "";
-        const metalType = String(tag.metal_type || "").toLowerCase();
-        const purity = tag.Purity || tag.pur_Purity || "";
-
-        if (purity) {
-          const baseRate = metalType === "silver" ? rates.silver_rate : formData.rate_24k;
-          if (baseRate) {
-            rateValue = (parseFloat(purity) * parseFloat(baseRate)) / 100;
-          }
-        } else if (metalType === "silver") {
-          rateValue = rates.silver_rate || "";
-        }
-
-        setFormData((prevData) => ({
-          ...prevData,
-          code: tag.PCode_BarCode || "",
-          product_id: tag.product_id || "",
-          opentag_id: tag.opentag_id || "",
-          product_name: tag.sub_category || "",
-          metal_type: tag.metal_type || "",
-          design_name: tag.design_master || "",
-          purity: tag.pur_Purity || "",
-          selling_purity: tag.Purity || "",
-          printing_purity: tag.printing_purity || "",
-          pricing: tag.Pricing || prevData.pricing || "By Weight",
-          category: tag.category || "",
-          sub_category: tag.sub_category || "",
-          gross_weight: tag.Gross_Weight || "",
-          stone_weight: tag.Stones_Weight || "",
-          stone_price: tag.Stones_Price || "",
-          weight_bw: tag.Weight_BW || "",
-          va_on: tag.Wastage_On || "Gross Weight",
-          va_percent: tag.Wastage_Percentage || "",
-          wastage_weight: tag.WastageWeight || "",
-          total_weight_av: tag.TotalWeight_AW || "",
-          pieace_cost: tag.pieace_cost || "",
-          mrp_price: tag.mrp_price || "",
-          mc_on: tag.Making_Charges_On || "MC %",
-          mc_per_gram: tag.MC_Per_Gram || "",
-          making_charges: tag.Making_Charges || "",
-          tax_percent: productDetails?.tax_slab || tag.tax_percent || "03% GST",
-          qty: 1,
-          rate: rateValue,
-        }));
-        setIsQtyEditable(false);
-      } else {
+  const handleBarcodeChange = async (code) => {
+    try {
+      if (!code) {
+        setIsBarcodeSelected(false);
         setFormData((prevData) => ({
           ...prevData,
           code: "",
@@ -888,6 +735,8 @@ const handleBarcodeChange = async (code) => {
           metal_type: "",
           design_name: "",
           purity: "",
+          selling_purity: "",
+          printing_purity: "",
           category: "",
           sub_category: "",
           gross_weight: "",
@@ -915,42 +764,251 @@ const handleBarcodeChange = async (code) => {
           sale_status: "Delivered",
           piece_taxable_amt: "",
           festival_discount: "",
+          custom_purity: "",
         }));
         setIsQtyEditable(true);
+        return;
       }
-    }
-  } catch (error) {
-    console.error("Error handling code change:", error);
-  }
-};
 
+      // First check if it's a product from products table
+      const product = products.find((prod) => String(prod.rbarcode) === String(code));
+      if (product) {
+        setIsBarcodeSelected(true);
+        const metalType = product.Category || "";
+        const mcOnValue = metalType.toLowerCase() === "silver" ? "MC / Gram" : "MC %";
+        setFormData((prevData) => ({
+          ...prevData,
+          code: product.rbarcode,
+          product_id: product.product_id,
+          product_name: "",
+          metal_type: product.Category,
+          design_name: "",
+          category: product.product_name,
+          sub_category: "",
+          gross_weight: "",
+          stone_weight: "",
+          stone_price: "",
+          weight_bw: "",
+          va_on: "Gross Weight",
+          va_percent: "",
+          wastage_weight: "",
+          total_weight_aw: "",
+          pieace_cost: "",
+          mrp_price: "",
+          mc_on: mcOnValue,
+          mc_per_gram: "",
+          making_charges: "",
+          disscount_percentage: "",
+          disscount: "",
+          tax_percent: product.tax_slab,
+          qty: 1,
+          festival_discount: "",
+          custom_purity: "",
+        }));
+        setIsQtyEditable(true);
+      } else {
+        // Check if it's a tag from opening_tags_entry
+        const tag = data.find((tag) => String(tag.PCode_BarCode) === String(code));
+        if (tag) {
+          // CHECK CONDITIONS: Status must be Available AND Stock_Point must be MAIN STOCK ROOM
+          if (tag.Status !== "Available") {
+            alert("This product is not available (Status: " + tag.Status + ")");
+            setFormData((prevData) => ({
+              ...prevData,
+              code: "",
+            }));
+            setIsQtyEditable(true);
+            return;
+          }
+
+          if (tag.Stock_Point !== "MAIN STOCK ROOM") {
+            alert("This product is not in MAIN STOCK ROOM. Current location: " + tag.Stock_Point);
+            setFormData((prevData) => ({
+              ...prevData,
+              code: "",
+            }));
+            setIsQtyEditable(true);
+            return;
+          }
+
+          const productId = tag.product_id;
+          const productDetails = products.find((prod) => String(prod.product_id) === String(productId));
+
+          let rateValue = "";
+          const metalType = String(tag.metal_type || "").toLowerCase();
+          const purity = tag.Purity || tag.pur_Purity || "";
+
+          if (purity) {
+            const baseRate = metalType === "silver" ? rates.silver_rate : formData.rate_24k;
+            if (baseRate) {
+              rateValue = (parseFloat(purity) * parseFloat(baseRate)) / 100;
+            }
+          } else if (metalType === "silver") {
+            rateValue = rates.silver_rate || "";
+          }
+
+          setFormData((prevData) => ({
+            ...prevData,
+            code: tag.PCode_BarCode || "",
+            product_id: tag.product_id || "",
+            opentag_id: tag.opentag_id || "",
+            product_name: tag.sub_category || "",
+            metal_type: tag.metal_type || "",
+            design_name: tag.design_master || "",
+            purity: tag.pur_Purity || "",
+            selling_purity: tag.Purity || "",
+            printing_purity: tag.printing_purity || "",
+            pricing: tag.Pricing || prevData.pricing || "By Weight",
+            category: tag.category || "",
+            sub_category: tag.sub_category || "",
+            gross_weight: tag.Gross_Weight || "",
+            stone_weight: tag.Stones_Weight || "",
+            stone_price: tag.Stones_Price || "",
+            weight_bw: tag.Weight_BW || "",
+            va_on: tag.Wastage_On || "Gross Weight",
+            va_percent: tag.Wastage_Percentage || "",
+            wastage_weight: tag.WastageWeight || "",
+            total_weight_av: tag.TotalWeight_AW || "",
+            pieace_cost: tag.pieace_cost || "",
+            mrp_price: tag.mrp_price || "",
+            mc_on: tag.Making_Charges_On || "MC %",
+            mc_per_gram: tag.MC_Per_Gram || "",
+            making_charges: tag.Making_Charges || "",
+            tax_percent: productDetails?.tax_slab || tag.tax_percent || "03% GST",
+            qty: 1,
+            rate: rateValue,
+          }));
+          setIsQtyEditable(false);
+        } else {
+          setFormData((prevData) => ({
+            ...prevData,
+            code: "",
+            product_id: "",
+            product_name: "",
+            metal_type: "",
+            design_name: "",
+            purity: "",
+            category: "",
+            sub_category: "",
+            gross_weight: "",
+            stone_weight: "",
+            stone_price: "",
+            weight_bw: "",
+            va_on: "Gross Weight",
+            va_percent: "",
+            wastage_weight: "",
+            total_weight_aw: "",
+            mc_on: "MC %",
+            mc_per_gram: "",
+            making_charges: "",
+            disscount_percentage: "",
+            disscount: "",
+            rate: "",
+            pieace_cost: "",
+            mrp_price: "",
+            rate_amt: "",
+            tax_percent: "03% GST",
+            tax_amt: "",
+            total_price: "",
+            qty: "",
+            remarks: "",
+            sale_status: "Delivered",
+            piece_taxable_amt: "",
+            festival_discount: "",
+          }));
+          setIsQtyEditable(true);
+        }
+      }
+    } catch (error) {
+      console.error("Error handling code change:", error);
+    }
+  };
+
+  // ============= IMAGE HANDLING FUNCTIONS =============
+
+  /**
+   * Handle image upload from file input
+   * Converts image to base64 and stores in formData.imagePreview
+   */
   const handleImageChange = (e) => {
     const file = e.target.files[0];
     if (file) {
+      // Check file size (limit to 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        alert("Image size should be less than 5MB");
+        if (fileInputRef.current) {
+          fileInputRef.current.value = "";
+        }
+        return;
+      }
+
+      // Check file type
+      if (!file.type.startsWith('image/')) {
+        alert("Please select a valid image file");
+        if (fileInputRef.current) {
+          fileInputRef.current.value = "";
+        }
+        return;
+      }
+
       const reader = new FileReader();
       reader.onloadend = () => {
-        setFormData((prev) => ({ ...prev, imagePreview: reader.result }));
+        setFormData((prev) => ({ 
+          ...prev, 
+          imagePreview: reader.result // Base64 encoded image
+        }));
+        setImage(reader.result); // Store image for potential use
+      };
+      reader.onerror = () => {
+        alert("Error reading image file. Please try again.");
       };
       reader.readAsDataURL(file);
       setShowOptions(false);
     }
   };
 
+  /**
+   * Clear the current image preview
+   * Resets both imagePreview and file input
+   */
   const clearImage = () => {
     setFormData((prev) => ({ ...prev, imagePreview: null }));
+    setImage(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
   };
 
+  /**
+   * Capture image from webcam
+   * Takes screenshot from webcam and stores in formData.imagePreview
+   */
   const captureImage = () => {
     if (webcamRef.current) {
       const imageSrc = webcamRef.current.getScreenshot();
-      setFormData((prev) => ({ ...prev, imagePreview: imageSrc }));
-      setShowWebcam(false);
-      setShowOptions(false);
+      if (imageSrc) {
+        setFormData((prev) => ({ ...prev, imagePreview: imageSrc }));
+        setImage(imageSrc);
+        setShowWebcam(false);
+        setShowOptions(false);
+      } else {
+        alert("Failed to capture image. Please try again.");
+      }
+    } else {
+      alert("Camera not available. Please check your camera permissions.");
     }
   };
+
+  /**
+   * Trigger file input click to open file picker
+   */
+  const triggerFileUpload = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
+    }
+  };
+
+  // ============= END IMAGE HANDLING FUNCTIONS =============
 
   return {
     formData,
@@ -959,6 +1017,7 @@ const handleBarcodeChange = async (code) => {
     products,
     isQtyEditable,
     handleChange,
+    // Image handling functions
     handleImageChange,
     fileInputRef,
     clearImage,
@@ -969,6 +1028,8 @@ const handleBarcodeChange = async (code) => {
     setShowOptions,
     showOptions,
     image,
+    triggerFileUpload, // Added for convenience
+    // Other handlers
     handleBarcodeChange,
     handleProductNameChange,
     handleMetalTypeChange,

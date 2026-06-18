@@ -94,6 +94,7 @@ const useProductHandlers = (selectedSalesmanProducts = []) => {
     opentag_id: "",
     product_image: null,
     imagePreview: null,
+    image: null,
     remarks: "",
     sale_status: "Delivered",
     piece_taxable_amt: "",
@@ -106,7 +107,10 @@ const useProductHandlers = (selectedSalesmanProducts = []) => {
     active_stock_point_id: "",
     other_stock_point_id: "",
     active_stock_point_details: null,
-    other_stock_point_details: null
+    other_stock_point_details: null,
+    is_packet_selection: false,
+    packet_barcode: null,
+    is_estimated: false
   });
 
   const [formData, setFormData] = useState(() => {
@@ -723,7 +727,7 @@ const useProductHandlers = (selectedSalesmanProducts = []) => {
     fetchPurity();
   }, [formData.metal_type]);
 
-const handleBarcodeChange = async (code) => {
+  const handleBarcodeChange = async (code) => {
   try {
     if (!code) {
       setIsBarcodeSelected(false);
@@ -765,14 +769,14 @@ const handleBarcodeChange = async (code) => {
         piece_taxable_amt: "",
         festival_discount: "",
         custom_purity: "",
+        image: null,
+        imagePreview: null,
       }));
       setIsQtyEditable(true);
       return;
     }
 
     // ===== FIRST: Check if it's an assigned product from selected salesman =====
-    // selectedSalesmanProducts should be passed as a prop or available in scope
-    // You'll need to pass this from the parent component or use a context
     const assignedProduct = selectedSalesmanProducts?.find(
       (prod) => String(prod.PCode_BarCode) === String(code)
     );
@@ -782,6 +786,25 @@ const handleBarcodeChange = async (code) => {
       setIsBarcodeSelected(true);
       const metalType = assignedProduct.metal_type || "";
       const mcOnValue = metalType.toLowerCase() === "silver" ? "MC / Gram" : "MC %";
+      
+      // Get image from assigned product
+      let imagePath = assignedProduct.image || null;
+      let imagePreview = null;
+      if (imagePath) {
+        // If it's already a full URL, use it directly
+        if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
+          imagePreview = imagePath;
+        } 
+        // If it starts with /, prepend baseURL
+        else if (imagePath.startsWith('/')) {
+          imagePreview = `${baseURL}${imagePath}`;
+        } 
+        // Otherwise prepend baseURL with /
+        else {
+          imagePreview = `${baseURL}/${imagePath}`;
+        }
+        console.log("Image preview URL:", imagePreview);
+      }
       
       setFormData((prevData) => ({
         ...prevData,
@@ -819,7 +842,9 @@ const handleBarcodeChange = async (code) => {
         festival_discount: "",
         custom_purity: "",
         assigned_id: assignedProduct.assigned_id,
-        item_id: assignedProduct.item_id
+        item_id: assignedProduct.item_id,
+        image: imagePath,
+        imagePreview: imagePreview,
       }));
       setIsQtyEditable(false);
       return;
@@ -859,6 +884,8 @@ const handleBarcodeChange = async (code) => {
         qty: 1,
         festival_discount: "",
         custom_purity: "",
+        image: null,
+        imagePreview: null,
       }));
       setIsQtyEditable(true);
       return;
@@ -906,6 +933,59 @@ const handleBarcodeChange = async (code) => {
         rateValue = rates.silver_rate || "";
       }
 
+      // Try to get image from stock transfer or assigned product
+      let imagePath = null;
+      let imagePreview = null;
+      
+      try {
+        // First check if this product has an image in assigned_salesman_items
+        const assignedProduct = selectedSalesmanProducts?.find(
+          (prod) => String(prod.PCode_BarCode) === String(code)
+        );
+        if (assignedProduct && assignedProduct.image) {
+          imagePath = assignedProduct.image;
+          if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
+            imagePreview = imagePath;
+          } else if (imagePath.startsWith('/')) {
+            imagePreview = `${baseURL}${imagePath}`;
+          } else {
+            imagePreview = `${baseURL}/${imagePath}`;
+          }
+        } else {
+          // Try to get from stock transfer
+          const stockTransferResponse = await axios.get(`${baseURL}/api/stock-transfer/get-stock-transfers`);
+          if (stockTransferResponse.data && Array.isArray(stockTransferResponse.data)) {
+            for (const transfer of stockTransferResponse.data) {
+              try {
+                const transferDetailsResponse = await axios.get(`${baseURL}/api/stock-transfer/get-stock-transfer/${transfer.transfer_id}`);
+                if (transferDetailsResponse.data && transferDetailsResponse.data.transfer_items) {
+                  const matchingItem = transferDetailsResponse.data.transfer_items.find(
+                    item => item.PCode_BarCode === String(code)
+                  );
+                  if (matchingItem && matchingItem.image) {
+                    imagePath = matchingItem.image;
+                    if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
+                      imagePreview = imagePath;
+                    } else if (imagePath.startsWith('/')) {
+                      imagePreview = `${baseURL}${imagePath}`;
+                    } else {
+                      imagePreview = `${baseURL}/${imagePath}`;
+                    }
+                    break;
+                  }
+                }
+              } catch (innerError) {
+                console.error("Error fetching transfer details:", innerError);
+                continue;
+              }
+            }
+          }
+        }
+      } catch (imageError) {
+        console.error("Error fetching image:", imageError);
+        // Continue without image if fetch fails
+      }
+
       setFormData((prevData) => ({
         ...prevData,
         code: tag.PCode_BarCode || "",
@@ -936,6 +1016,8 @@ const handleBarcodeChange = async (code) => {
         tax_percent: productDetails?.tax_slab || tag.tax_percent || "03% GST",
         qty: 1,
         rate: rateValue,
+        image: imagePath,
+        imagePreview: imagePreview,
       }));
       setIsQtyEditable(false);
       return;
@@ -977,6 +1059,8 @@ const handleBarcodeChange = async (code) => {
       sale_status: "Delivered",
       piece_taxable_amt: "",
       festival_discount: "",
+      image: null,
+      imagePreview: null,
     }));
     setIsQtyEditable(true);
     
@@ -984,6 +1068,7 @@ const handleBarcodeChange = async (code) => {
     console.error("Error handling code change:", error);
   }
 };
+
 
   const handleImageChange = (e) => {
     const file = e.target.files[0];
@@ -998,7 +1083,7 @@ const handleBarcodeChange = async (code) => {
   };
 
   const clearImage = () => {
-    setFormData((prev) => ({ ...prev, imagePreview: null }));
+    setFormData((prev) => ({ ...prev, imagePreview: null, image: null }));
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }

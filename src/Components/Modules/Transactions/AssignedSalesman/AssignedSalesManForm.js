@@ -1331,6 +1331,7 @@ const handleAdd = () => {
           ? parseFloat(formData.rate).toFixed(2)
           : "",
       imagePreview: formData.imagePreview,
+      image: formData.image, // Include image path from stock transfer
     },
   ];
 
@@ -1346,6 +1347,7 @@ const handleAdd = () => {
     disscount_percentage: "",
     pieace_cost: "",
     imagePreview: null,
+    image: null,
     sale_status: "Delivered",
     piece_taxable_amt: "",
     festival_discount: "",
@@ -2441,6 +2443,7 @@ const handleSave = async () => {
       making_charges: parseFloat(item.making_charges) || 0,
       stone_price: parseFloat(item.stone_price) || 0,
       total_price: parseFloat(item.total_price) || 0,
+      image: item.image || null, // Include image path
       remarks: item.remarks || null,
       PCode_BarCode: item.code
     }));
@@ -2450,7 +2453,7 @@ const handleSave = async () => {
       from_stock_point_id: parseInt(formData.active_stock_point_id),
       to_salesman_id: parseInt(selectedSalesman.salesman_id),
       transfer_date: formData.date || new Date().toISOString().split('T')[0],
-      reference_number: nextAssignedNumber,  // This will be ASN001 format
+      reference_number: nextAssignedNumber,
       remarks: `Assigned to ${selectedSalesman.salesman_name} from ${activeStockPointDetails.stock_point_name}`,
       created_by: formData.account_name || "system",
       from_user_id: activeStockPointDetails.user_id || null,

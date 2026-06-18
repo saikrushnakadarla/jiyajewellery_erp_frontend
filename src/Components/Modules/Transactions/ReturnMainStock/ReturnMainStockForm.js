@@ -95,6 +95,42 @@ useEffect(() => {
   fetchEstimates();
 }, []);
 
+// Function to fetch image from received_salesman_items for a given barcode
+const fetchImageForBarcode = async (barcode) => {
+  try {
+    // First check if we already have the image in selectedSalesmanProducts
+    const existingProduct = selectedSalesmanProducts.find(
+      p => p.PCode_BarCode === barcode
+    );
+    if (existingProduct && existingProduct.image) {
+      return existingProduct.image;
+    }
+    
+    // If not, fetch from received_salesman_items
+    const response = await axios.get(`${baseURL}/api/received-salesman/get-received-transfers`);
+    const transfers = response.data || [];
+    
+    // Look through all transfers for items with this barcode
+    for (const transfer of transfers) {
+      try {
+        const detailResponse = await axios.get(`${baseURL}/api/received-salesman/get-received-transfer/${transfer.received_id}`);
+        const items = detailResponse.data?.transfer_items || [];
+        const foundItem = items.find(item => item.PCode_BarCode === barcode);
+        if (foundItem && foundItem.image) {
+          return foundItem.image;
+        }
+      } catch (e) {
+        console.error("Error fetching transfer details:", e);
+        continue;
+      }
+    }
+    return null;
+  } catch (error) {
+    console.error("Error fetching image for barcode:", error);
+    return null;
+  }
+};
+
 // Also modify the existing stock fetch to include estimate data
 // Update the useEffect that fetches stock to combine with estimate data
 useEffect(() => {
@@ -185,18 +221,23 @@ useEffect(() => {
       });
       setEstimatedProducts(estMap);
       
-      // Combine stock data with estimate info
-      const combinedStock = filteredStock.map(item => ({
-        ...item,
-        packetBarcode: estMap[item.PCode_BarCode]?.packetBarcode || null,
-        isEstimated: !!estMap[item.PCode_BarCode]?.packetBarcode,
-        estimateInfo: estMap[item.PCode_BarCode] || null
-      }));
+      // Fetch images for each product from received_salesman_items
+      const productsWithImages = [];
+      for (const item of filteredStock) {
+        const imagePath = await fetchImageForBarcode(item.PCode_BarCode);
+        productsWithImages.push({
+          ...item,
+          image: imagePath,
+          packetBarcode: estMap[item.PCode_BarCode]?.packetBarcode || null,
+          isEstimated: !!estMap[item.PCode_BarCode]?.packetBarcode,
+          estimateInfo: estMap[item.PCode_BarCode] || null
+        });
+      }
       
-      console.log("Combined stock with estimate data:", combinedStock);
+      console.log("Combined stock with estimate data and images:", productsWithImages);
       
       // Extract unique barcodes for dropdown - only show items with Status = "Selected"
-      const uniqueBarcodes = [...new Map(combinedStock.map(item => 
+      const uniqueBarcodes = [...new Map(productsWithImages.map(item => 
         [item.PCode_BarCode, { 
           PCode_BarCode: item.PCode_BarCode, 
           product_name: item.product_Name || item.sub_category || "",
@@ -220,13 +261,14 @@ useEffect(() => {
           stock_point: item.Stock_Point,
           user_id: item.user_id,
           packetBarcode: estMap[item.PCode_BarCode]?.packetBarcode || null,
-          isEstimated: !!estMap[item.PCode_BarCode]?.packetBarcode
+          isEstimated: !!estMap[item.PCode_BarCode]?.packetBarcode,
+          image: item.image || null // Include image
         }
       ])).values()];
       
-      console.log("Unique Barcodes for dropdown:", uniqueBarcodes.length, uniqueBarcodes.map(b => b.PCode_BarCode));
+      console.log("Unique Barcodes for dropdown:", uniqueBarcodes.length, uniqueBarcodes.map(b => ({ code: b.PCode_BarCode, hasImage: !!b.image })));
       setSelectedSalesmanProducts(uniqueBarcodes);
-      setStock(combinedStock);
+      setStock(productsWithImages);
       console.log("========== END DEBUG ==========");
       
     } catch (error) {
@@ -287,7 +329,8 @@ useEffect(() => {
         stone_price: item.stone_price,
         total_price: item.total_price,
         assigned_id: item.assigned_id,
-        item_id: item.item_id
+        item_id: item.item_id,
+        image: item.image || null // Include image from assigned products
       }
     ])).values()];
     
@@ -1655,6 +1698,29 @@ const handleAdd = () => {
     return;
   }
 
+  // Get image from selectedSalesmanProducts if available
+  const assignedProduct = selectedSalesmanProducts.find(
+    p => p.PCode_BarCode === formData.code
+  );
+  
+  // Get image from formData or assigned product
+  let imageToSave = formData.image || null;
+  let imagePreviewToSave = formData.imagePreview || null;
+  
+  if (!imageToSave && assignedProduct?.image) {
+    imageToSave = assignedProduct.image;
+    // Build preview URL if image exists
+    if (imageToSave) {
+      if (imageToSave.startsWith('http://') || imageToSave.startsWith('https://')) {
+        imagePreviewToSave = imageToSave;
+      } else if (imageToSave.startsWith('/')) {
+        imagePreviewToSave = `${baseURL}${imageToSave}`;
+      } else {
+        imagePreviewToSave = `${baseURL}/${imageToSave}`;
+      }
+    }
+  }
+
   const updatedRepairDetails = [
     ...repairDetails,
     {
@@ -1667,7 +1733,8 @@ const handleAdd = () => {
         formData.rate && parseFloat(formData.rate) > 0
           ? parseFloat(formData.rate).toFixed(2)
           : "",
-      imagePreview: formData.imagePreview,
+      imagePreview: imagePreviewToSave || formData.imagePreview,
+      image: imageToSave || formData.image,
       is_packet_selection: formData.is_packet_selection || false,
       packet_barcode: formData.packet_barcode || null
     },

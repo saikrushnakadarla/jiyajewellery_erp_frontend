@@ -1,9 +1,9 @@
 // StockInward.js
-import React, { useEffect, useState, useContext } from 'react';
+import React, { useEffect, useState, useContext, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import DataTable from '../../../Pages/InputField/TableLayout';
-import { FaEye, FaEdit, FaTrash } from 'react-icons/fa';
-import { Button, Row, Col, Modal, Table } from 'react-bootstrap';
+import { FaEye, FaEdit, FaTrash, FaImage } from 'react-icons/fa';
+import { Button, Row, Col, Modal, Table, Badge, Spinner } from 'react-bootstrap';
 import axios from 'axios';
 import baseURL from '../../../../Url/NodeBaseURL';
 import { AuthContext } from "../../../Pages/Login/Context";
@@ -20,6 +20,14 @@ const StockInward = () => {
   const { authToken, userId, userName, role } = useContext(AuthContext);
   const { mobile } = location.state || {};
   const initialSearchValue = location.state?.mobile || '';
+
+  // State for image preview modal
+  const [showImageModal, setShowImageModal] = useState(false);
+  const [selectedImage, setSelectedImage] = useState(null);
+  const [selectedItemName, setSelectedItemName] = useState('');
+
+  // Cache for transfer items
+  const [transferItemsCache, setTransferItemsCache] = useState({});
 
   // Get logged-in user's stock name from localStorage
   const getLoggedInStockName = () => {
@@ -86,6 +94,174 @@ const StockInward = () => {
     );
   };
 
+  /**
+   * Handle image click - opens image preview modal
+   */
+  const handleImageClick = (imagePath, itemName) => {
+    if (imagePath) {
+      const imageUrl = imagePath.startsWith('http') 
+        ? imagePath 
+        : `${baseURL}${imagePath}`;
+      setSelectedImage(imageUrl);
+      setSelectedItemName(itemName || 'Product Image');
+      setShowImageModal(true);
+    }
+  };
+
+  /**
+   * Get all images from transfer items
+   */
+  const getTransferImages = (transfer) => {
+    const cachedItems = transferItemsCache[transfer.transfer_id];
+    if (cachedItems && cachedItems.length > 0) {
+      return cachedItems
+        .filter(item => item.image)
+        .map(item => ({
+          image: item.image,
+          productName: item.product_name || 'Product',
+          itemId: item.item_id || Math.random()
+        }));
+    }
+    return [];
+  };
+
+  /**
+   * Render image thumbnail
+   */
+  const renderImageThumbnail = (imagePath, itemName, size = '40px') => {
+    if (!imagePath) {
+      return (
+        <div style={{
+          width: size,
+          height: size,
+          backgroundColor: '#f0f0f0',
+          borderRadius: '4px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: '#999',
+          fontSize: '12px'
+        }}>
+          <FaImage />
+        </div>
+      );
+    }
+
+    const imageUrl = imagePath.startsWith('http') 
+      ? imagePath 
+      : `${baseURL}${imagePath}`;
+
+    return (
+      <div 
+        style={{
+          width: size,
+          height: size,
+          borderRadius: '4px',
+          overflow: 'hidden',
+          cursor: 'pointer',
+          border: '1px solid #ddd',
+          position: 'relative',
+          flexShrink: 0
+        }}
+        onClick={() => handleImageClick(imageUrl, itemName)}
+      >
+        <img 
+          src={imageUrl} 
+          alt={itemName || 'Product'} 
+          style={{
+            width: '100%',
+            height: '100%',
+            objectFit: 'cover'
+          }}
+          onError={(e) => {
+            e.target.onerror = null;
+            e.target.style.display = 'none';
+            const parent = e.target.parentElement;
+            parent.innerHTML = `
+              <div style="display:flex;align-items:center;justify-content:center;width:100%;height:100%;background:#f0f0f0;color:#999;font-size:12px;">
+                <i class="fa fa-image"></i>
+              </div>
+            `;
+          }}
+        />
+      </div>
+    );
+  };
+
+  /**
+   * Render multiple images for a transfer
+   */
+  const renderTransferImages = (transfer, maxDisplay = 3) => {
+    const images = getTransferImages(transfer);
+    
+    if (images.length === 0) {
+      return (
+        <span className="text-muted" style={{ fontSize: '12px' }}>No image</span>
+      );
+    }
+
+    const displayImages = images.slice(0, maxDisplay);
+    const remainingCount = images.length - maxDisplay;
+
+    return (
+      <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+        {displayImages.map((img, index) => (
+          <div key={index} style={{ position: 'relative' }}>
+            {renderImageThumbnail(img.image, img.productName, '40px')}
+          </div>
+        ))}
+        {remainingCount > 0 && (
+          <div style={{
+            width: '40px',
+            height: '40px',
+            borderRadius: '4px',
+            backgroundColor: '#a36e29',
+            color: 'white',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: '12px',
+            fontWeight: 'bold'
+          }}>
+            +{remainingCount}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  /**
+   * Fetch transfer items for a specific transfer
+   */
+  const fetchTransferItems = async (transferId) => {
+    if (transferItemsCache[transferId]) {
+      return; // Already cached
+    }
+
+    try {
+      const response = await axios.get(`${baseURL}/api/stock-transfer/get-stock-transfer/${transferId}`);
+      if (response.data && response.data.transfer_items) {
+        setTransferItemsCache(prev => ({
+          ...prev,
+          [transferId]: response.data.transfer_items
+        }));
+      }
+    } catch (error) {
+      console.error(`Error fetching items for transfer ${transferId}:`, error);
+    }
+  };
+
+  /**
+   * Fetch items for all transfers in the list
+   */
+  const fetchAllTransferItems = async (transfers) => {
+    const fetchPromises = transfers.map(transfer => 
+      fetchTransferItems(transfer.transfer_id)
+    );
+    await Promise.allSettled(fetchPromises);
+  };
+
+  // Columns with Images
   const columns = React.useMemo(
     () => [
       {
@@ -128,6 +304,17 @@ const StockInward = () => {
         accessor: 'total_net_weight',
       },
       {
+        Header: 'Images',
+        id: 'images',
+        Cell: ({ row }) => {
+          const transfer = row.original;
+          if (!transferItemsCache[transfer.transfer_id]) {
+            fetchTransferItems(transfer.transfer_id);
+          }
+          return renderTransferImages(transfer, 2);
+        },
+      },
+      {
         Header: 'Actions',
         id: 'actions',
         Cell: ({ row }) => {
@@ -142,7 +329,7 @@ const StockInward = () => {
         },
       },
     ],
-    []
+    [transferItemsCache]
   );
 
   const fetchStockTransfers = async () => {
@@ -153,7 +340,6 @@ const StockInward = () => {
       
       // Filter data based on logged-in user's stock name matching to_stock_point_name
       const filtered = response.data.filter(transfer => {
-        // Case-insensitive comparison
         const toStockPoint = transfer.to_stock_point_name?.toUpperCase().trim();
         const loggedStock = loggedInStockName?.toUpperCase().trim();
         
@@ -171,6 +357,12 @@ const StockInward = () => {
       
       setData(response.data);
       setFilteredData(filtered);
+      
+      // Fetch items for filtered transfers
+      if (filtered && filtered.length > 0) {
+        await fetchAllTransferItems(filtered);
+      }
+      
       setLoading(false);
     } catch (error) {
       console.error('Error fetching stock transfers:', error);
@@ -195,6 +387,12 @@ const StockInward = () => {
     setTransferDetails(null);
   };
 
+  const handleCloseImageModal = () => {
+    setShowImageModal(false);
+    setSelectedImage(null);
+    setSelectedItemName('');
+  };
+
   useEffect(() => {
     fetchStockTransfers();
   }, []);
@@ -204,6 +402,20 @@ const StockInward = () => {
     console.log("Current logged-in stock name:", loggedInStockName);
   }, [loggedInStockName]);
 
+  if (loading) {
+    return (
+      <div className="main-container">
+        <div className="sales-table-container">
+          <div className="d-flex justify-content-center align-items-center" style={{ height: '50vh' }}>
+            <Spinner animation="border" role="status">
+              <span className="visually-hidden">Loading...</span>
+            </Spinner>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="main-container">
       <div className="sales-table-container">
@@ -211,18 +423,16 @@ const StockInward = () => {
           <Col className="d-flex justify-content-between align-items-center">
             <div>
               <h3>Stock Inward</h3>
-              {/* {loggedInStockName && (
+              {filteredData.length > 0 && (
                 <p className="text-muted mb-0" style={{ fontSize: '14px' }}>
                   Showing inward transfers for: <strong>{loggedInStockName}</strong>
                 </p>
-              )} */}
+              )}
             </div>
           </Col>
         </Row>
         
-        {loading ? (
-          <p>Loading...</p>
-        ) : filteredData.length === 0 ? (
+        {filteredData.length === 0 ? (
           <div className="text-center p-5">
             <p>No stock inward transfers found for <strong>{loggedInStockName}</strong></p>
           </div>
@@ -235,6 +445,7 @@ const StockInward = () => {
         )}
       </div>
 
+      {/* Modal for Transfer Details */}
       <Modal show={showModal} onHide={handleCloseModal} size="xl" className="m-auto">
         <Modal.Header closeButton>
           <Modal.Title>Stock Transfer Details - Inward</Modal.Title>
@@ -299,6 +510,7 @@ const StockInward = () => {
                   <thead style={{ whiteSpace: 'nowrap', fontSize: '13px' }}>
                     <tr>
                       <th>SI</th>
+                      <th style={{ width: '60px' }}>Image</th>
                       <th>Product Name</th>
                       <th>Metal Type</th>
                       <th>Purity</th>
@@ -319,6 +531,9 @@ const StockInward = () => {
                     {transferDetails.transfer_items.map((item, index) => (
                       <tr key={index}>
                         <td>{index + 1}</td>
+                        <td>
+                          {renderImageThumbnail(item.image, item.product_name || 'Product', '50px')}
+                        </td>
                         <td>{item.product_name || 'N/A'}</td>
                         <td>{item.metal_type || 'N/A'}</td>
                         <td>{item.purity || 'N/A'}</td>
@@ -336,13 +551,12 @@ const StockInward = () => {
                       </tr>
                     ))}
                     <tr style={{ fontWeight: 'bold', backgroundColor: '#f8f9fa' }}>
-                      <td colSpan="7" className="text-end"><strong>Totals:</strong></td>
+                      <td colSpan="8" className="text-end"><strong>Totals:</strong></td>
                       <td><strong>{transferDetails.transfer_items.reduce((sum, item) => sum + parseFloat(item.qty || 0), 0).toFixed(3)}</strong></td>
                       <td><strong>{transferDetails.transfer_items.reduce((sum, item) => sum + parseFloat(item.gross_weight || 0), 0).toFixed(3)}</strong></td>
                       <td><strong>{transferDetails.transfer_items.reduce((sum, item) => sum + parseFloat(item.stone_weight || 0), 0).toFixed(3)}</strong></td>
                       <td><strong>{transferDetails.transfer_items.reduce((sum, item) => sum + parseFloat(item.net_weight || 0), 0).toFixed(3)}</strong></td>
-                      <td colSpan="2"></td>
-                      <td></td>
+                      <td colSpan="3"></td>
                       <td><strong>{transferDetails.transfer_items.reduce((sum, item) => sum + parseFloat(item.total_price || 0), 0).toFixed(2)}</strong></td>
                     </tr>
                   </tbody>
@@ -353,6 +567,41 @@ const StockInward = () => {
         </Modal.Body>
         <Modal.Footer>
           <Button variant="secondary" onClick={handleCloseModal}>
+            Close
+          </Button>
+        </Modal.Footer>
+      </Modal>
+
+      {/* Image Preview Modal */}
+      <Modal show={showImageModal} onHide={handleCloseImageModal} centered size="lg">
+        <Modal.Header closeButton>
+          <Modal.Title>{selectedItemName}</Modal.Title>
+        </Modal.Header>
+        <Modal.Body className="text-center">
+          {selectedImage && (
+            <img 
+              src={selectedImage} 
+              alt={selectedItemName}
+              style={{
+                maxWidth: '100%',
+                maxHeight: '70vh',
+                objectFit: 'contain',
+                borderRadius: '8px'
+              }}
+              onError={(e) => {
+                e.target.onerror = null;
+                e.target.src = '';
+                e.target.parentElement.innerHTML = `
+                  <div style="display:flex;align-items:center;justify-content:center;height:200px;background:#f0f0f0;border-radius:8px;color:#999;">
+                    <p>Image not available</p>
+                  </div>
+                `;
+              }}
+            />
+          )}
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={handleCloseImageModal}>
             Close
           </Button>
         </Modal.Footer>

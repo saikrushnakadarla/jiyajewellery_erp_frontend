@@ -2337,7 +2337,7 @@ const StockTransferForm = () => {
   //   }
   // };
 
- const handleSave = async () => {
+const handleSave = async () => {
   try {
     const activeStockPointDetails = formData.active_stock_point_details;
     const otherStockPointDetails = formData.other_stock_point_details;
@@ -2373,7 +2373,7 @@ const StockTransferForm = () => {
 
     console.log("Saving with Transfer Number:", nextTransferNumber);
 
-    // IMPORTANT: Include PCode_BarCode and user_id from stock points
+    // IMPORTANT: Include PCode_BarCode, image, and user_id from stock points
     const transferData = repairDetails.map(item => ({
       product_id: item.product_id || null,
       product_name: item.product_name || null,
@@ -2391,7 +2391,8 @@ const StockTransferForm = () => {
       stone_price: parseFloat(item.stone_price) || 0,
       total_price: parseFloat(item.total_price) || 0,
       remarks: item.remarks || null,
-      PCode_BarCode: item.code  // KEY: Add PCode_BarCode for stock point update
+      PCode_BarCode: item.code,  // KEY: Add PCode_BarCode for stock point update
+      image: item.imagePreview || item.image || null  // Add image field
     }));
 
     const payload = {

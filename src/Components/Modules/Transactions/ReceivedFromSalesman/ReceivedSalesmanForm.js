@@ -172,7 +172,7 @@ useEffect(() => {
   // );
 
 
-  const fetchAssignedProductsBySalesman = async (salesmanId) => {
+ const fetchAssignedProductsBySalesman = async (salesmanId) => {
   if (!salesmanId) {
     setAssignedProducts([]);
     setSelectedSalesmanProducts([]);
@@ -181,14 +181,14 @@ useEffect(() => {
   
   try {
     console.log("Fetching assigned products for salesman ID:", salesmanId);
-    const response = await axios.get(`${baseURL}/api/assigned-salesman/get-assigned-products-by-salesman`, {
+    const response = await axios.get(`${baseURL}/api/received-salesman/get-assigned-products-by-salesman`, {
       params: { salesman_id: salesmanId }
     });
     
     console.log("Assigned products fetched:", response.data);
     setAssignedProducts(response.data);
     
-    // Extract unique PCode_BarCode values for dropdown
+    // Extract unique PCode_BarCode values with image
     const uniqueBarcodes = [...new Map(response.data.map(item => 
       [item.PCode_BarCode, { 
         PCode_BarCode: item.PCode_BarCode, 
@@ -208,7 +208,8 @@ useEffect(() => {
         stone_price: item.stone_price,
         total_price: item.total_price,
         assigned_id: item.assigned_id,
-        item_id: item.item_id
+        item_id: item.item_id,
+        image: item.image || null // Make sure image is included
       }
     ])).values()];
     
@@ -1568,6 +1569,17 @@ const handleAdd = () => {
     return;
   }
 
+  // Get image from selectedSalesmanProducts if available
+  const assignedProduct = selectedSalesmanProducts.find(
+    p => p.PCode_BarCode === formData.code
+  );
+  
+  // Get image from formData or assigned product
+  let imageToSave = formData.image || null;
+  if (!imageToSave && assignedProduct?.image) {
+    imageToSave = assignedProduct.image;
+  }
+
   const updatedRepairDetails = [
     ...repairDetails,
     {
@@ -1581,6 +1593,7 @@ const handleAdd = () => {
           ? parseFloat(formData.rate).toFixed(2)
           : "",
       imagePreview: formData.imagePreview,
+      image: imageToSave, // Use the image from formData or assigned product
       is_packet_selection: formData.is_packet_selection || false,
       packet_barcode: formData.packet_barcode || null
     },
@@ -2704,8 +2717,10 @@ const handleSave = async () => {
       total_price: parseFloat(item.total_price) || 0,
       remarks: item.remarks || null,
       PCode_BarCode: item.code,
-      is_packet_selection: item.is_packet_selection || false,  // Add this
-      packet_barcode: item.packet_barcode || null              // Add this
+      is_packet_selection: item.is_packet_selection || false,
+      packet_barcode: item.packet_barcode || null,
+      // Preserve image from assigned product
+      image: item.image || null
     }));
 
     // Build payload for Received Salesman API
@@ -2719,7 +2734,7 @@ const handleSave = async () => {
       created_by: formData.account_name || "system",
       from_user_id: selectedSalesman.salesman_id ? parseInt(selectedSalesman.salesman_id) : null,
       to_user_id: loggedInUserId,
-      is_packet_selection: hasPacketSelection  // Add this flag
+      is_packet_selection: hasPacketSelection
     };
 
     console.log("Sending Received Salesman Payload:", payload);

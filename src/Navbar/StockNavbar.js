@@ -97,7 +97,7 @@ function StockNavbar() {
         </div> 
 
 
-          <div>
+          {/* <div>
           <Link
             to="/selections"
             onClick={handleItemClick}
@@ -109,7 +109,7 @@ function StockNavbar() {
           >
             SELECTIONS
           </Link>
-        </div>
+        </div> */}
 
         {/* Assign to Salesman Link */}
         <div>

@@ -241,6 +241,18 @@ const ProductDetails = ({
     }
   }, [formData.category, defaultBarcode]);
 
+  // Helper function to build image URL for display
+  const getImageUrl = (imagePath) => {
+    if (!imagePath) return null;
+    if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
+      return imagePath;
+    }
+    if (imagePath.startsWith('/')) {
+      return `${baseURL}${imagePath}`;
+    }
+    return `${baseURL}/${imagePath}`;
+  };
+
   // Handle barcode selection - for packet barcodes, add all products
   const handleBarcodeSelect = (selectedValue) => {
     const selectedOption = uniqueBarcodeOptions.find(opt => opt.value === selectedValue);
@@ -269,10 +281,21 @@ const ProductDetails = ({
           return;
         }
         
-        // Add all new products to repairDetails
-        const updatedRepairDetails = [
-          ...storedRepairDetails,
-          ...newProducts.map(product => ({
+        // Get the image for each product from selectedSalesmanProducts
+        const productsWithImages = newProducts.map(product => {
+          // Find the assigned product to get its image
+          const assignedProduct = selectedSalesmanProducts?.find(
+            p => p.PCode_BarCode === product.code
+          );
+          
+          let imagePath = assignedProduct?.image || null;
+          let imagePreview = null;
+          
+          if (imagePath) {
+            imagePreview = getImageUrl(imagePath);
+          }
+          
+          return {
             ...product,
             // Map fields to match formData structure
             code: product.code,
@@ -302,7 +325,8 @@ const ProductDetails = ({
             packet_barcode: selectedOption.packetBarcode,
             is_estimated: true,
             design_name: product.design_name,
-            imagePreview: null,
+            imagePreview: imagePreview,
+            image: imagePath,
             sale_status: "Delivered",
             piece_taxable_amt: product.piece_taxable_amt || "",
             festival_discount: product.festival_discount || "",
@@ -312,9 +336,16 @@ const ProductDetails = ({
             remarks: product.remarks || "",
             printing_purity: product.printing_purity || "",
             selling_purity: product.selling_purity || "",
-            is_packet_selection: true,  // Add this flag for packet selections
-            packet_barcode: selectedOption.packetBarcode
-          }))
+            is_packet_selection: true,
+            assigned_id: assignedProduct?.assigned_id || null,
+            item_id: assignedProduct?.item_id || null
+          };
+        });
+        
+        // Add all new products to repairDetails
+        const updatedRepairDetails = [
+          ...storedRepairDetails,
+          ...productsWithImages
         ];
         
         // Use setRepairDetails to update state
@@ -358,6 +389,7 @@ const ProductDetails = ({
           selling_purity: '',
           printing_purity: '',
           imagePreview: null,
+          image: null,
           disscount: '',
           disscount_percentage: '',
           pieace_cost: '',
@@ -546,6 +578,9 @@ const ProductDetails = ({
     formData.pricing,
   ]);
 
+  // Get the current image to display
+  const displayImage = formData.imagePreview || (formData.image ? getImageUrl(formData.image) : null);
+
   return (
     <Col>
       <Row>
@@ -560,7 +595,7 @@ const ProductDetails = ({
             // autoFocus
           />
           {/* Display packet barcode if available */}
-          {/* {formData.packet_barcode && (
+          {formData.packet_barcode && (
             <div style={{ fontSize: "12px", color: "#a36e29", marginTop: "2px", fontWeight: "bold" }}>
               Packet: {formData.packet_barcode}
             </div>
@@ -574,7 +609,7 @@ const ProductDetails = ({
             <div style={{ fontSize: "11px", color: "#a36e29", marginTop: "2px", fontWeight: "bold" }}>
               ✓ Packet Added - Select another or clear
             </div>
-          )} */}
+          )}
         </Col>
 
         <Col xs={12} md={2} className="d-flex align-items-center">
@@ -742,15 +777,21 @@ const ProductDetails = ({
                   </Button>
                 </div>
               )}
-              {formData.imagePreview && (
+              {displayImage && (
                 <div style={{ position: "relative", display: "inline-block", marginTop: "10px" }}>
                   <img
-                    src={formData.imagePreview}
+                    src={displayImage}
                     alt="Selected"
                     style={{
                       width: "100px",
                       height: "100px",
                       borderRadius: "8px",
+                      objectFit: "cover"
+                    }}
+                    onError={(e) => {
+                      e.target.onerror = null;
+                      e.target.src = '';
+                      e.target.alt = 'Image not available';
                     }}
                   />
                   <button
@@ -979,15 +1020,21 @@ const ProductDetails = ({
                   </Button>
                 </div>
               )}
-              {formData.imagePreview && (
+              {displayImage && (
                 <div style={{ position: "relative", display: "inline-block", marginTop: "10px" }}>
                   <img
-                    src={formData.imagePreview}
+                    src={displayImage}
                     alt="Selected"
                     style={{
                       width: "100px",
                       height: "100px",
                       borderRadius: "8px",
+                      objectFit: "cover"
+                    }}
+                    onError={(e) => {
+                      e.target.onerror = null;
+                      e.target.src = '';
+                      e.target.alt = 'Image not available';
                     }}
                   />
                   <button

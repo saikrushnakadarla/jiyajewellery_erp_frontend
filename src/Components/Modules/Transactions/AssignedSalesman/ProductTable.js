@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Table, Button, Modal, Row, Col } from 'react-bootstrap';
 import { FaEdit, FaTrash, FaEye } from 'react-icons/fa';
+import baseURL from './../../../../Url/NodeBaseURL';
 import "./ProductTable.css";
 
 const ProductTable = ({ repairDetails, onDelete, onEdit }) => {
@@ -12,6 +13,21 @@ const ProductTable = ({ repairDetails, onDelete, onEdit }) => {
   const handleView = (detail) => {
     setSelectedDetail(detail);
     setShowModal(true);
+  };
+
+  // Function to get image URL
+  const getImageUrl = (imagePath) => {
+    if (!imagePath) return null;
+    // If it's already a full URL, return it
+    if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
+      return imagePath;
+    }
+    // If it's a relative path, prepend baseURL
+    if (imagePath.startsWith('/')) {
+      return `${baseURL}${imagePath}`;
+    }
+    // If it's just a filename or path without leading slash
+    return `${baseURL}/${imagePath}`;
   };
 
   return (
@@ -37,56 +53,71 @@ const ProductTable = ({ repairDetails, onDelete, onEdit }) => {
         </thead>
         <tbody>
           {repairDetails.length > 0 ? (
-            repairDetails.map((detail, index) => (
-              <tr key={index} className='table-values-sales'>
-                <td>{index + 1}</td>
-                <td>{detail.code}</td>
-                <td>{detail.product_name}</td>
-                <td>{detail.metal_type}</td>
-                <td>
-                  {detail.pricing === 'By Weight'
-                    ? (detail.selling_purity !== undefined && detail.selling_purity !== '' ? detail.selling_purity : detail.purity)
-                    : (detail.printing_purity !== undefined && detail.printing_purity !== '' ? detail.printing_purity : detail.purity)}
-                </td>
-                <td>{detail.gross_weight}</td>
-                <td>{detail.stone_weight}</td>
-                <td>{detail.va_percent}</td>
-                <td>{detail.total_weight_av}</td>
-                <td>{detail.pieace_cost ? detail.pieace_cost : detail.rate}</td>
-                <td>{detail.making_charges}</td>
-                <td>{detail.total_price}</td>
-                <td>
-                  {detail.imagePreview ? (
-                    <img
-                      src={detail.imagePreview}
-                      alt="Uploaded"
-                      style={{ width: "50px", height: "50px" }}
-                    />
-                  ) : (
-                    "No Image"
-                  )}
-                </td>
-                <td>
-                  <div style={{ display: "flex", alignItems: "center" }}>
-                    <FaEye
-                      onClick={() => handleView(detail)}
-                      style={{ cursor: 'pointer', marginLeft: '10px', color: 'green' }}
-                    />
-                    <FaEdit
-                      onClick={() => {
-                        onEdit(index);
-                        setTimeout(() => onEdit(index), 1);
-                      }}
-                      style={{ cursor: "pointer", marginLeft: "10px", color: "blue" }}
-                    />
-                    <FaTrash
-                      style={{ cursor: "pointer", marginLeft: "10px", color: "red" }}
-                      onClick={() => onDelete(index)}
-                    />
-                  </div>
-                </td>
-              </tr>
-            ))
+            repairDetails.map((detail, index) => {
+              // Try to get image from multiple sources
+              let imageUrl = null;
+              if (detail.image) {
+                imageUrl = getImageUrl(detail.image);
+              } else if (detail.imagePreview) {
+                imageUrl = detail.imagePreview;
+              }
+              
+              return (
+                <tr key={index} className='table-values-sales'>
+                  <td>{index + 1}</td>
+                  <td>{detail.code}</td>
+                  <td>{detail.product_name}</td>
+                  <td>{detail.metal_type}</td>
+                  <td>
+                    {detail.pricing === 'By Weight'
+                      ? (detail.selling_purity !== undefined && detail.selling_purity !== '' ? detail.selling_purity : detail.purity)
+                      : (detail.printing_purity !== undefined && detail.printing_purity !== '' ? detail.printing_purity : detail.purity)}
+                  </td>
+                  <td>{detail.gross_weight}</td>
+                  <td>{detail.stone_weight}</td>
+                  <td>{detail.va_percent}</td>
+                  <td>{detail.total_weight_av}</td>
+                  <td>{detail.pieace_cost ? detail.pieace_cost : detail.rate}</td>
+                  <td>{detail.making_charges}</td>
+                  <td>{detail.total_price}</td>
+                  <td>
+                    {imageUrl ? (
+                      <img
+                        src={imageUrl}
+                        alt="Product"
+                        style={{ width: "50px", height: "50px", objectFit: "cover" }}
+                        onError={(e) => {
+                          e.target.onerror = null;
+                          e.target.src = '';
+                          e.target.alt = 'Image not available';
+                        }}
+                      />
+                    ) : (
+                      "No Image"
+                    )}
+                  </td>
+                  <td>
+                    <div style={{ display: "flex", alignItems: "center" }}>
+                      <FaEye
+                        onClick={() => handleView(detail)}
+                        style={{ cursor: 'pointer', marginLeft: '10px', color: 'green' }}
+                      />
+                      <FaEdit
+                        onClick={() => {
+                          onEdit(index);
+                          setTimeout(() => onEdit(index), 1);
+                        }}
+                        style={{ cursor: "pointer", marginLeft: "10px", color: "blue" }}
+                      />
+                      <FaTrash
+                        style={{ cursor: "pointer", marginLeft: "10px", color: "red" }}
+                        onClick={() => onDelete(index)}
+                      />
+                    </div>
+                  </td>
+                </tr>
+              );
+            })
           ) : (
             <tr>
               <td colSpan="14" className="text-center">
@@ -149,6 +180,31 @@ const ProductTable = ({ repairDetails, onDelete, onEdit }) => {
                 <p><strong>Wastage on:</strong> {selectedDetail.va_on}</p>
                 <p><strong>Total Weight:</strong> {selectedDetail.total_weight_av}</p>
                 <p><strong>MC On:</strong> {selectedDetail.mc_on}</p>
+                {(() => {
+                  let imgSrc = null;
+                  if (selectedDetail.image) {
+                    imgSrc = getImageUrl(selectedDetail.image);
+                  } else if (selectedDetail.imagePreview) {
+                    imgSrc = selectedDetail.imagePreview;
+                  }
+                  return imgSrc ? (
+                    <p>
+                      <strong>Image:</strong>
+                      <img 
+                        src={imgSrc}
+                        alt="Product" 
+                        style={{ width: "100px", height: "100px", objectFit: "cover", display: "block", marginTop: "5px" }}
+                        onError={(e) => {
+                          e.target.onerror = null;
+                          e.target.src = '';
+                          e.target.alt = 'Image not available';
+                        }}
+                      />
+                    </p>
+                  ) : (
+                    <p><strong>Image:</strong> No image available</p>
+                  );
+                })()}
               </Col>
             </Row>
           )}

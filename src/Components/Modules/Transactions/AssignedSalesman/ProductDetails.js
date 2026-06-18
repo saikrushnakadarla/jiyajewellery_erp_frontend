@@ -78,6 +78,8 @@ const ProductDetails = ({
 
  // In ProductDetails.js, update the barcodeOptions filter section
 
+// In ProductDetails.js, update the barcodeOptions filter section
+
 const barcodeOptions = [
   ...products
     .filter((product) => (formData.category ? product.product_name === formData.category : true))
@@ -94,11 +96,7 @@ const barcodeOptions = [
       // Only show Available products
       if (tag.Status !== 'Available') return false;
       
-      // REMOVED: MAIN STOCK ROOM filter - now fetch all stock points
-      // if (tag.Stock_Point !== 'MAIN STOCK ROOM') return false;
-      
       // Check if user_id matches logged-in user
-      // If user_id is null or undefined in tag, exclude it
       if (tag.user_id === null || tag.user_id === undefined) return false;
       
       // Compare tag.user_id with logged-in user ID
@@ -110,7 +108,7 @@ const barcodeOptions = [
       value: tag.PCode_BarCode,
       label: tag.PCode_BarCode,
       type: 'tag',
-      tagData: tag  // Store full tag data for reference
+      tagData: tag
     })),
 ];
 

@@ -242,158 +242,186 @@ const ProductDetails = ({
   }, [formData.category, defaultBarcode]);
 
   // Handle barcode selection - for packet barcodes, add all products
-  const handleBarcodeSelect = (selectedValue) => {
-    const selectedOption = uniqueBarcodeOptions.find(opt => opt.value === selectedValue);
-    
-    if (selectedOption) {
-      if (selectedOption.type === "packet" && selectedOption.products && selectedOption.products.length > 0) {
-        // This is a packet barcode - add all products to the table
-        console.log("Packet selected with products:", selectedOption.products);
-        
-        // Get existing repair details from localStorage
-        const storedRepairDetails = JSON.parse(localStorage.getItem(`repairDetails_${tabId}`)) || [];
-        
-        // Check for duplicates before adding
-        const existingCodes = new Set(storedRepairDetails.map(item => item.code));
-        const newProducts = selectedOption.products.filter(product => !existingCodes.has(product.code));
-        
-        if (newProducts.length === 0) {
-          alert("All products in this packet are already added");
-          setFormData(prev => ({
-            ...prev,
-            code: selectedValue,
-            packet_barcode: selectedOption.packetBarcode,
-            is_estimated: true,
-            is_packet_selection: true
-          }));
-          return;
-        }
-        
-        // Add all new products to repairDetails
-        const updatedRepairDetails = [
-          ...storedRepairDetails,
-          ...newProducts.map(product => ({
-            ...product,
-            // Map fields to match formData structure
-            code: product.code,
-            product_name: product.product_name || product.sub_category,
-            metal_type: product.metal_type,
-            purity: product.purity,
-            category: product.category,
-            sub_category: product.sub_category,
-            gross_weight: product.gross_weight,
-            stone_weight: product.stone_weight,
-            stone_price: product.stone_price,
-            weight_bw: product.weight_bw,
-            va_on: product.va_on || "Gross Weight",
-            va_percent: product.va_percent,
-            wastage_weight: product.wastage_weight,
-            total_weight_av: product.total_weight_av,
-            mc_on: product.mc_on || "MC %",
-            mc_per_gram: product.mc_per_gram,
-            making_charges: product.making_charges,
-            rate: product.rate,
-            rate_amt: product.rate_amt,
-            tax_percent: product.tax_percent || "03% GST",
-            tax_amt: product.tax_amt,
-            total_price: product.total_price,
-            pricing: product.pricing || "By Weight",
-            qty: product.qty || 1,
-            packet_barcode: selectedOption.packetBarcode,
-            is_estimated: true,
-            design_name: product.design_name,
-            imagePreview: null,
-            sale_status: "Delivered",
-            piece_taxable_amt: product.piece_taxable_amt || "",
-            festival_discount: product.festival_discount || "",
-            disscount: product.disscount || "",
-            disscount_percentage: product.disscount_percentage || "",
-            hm_charges: product.hm_charges || "60.00",
-            remarks: product.remarks || "",
-            printing_purity: product.printing_purity || "",
-            selling_purity: product.selling_purity || "",
-            is_packet_selection: true,  // Add this flag for packet selections
-            packet_barcode: selectedOption.packetBarcode
-          }))
-        ];
-        
-        // Use setRepairDetails to update state
-        setRepairDetails(updatedRepairDetails);
-        localStorage.setItem(`repairDetails_${tabId}`, JSON.stringify(updatedRepairDetails));
-        
-        // Set isPacketAdded to true to clear the form fields
-        setIsPacketAdded(true);
-        
-        // Clear form fields after packet selection - only show packet barcode info
+ // Handle barcode selection - for packet barcodes, add all products
+const handleBarcodeSelect = (selectedValue) => {
+  const selectedOption = uniqueBarcodeOptions.find(opt => opt.value === selectedValue);
+  
+  if (selectedOption) {
+    if (selectedOption.type === "packet" && selectedOption.products && selectedOption.products.length > 0) {
+      // This is a packet barcode - add all products to the table
+      console.log("Packet selected with products:", selectedOption.products);
+      
+      // Get existing repair details from localStorage
+      const storedRepairDetails = JSON.parse(localStorage.getItem(`repairDetails_${tabId}`)) || [];
+      
+      // Check for duplicates before adding
+      const existingCodes = new Set(storedRepairDetails.map(item => item.code));
+      const newProducts = selectedOption.products.filter(product => !existingCodes.has(product.code));
+      
+      if (newProducts.length === 0) {
+        alert("All products in this packet are already added");
         setFormData(prev => ({
           ...prev,
           code: selectedValue,
           packet_barcode: selectedOption.packetBarcode,
           is_estimated: true,
-          is_packet_selection: true,
-          product_name: '',
-          metal_type: '',
-          purity: '',
-          category: '',
-          sub_category: '',
-          gross_weight: '',
-          stone_weight: '',
-          stone_price: '',
-          weight_bw: '',
-          va_on: 'Gross Weight',
-          va_percent: '',
-          wastage_weight: '',
-          total_weight_av: '',
-          mc_on: 'MC %',
-          mc_per_gram: '',
-          making_charges: '',
-          rate: '',
-          rate_amt: '',
-          tax_percent: '03% GST',
-          tax_amt: '',
-          total_price: '',
-          pricing: 'By Weight',
-          qty: '1',
-          design_name: '',
-          selling_purity: '',
-          printing_purity: '',
-          imagePreview: null,
-          disscount: '',
-          disscount_percentage: '',
-          pieace_cost: '',
-          hm_charges: '60.00',
-          remarks: '',
-          piece_taxable_amt: '',
-          festival_discount: '',
-          custom_purity: ''
+          is_packet_selection: true
         }));
-        
-        alert(`Added ${newProducts.length} product(s) from packet ${selectedOption.packetBarcode}`);
-        
-      } else {
-        // Regular barcode selection (non-packet)
-        setIsPacketAdded(false);
-        if (selectedOption.packetBarcode) {
-          setFormData(prev => ({
-            ...prev,
-            code: selectedValue,
-            packet_barcode: selectedOption.packetBarcode,
-            is_estimated: selectedOption.isEstimated || false,
-            is_packet_selection: false
-          }));
-        } else {
-          setFormData(prev => ({
-            ...prev,
-            code: selectedValue,
-            packet_barcode: null,
-            is_estimated: false,
-            is_packet_selection: false
-          }));
-        }
-        handleBarcodeChange(selectedValue);
+        return;
       }
+      
+      // Get the image for each product from selectedSalesmanProducts
+      const productsWithImages = newProducts.map(product => {
+        // Find the assigned product to get its image
+        const assignedProduct = selectedSalesmanProducts?.find(
+          p => p.PCode_BarCode === product.code
+        );
+        
+        let imagePath = assignedProduct?.image || null;
+        let imagePreview = null;
+        
+        if (imagePath) {
+          // Build the full URL for preview
+          if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
+            imagePreview = imagePath;
+          } else if (imagePath.startsWith('/')) {
+            imagePreview = `${baseURL}${imagePath}`;
+          } else {
+            imagePreview = `${baseURL}/${imagePath}`;
+          }
+        }
+        
+        return {
+          ...product,
+          // Map fields to match formData structure
+          code: product.code,
+          product_name: product.product_name || product.sub_category,
+          metal_type: product.metal_type,
+          purity: product.purity,
+          category: product.category,
+          sub_category: product.sub_category,
+          gross_weight: product.gross_weight,
+          stone_weight: product.stone_weight,
+          stone_price: product.stone_price,
+          weight_bw: product.weight_bw,
+          va_on: product.va_on || "Gross Weight",
+          va_percent: product.va_percent,
+          wastage_weight: product.wastage_weight,
+          total_weight_av: product.total_weight_av,
+          mc_on: product.mc_on || "MC %",
+          mc_per_gram: product.mc_per_gram,
+          making_charges: product.making_charges,
+          rate: product.rate,
+          rate_amt: product.rate_amt,
+          tax_percent: product.tax_percent || "03% GST",
+          tax_amt: product.tax_amt,
+          total_price: product.total_price,
+          pricing: product.pricing || "By Weight",
+          qty: product.qty || 1,
+          packet_barcode: selectedOption.packetBarcode,
+          is_estimated: true,
+          design_name: product.design_name,
+          imagePreview: imagePreview, // Set the image preview
+          image: imagePath, // Store the image path
+          sale_status: "Delivered",
+          piece_taxable_amt: product.piece_taxable_amt || "",
+          festival_discount: product.festival_discount || "",
+          disscount: product.disscount || "",
+          disscount_percentage: product.disscount_percentage || "",
+          hm_charges: product.hm_charges || "60.00",
+          remarks: product.remarks || "",
+          printing_purity: product.printing_purity || "",
+          selling_purity: product.selling_purity || "",
+          is_packet_selection: true,
+          assigned_id: assignedProduct?.assigned_id || null,
+          item_id: assignedProduct?.item_id || null
+        };
+      });
+      
+      // Add all new products to repairDetails
+      const updatedRepairDetails = [
+        ...storedRepairDetails,
+        ...productsWithImages
+      ];
+      
+      // Use setRepairDetails to update state
+      setRepairDetails(updatedRepairDetails);
+      localStorage.setItem(`repairDetails_${tabId}`, JSON.stringify(updatedRepairDetails));
+      
+      // Set isPacketAdded to true to clear the form fields
+      setIsPacketAdded(true);
+      
+      // Clear form fields after packet selection - only show packet barcode info
+      setFormData(prev => ({
+        ...prev,
+        code: selectedValue,
+        packet_barcode: selectedOption.packetBarcode,
+        is_estimated: true,
+        is_packet_selection: true,
+        product_name: '',
+        metal_type: '',
+        purity: '',
+        category: '',
+        sub_category: '',
+        gross_weight: '',
+        stone_weight: '',
+        stone_price: '',
+        weight_bw: '',
+        va_on: 'Gross Weight',
+        va_percent: '',
+        wastage_weight: '',
+        total_weight_av: '',
+        mc_on: 'MC %',
+        mc_per_gram: '',
+        making_charges: '',
+        rate: '',
+        rate_amt: '',
+        tax_percent: '03% GST',
+        tax_amt: '',
+        total_price: '',
+        pricing: 'By Weight',
+        qty: '1',
+        design_name: '',
+        selling_purity: '',
+        printing_purity: '',
+        imagePreview: null,
+        image: null,
+        disscount: '',
+        disscount_percentage: '',
+        pieace_cost: '',
+        hm_charges: '60.00',
+        remarks: '',
+        piece_taxable_amt: '',
+        festival_discount: '',
+        custom_purity: ''
+      }));
+      
+      alert(`Added ${productsWithImages.length} product(s) from packet ${selectedOption.packetBarcode}`);
+      
+    } else {
+      // Regular barcode selection (non-packet)
+      setIsPacketAdded(false);
+      if (selectedOption.packetBarcode) {
+        setFormData(prev => ({
+          ...prev,
+          code: selectedValue,
+          packet_barcode: selectedOption.packetBarcode,
+          is_estimated: selectedOption.isEstimated || false,
+          is_packet_selection: false
+        }));
+      } else {
+        setFormData(prev => ({
+          ...prev,
+          code: selectedValue,
+          packet_barcode: null,
+          is_estimated: false,
+          is_packet_selection: false
+        }));
+      }
+      handleBarcodeChange(selectedValue);
     }
-  };
+  }
+};
 
   const handleClear = () => {
     setIsPacketAdded(false);
@@ -545,6 +573,18 @@ const ProductDetails = ({
     formData.pieace_cost,
     formData.pricing,
   ]);
+
+  // Function to get image URL for display
+  const getImageUrl = (imagePath) => {
+    if (!imagePath) return null;
+    if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
+      return imagePath;
+    }
+    if (imagePath.startsWith('/')) {
+      return `${baseURL}${imagePath}`;
+    }
+    return `${baseURL}/${imagePath}`;
+  };
 
   return (
     <Col>

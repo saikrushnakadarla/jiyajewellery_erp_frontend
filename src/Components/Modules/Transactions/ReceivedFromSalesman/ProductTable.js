@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Table, Button, Modal, Row, Col } from 'react-bootstrap';
 import { FaEdit, FaTrash, FaEye } from 'react-icons/fa';
+import baseURL from './../../../../Url/NodeBaseURL';
 import "./ProductTable.css";
 
 const ProductTable = ({ repairDetails, onDelete, onEdit }) => {
@@ -12,6 +13,18 @@ const ProductTable = ({ repairDetails, onDelete, onEdit }) => {
   const handleView = (detail) => {
     setSelectedDetail(detail);
     setShowModal(true);
+  };
+
+  // Function to get image URL
+  const getImageUrl = (imagePath) => {
+    if (!imagePath) return null;
+    if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
+      return imagePath;
+    }
+    if (imagePath.startsWith('/')) {
+      return `${baseURL}${imagePath}`;
+    }
+    return `${baseURL}/${imagePath}`;
   };
 
   return (
@@ -41,6 +54,14 @@ const ProductTable = ({ repairDetails, onDelete, onEdit }) => {
             repairDetails.map((detail, index) => {
               // Check if this product has a packet barcode from estimate
               const hasPacketBarcode = detail.packet_barcode && detail.packet_barcode !== '';
+              
+              // Get image URL from detail
+              let imageUrl = null;
+              if (detail.image) {
+                imageUrl = getImageUrl(detail.image);
+              } else if (detail.imagePreview) {
+                imageUrl = detail.imagePreview;
+              }
               
               return (
                 <tr key={index} className='table-values-sales'>
@@ -77,11 +98,16 @@ const ProductTable = ({ repairDetails, onDelete, onEdit }) => {
                   <td>{detail.making_charges}</td>
                   <td>{detail.total_price}</td>
                   <td>
-                    {detail.imagePreview ? (
+                    {imageUrl ? (
                       <img
-                        src={detail.imagePreview}
-                        alt="Uploaded"
-                        style={{ width: "50px", height: "50px" }}
+                        src={imageUrl}
+                        alt="Product"
+                        style={{ width: "50px", height: "50px", objectFit: "cover" }}
+                        onError={(e) => {
+                          e.target.onerror = null;
+                          e.target.src = '';
+                          e.target.alt = 'Image not available';
+                        }}
                       />
                     ) : (
                       "No Image"
@@ -172,6 +198,31 @@ const ProductTable = ({ repairDetails, onDelete, onEdit }) => {
                 <p><strong>Wastage on:</strong> {selectedDetail.va_on}</p>
                 <p><strong>Total Weight:</strong> {selectedDetail.total_weight_av}</p>
                 <p><strong>MC On:</strong> {selectedDetail.mc_on}</p>
+                {(() => {
+                  let imgSrc = null;
+                  if (selectedDetail.image) {
+                    imgSrc = getImageUrl(selectedDetail.image);
+                  } else if (selectedDetail.imagePreview) {
+                    imgSrc = selectedDetail.imagePreview;
+                  }
+                  return imgSrc ? (
+                    <p>
+                      <strong>Image:</strong>
+                      <img 
+                        src={imgSrc}
+                        alt="Product" 
+                        style={{ width: "100px", height: "100px", objectFit: "cover", display: "block", marginTop: "5px" }}
+                        onError={(e) => {
+                          e.target.onerror = null;
+                          e.target.src = '';
+                          e.target.alt = 'Image not available';
+                        }}
+                      />
+                    </p>
+                  ) : (
+                    <p><strong>Image:</strong> No image available</p>
+                  );
+                })()}
               </Col>
             </Row>
           )}
