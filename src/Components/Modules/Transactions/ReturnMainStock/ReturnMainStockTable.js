@@ -40,6 +40,17 @@ const ReturnMainStockTable = () => {
 
   const tabId = getTabId();
 
+  // Get logged-in user ID and name from localStorage
+  const getLoggedInUserId = () => {
+    const storedUserId = localStorage.getItem('userId');
+    return storedUserId ? parseInt(storedUserId) : null;
+  };
+
+  const getLoggedInUserName = () => {
+    const storedUserName = localStorage.getItem('userName');
+    return storedUserName || null;
+  };
+
   const formatDate = (dateString) => {
     if (!dateString) return '';
     const date = new Date(dateString);
@@ -80,11 +91,6 @@ const ReturnMainStockTable = () => {
         Header: 'PCode/Barcode',
         accessor: 'PCode_BarCode',
       },
-      // {
-      //   Header: 'Product Name',
-      //   accessor: 'product_Name',
-      //   Cell: ({ value }) => value || 'N/A',
-      // },
       {
         Header: 'Design Master',
         accessor: 'design_master',
@@ -212,7 +218,6 @@ const ReturnMainStockTable = () => {
     }).then(async (result) => {
       if (result.isConfirmed) {
         try {
-          // Update the API endpoint as per your backend
           const response = await axios.delete(`${baseURL}/api/opening-tags/delete/${opentagId}`);
           if (response.status === 200) {
             Swal.fire('Deleted!', response.data.message, 'success');
@@ -234,17 +239,29 @@ const ReturnMainStockTable = () => {
   const fetchOpeningTags = async () => {
     try {
       setLoading(true);
-      // Fetch data from the opening-tags-entry API
-      const response = await axios.get('http://localhost:5001/get/opening-tags-entry');
+      const response = await axios.get(`${baseURL}/get/opening-tags-entry`);
       console.log("Opening Tags Response: ", response.data);
       
-      // Filter data based on Status === "Selected" and Stock_Point === "MAIN STOCK ROOM"
+      // Get logged-in user ID and name from localStorage
+      const loggedInUserId = getLoggedInUserId();
+      const loggedInUserName = getLoggedInUserName();
+      console.log("Logged in User ID:", loggedInUserId);
+      console.log("Logged in User Name:", loggedInUserName);
+      
+      // Filter data based on:
+      // 1. Status === "Selected"
+      // 2. user_id matches loggedInUserId
+      // 3. Stock_Point matches loggedInUserName
       let filteredItems = [];
       if (response.data.result && Array.isArray(response.data.result)) {
-        filteredItems = response.data.result.filter(
-          item => item.Status === "Selected" && item.Stock_Point === "MAIN STOCK ROOM"
-        );
-        console.log("Filtered Items (Selected & MAIN STOCK ROOM):", filteredItems);
+        filteredItems = response.data.result.filter(item => {
+          const statusMatch = item.Status === "Selected";
+          const userIdMatch = loggedInUserId ? item.user_id === loggedInUserId : true;
+          const stockPointMatch = loggedInUserName ? item.Stock_Point === loggedInUserName : true;
+          
+          return statusMatch && userIdMatch && stockPointMatch;
+        });
+        console.log("Filtered Items (Selected, user_id match, Stock_Point match):", filteredItems);
       }
       
       setData(filteredItems);
@@ -258,6 +275,20 @@ const ReturnMainStockTable = () => {
   };
 
   const handleViewDetails = (item) => {
+    // Verify access permission before showing details
+    const loggedInUserId = getLoggedInUserId();
+    const loggedInUserName = getLoggedInUserName();
+    
+    if (loggedInUserId && item.user_id !== loggedInUserId) {
+      Swal.fire('Access Denied', 'You do not have permission to view this item', 'error');
+      return;
+    }
+    
+    if (loggedInUserName && item.Stock_Point !== loggedInUserName) {
+      Swal.fire('Access Denied', 'You do not have permission to view this item', 'error');
+      return;
+    }
+    
     setSelectedItem(item);
     setShowModal(true);
   };

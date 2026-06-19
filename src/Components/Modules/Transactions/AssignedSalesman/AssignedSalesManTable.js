@@ -221,17 +221,18 @@ const AssignedSalesmanTable = () => {
       const response = await axios.get(`${baseURL}/api/assigned-salesman/get-assigned-transfers`);
       console.log("Assigned Transfers Response: ", response.data);
       
-      // Get logged-in user ID
+      // Get logged-in user ID from localStorage
       const loggedInUserId = getLoggedInUserId();
-      console.log("Logged in User ID:", loggedInUserId);
+      console.log("Logged in User ID from localStorage:", loggedInUserId);
       
-      // Filter data based on from_user_id matching logged-in user
+      // Filter data where BOTH from_user_id AND from_stock_point_id match the logged-in user
       let filteredTransfers = response.data;
       if (loggedInUserId) {
         filteredTransfers = response.data.filter(
-          transfer => transfer.from_user_id === loggedInUserId
+          transfer => transfer.from_user_id === loggedInUserId && 
+                     transfer.from_stock_point_id === loggedInUserId
         );
-        console.log("Filtered Transfers by user_id:", filteredTransfers);
+        console.log("Filtered Transfers (from_user_id and from_stock_point_id match):", filteredTransfers);
       }
       
       setData(filteredTransfers);
@@ -248,11 +249,14 @@ const AssignedSalesmanTable = () => {
       const response = await axios.get(`${baseURL}/api/assigned-salesman/get-assigned-transfer/${assigned_id}`);
       console.log("Fetched assigned details: ", response.data);
       
-      // Optional: Also verify that the user has access to view this transfer
+      // Verify that the user has access to view this transfer
       const loggedInUserId = getLoggedInUserId();
-      if (loggedInUserId && response.data.transfer_details.from_user_id !== loggedInUserId) {
-        Swal.fire('Access Denied', 'You do not have permission to view this transfer', 'error');
-        return;
+      if (loggedInUserId) {
+        const transfer = response.data.transfer_details;
+        if (transfer.from_user_id !== loggedInUserId || transfer.from_stock_point_id !== loggedInUserId) {
+          Swal.fire('Access Denied', 'You do not have permission to view this transfer', 'error');
+          return;
+        }
       }
       
       setTransferDetails(response.data);
