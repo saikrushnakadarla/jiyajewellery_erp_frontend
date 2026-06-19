@@ -91,6 +91,7 @@ import QRCodePrinting from "./Components/Modules/Masters/QRCodePrinting/QRCodePr
 import QRCodeNavbar from "./Navbar/QRCodeNavbar";
 import StockInward from "./Components/Modules/Transactions/StockInward/StockInward"; // Adjust the import path
 import Selections from "./Components/Modules/Transactions/Selections/Selections";
+import VisitLogsWarehouseSchedule from './Components/Modules/Masters/VisitLogsWarehouse/VisitLogsWarehouseSchedule';
 
 
 function App() {
@@ -229,6 +230,7 @@ function App() {
 
           <Route path="/stock-inward" element={<StockInward />} /> 
           <Route path="/selections" element={<Selections />} />
+          <Route path="/visit-logs-warehouse-schedule" element={<VisitLogsWarehouseSchedule />} />
 
 
 

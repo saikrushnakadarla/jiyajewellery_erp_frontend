@@ -339,6 +339,13 @@ function Navbar() {
               >
                 Company Info
               </Link>
+              <Link
+                  to="/visit-logs-warehouse-schedule"
+                  onClick={handleItemClick}
+                  className={isActive("/visit-logs-warehouse-schedule")}
+                >
+                  Visit Logs Warehouse
+                </Link>
             </div>
           )}
         </div>

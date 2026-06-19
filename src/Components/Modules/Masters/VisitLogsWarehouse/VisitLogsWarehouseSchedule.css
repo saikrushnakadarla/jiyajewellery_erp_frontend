@@ -1,0 +1,508 @@
+/* VisitLogsWarehouseSchedule.css */
+.vlws-main-container {
+  background: #f8f9fa;
+  min-height: 100vh;
+  padding: 20px 0;
+}
+
+.vlws-container {
+  padding: 0 20px;
+}
+
+/* Header Styles */
+.vlws-header-card {
+  background: linear-gradient(135deg, #1a2a6c, #2d4373);
+  border-radius: 15px;
+  padding: 25px 30px;
+  color: white;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+}
+
+.vlws-header-content {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.vlws-header-icon-wrapper {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 50%;
+  padding: 15px;
+  width: 70px;
+  height: 70px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.vlws-header-icon {
+  font-size: 35px;
+  color: #ffd700;
+}
+
+.vlws-header-title {
+  font-size: 28px;
+  font-weight: 700;
+  margin: 0;
+  letter-spacing: 0.5px;
+}
+
+.vlws-header-subtitle {
+  font-size: 16px;
+  opacity: 0.85;
+  margin: 5px 0 0 0;
+}
+
+/* Form Card Styles */
+.vlws-form-card {
+  background: white;
+  border-radius: 12px;
+  padding: 25px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+}
+
+.vlws-form-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+  padding-bottom: 15px;
+  border-bottom: 2px solid #e9ecef;
+}
+
+.vlws-form-icon {
+  font-size: 24px;
+  color: #2d4373;
+}
+
+.vlws-form-header h4 {
+  margin: 0;
+  color: #2d4373;
+  font-weight: 600;
+}
+
+/* Label Styles */
+.vlws-label {
+  font-weight: 600;
+  color: #2d3436;
+  margin-bottom: 8px;
+  font-size: 14px;
+}
+
+/* Input Styles */
+.vlws-input,
+.vlws-select {
+  border-radius: 8px;
+  border: 2px solid #e9ecef;
+  padding: 10px 12px;
+  transition: all 0.3s ease;
+  font-size: 14px;
+}
+
+.vlws-input:focus,
+.vlws-select:focus {
+  border-color: #2d4373;
+  box-shadow: 0 0 0 3px rgba(45, 67, 115, 0.1);
+}
+
+/* Barcode Select Button */
+.vlws-barcode-select-btn {
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-weight: 500;
+  transition: all 0.3s ease;
+  border-width: 2px;
+}
+
+.vlws-barcode-select-btn:hover:not(:disabled) {
+  background: #2d4373;
+  color: white;
+  border-color: #2d4373;
+}
+
+/* Barcode Preview */
+.vlws-barcode-preview {
+  background: #f8f9fa;
+  border: 2px solid #e9ecef;
+  border-radius: 10px;
+  padding: 15px;
+  margin-top: 10px;
+}
+
+.vlws-barcode-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.vlws-barcode-item {
+  background: white;
+  padding: 5px 12px;
+  border-radius: 20px;
+  border: 1px solid #dee2e6;
+  font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+}
+
+/* Submit Button */
+.vlws-submit-btn {
+  background: linear-gradient(135deg, #2d4373, #1a2a6c);
+  border: none;
+  border-radius: 8px;
+  padding: 12px 30px;
+  font-weight: 600;
+  transition: all 0.3s ease;
+}
+
+.vlws-submit-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(45, 67, 115, 0.3);
+}
+
+.vlws-submit-btn:disabled {
+  opacity: 0.6;
+}
+
+/* Cancel Button */
+.vlws-cancel-btn {
+  border-radius: 8px;
+  padding: 12px 30px;
+  font-weight: 600;
+}
+
+/* Alert Styles */
+.vlws-info-alert {
+  border-radius: 10px;
+  border-left: 4px solid #2d4373;
+  background: #e8eef7;
+}
+
+/* Table Styles */
+.vlws-table-card {
+  background: white;
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+}
+
+.vlws-table-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 20px;
+  padding-bottom: 15px;
+  border-bottom: 2px solid #e9ecef;
+}
+
+.vlws-table-header h4 {
+  margin: 0;
+  color: #2d3436;
+  font-weight: 600;
+}
+
+.vlws-table-responsive {
+  overflow-x: auto;
+}
+
+.vlws-table {
+  margin-bottom: 0;
+  font-size: 14px;
+}
+
+.vlws-table-head {
+  background: #f8f9fa;
+}
+
+.vlws-table-head th {
+  font-weight: 600;
+  color: #2d3436;
+  border-bottom: 2px solid #dee2e6;
+  padding: 12px 15px;
+  white-space: nowrap;
+}
+
+.vlws-table td {
+  padding: 12px 15px;
+  vertical-align: middle;
+}
+
+.vlws-editing-row {
+  background: #fff3cd !important;
+}
+
+.vlws-selected-row {
+  background: #e8f4fd !important;
+}
+
+.vlws-selected-row:hover {
+  background: #d1ebfa !important;
+}
+
+/* Barcode Badge */
+.vlws-barcode-badge {
+  background: #2d3436;
+  padding: 4px 10px;
+  border-radius: 15px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+/* Action Buttons */
+.vlws-action-buttons {
+  display: flex;
+  gap: 4px;
+}
+
+.vlws-action-buttons .btn {
+  padding: 4px 8px;
+  font-size: 13px;
+}
+
+/* Modal Styles */
+.vlws-barcode-modal .modal-content {
+  border-radius: 15px;
+  border: none;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+}
+
+.vlws-modal-header {
+  background: linear-gradient(135deg, #1a2a6c, #2d4373);
+  color: white;
+  border-radius: 15px 15px 0 0;
+}
+
+.vlws-modal-header .btn-close {
+  filter: brightness(0) invert(1);
+}
+
+.vlws-modal-header .modal-title {
+  display: flex;
+  align-items: center;
+  font-weight: 600;
+}
+
+/* Search Box */
+.vlws-search-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.vlws-search-icon {
+  position: absolute;
+  left: 12px;
+  color: #6c757d;
+  font-size: 14px;
+}
+
+.vlws-search-input {
+  padding-left: 35px;
+  border-radius: 8px;
+  border: 2px solid #e9ecef;
+  height: 38px;
+  font-size: 14px;
+}
+
+.vlws-search-input:focus {
+  border-color: #2d4373;
+  box-shadow: 0 0 0 3px rgba(45, 67, 115, 0.1);
+}
+
+/* Responsive Adjustments */
+@media (max-width: 768px) {
+  .vlws-header-card {
+    padding: 20px;
+  }
+
+  .vlws-header-content {
+    flex-direction: column;
+    text-align: center;
+  }
+
+  .vlws-header-title {
+    font-size: 22px;
+  }
+
+  .vlws-form-card {
+    padding: 15px;
+  }
+
+  .vlws-table-card {
+    padding: 15px;
+  }
+
+  .vlws-table {
+    font-size: 12px;
+  }
+
+  .vlws-table th,
+  .vlws-table td {
+    padding: 8px 10px;
+  }
+
+  .vlws-barcode-item {
+    font-size: 11px;
+    padding: 3px 8px;
+  }
+}
+
+@media (max-width: 576px) {
+  .vlws-main-container {
+    padding: 10px 0;
+  }
+
+  .vlws-container {
+    padding: 0 10px;
+  }
+
+  .vlws-header-icon-wrapper {
+    width: 50px;
+    height: 50px;
+    padding: 10px;
+  }
+
+  .vlws-header-icon {
+    font-size: 25px;
+  }
+
+  .vlws-submit-btn,
+  .vlws-cancel-btn {
+    width: 100%;
+    margin-top: 5px;
+  }
+
+  .vlws-action-buttons {
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .vlws-action-buttons .btn {
+    width: 100%;
+  }
+}
+
+/* Animation */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.vlws-form-card,
+.vlws-table-card {
+  animation: fadeIn 0.4s ease-out;
+}
+
+/* Loading Spinner */
+.vlws-loading-spinner {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 40px;
+  color: #2d4373;
+}
+
+/* Scrollbar Styling */
+.vlws-table-responsive::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.vlws-table-responsive::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 10px;
+}
+
+.vlws-table-responsive::-webkit-scrollbar-thumb {
+  background: #2d4373;
+  border-radius: 10px;
+}
+
+.vlws-table-responsive::-webkit-scrollbar-thumb:hover {
+  background: #1a2a6c;
+}
+
+
+/* Selected Barcodes Section */
+.vlws-selected-barcodes {
+  background: #f8f9fa;
+  border: 1px solid #dee2e6;
+  border-radius: 8px;
+  padding: 12px 16px;
+}
+
+.vlws-barcode-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.vlws-barcode-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  border-radius: 20px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.vlws-barcode-tag:hover {
+  opacity: 0.8;
+  transform: scale(0.95);
+}
+
+/* Barcode Modal */
+.vlws-barcode-modal .vlws-modal-header {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+.vlws-barcode-modal .vlws-modal-header .btn-close {
+  color: white;
+  filter: brightness(0) invert(1);
+}
+
+.vlws-selected-row {
+  background-color: #e3f2fd !important;
+}
+
+.vlws-selected-row:hover {
+  background-color: #bbdefb !important;
+}
+
+.vlws-select-barcode-btn {
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 500;
+}
+
+.vlws-select-barcode-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .vlws-selected-barcodes {
+    padding: 10px 12px;
+  }
+  
+  .vlws-barcode-tags {
+    gap: 6px;
+  }
+  
+  .vlws-barcode-tag {
+    font-size: 11px;
+    padding: 4px 10px;
+  }
+}
