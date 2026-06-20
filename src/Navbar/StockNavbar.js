@@ -155,6 +155,22 @@ function StockNavbar() {
             STOCK OUTWARD
           </Link>
         </div>
+        
+         {/* NEW: Visit Logs Salesman Schedule Link */}
+        <div>
+          <Link
+            to="/visit-logs-salesman-schedule"
+            onClick={handleItemClick}
+            style={{
+              color: location.pathname === "/visit-logs-salesman-schedule" ? "#a36e29" : "black",
+              backgroundColor: "transparent",
+              textDecoration: "none",
+            }}
+          >
+            VISIT LOGS SALESMAN
+          </Link>
+        </div>
+
       </nav>
 
       <div className="username">{userName}</div>

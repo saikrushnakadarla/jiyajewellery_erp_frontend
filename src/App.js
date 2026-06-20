@@ -92,6 +92,7 @@ import QRCodeNavbar from "./Navbar/QRCodeNavbar";
 import StockInward from "./Components/Modules/Transactions/StockInward/StockInward"; // Adjust the import path
 import Selections from "./Components/Modules/Transactions/Selections/Selections";
 import VisitLogsWarehouseSchedule from './Components/Modules/Masters/VisitLogsWarehouse/VisitLogsWarehouseSchedule';
+import VisitLogsSalesmanSchedule from "./Components/Modules/Transactions/VisitLogsSalesman/VisitLogsSalesman";
 
 
 function App() {
@@ -107,7 +108,8 @@ function App() {
     location.pathname === "/add-receive-from-salesman" ||
     location.pathname === "/return-to-main-stock" ||
     location.pathname === "/add-return-to-main-stock" ||
-    location.pathname === "/stock-inward"
+    location.pathname === "/stock-inward" ||
+     location.pathname === "/visit-logs-salesman-schedule" 
 
 
   const isERPModule = location.pathname === "/qrcodeprinting";
@@ -231,6 +233,9 @@ function App() {
           <Route path="/stock-inward" element={<StockInward />} /> 
           <Route path="/selections" element={<Selections />} />
           <Route path="/visit-logs-warehouse-schedule" element={<VisitLogsWarehouseSchedule />} />
+
+          
+          <Route path="/visit-logs-salesman-schedule" element={<VisitLogsSalesmanSchedule />} />
 
 
 

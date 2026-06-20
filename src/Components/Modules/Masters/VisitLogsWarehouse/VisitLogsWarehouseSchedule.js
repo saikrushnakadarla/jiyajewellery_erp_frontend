@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { Container, Row, Col, Button, Table, Form, Alert, Badge, Modal } from 'react-bootstrap';
 import axios from 'axios';
 import baseURL from '../../../../Url/NodeBaseURL';
-import baseURL2 from '../../../../Url/NodeBaseURL2';
 import Navbar from '../../../../Navbar/Navbar';
 import { 
   FaPlus, FaEdit, FaTrash, FaCalendarCheck, FaUser, 
@@ -18,7 +17,7 @@ const VisitLogsWarehouseSchedule = () => {
     scheduled_date: '',
     customer_id: '',
     warehouse_id: '',
-    barcodes: [] // Changed from barcode to barcodes array
+    barcodes: []
   });
 
   // State for dropdown data
@@ -60,6 +59,7 @@ const VisitLogsWarehouseSchedule = () => {
   const fetchCustomers = async () => {
     try {
       console.log('📋 Fetching customers from account-details API...');
+      // Use the correct API endpoint from your backend
       const response = await axios.get(`${baseURL}/get/account-details`);
       const accounts = response.data;
       
@@ -72,7 +72,8 @@ const VisitLogsWarehouseSchedule = () => {
       
       console.log(`✅ Customers found: ${customerList.length}`);
       console.log('📋 Customer list:', customerList.map(c => ({ 
-        id: c.account_id, 
+        account_id: c.account_id,        // This is what we store in the schedule table
+        customer_id: c.customer_id,      // This is the customer code (CUST-001, CUST-002, etc.)
         name: c.account_name, 
         group: c.account_group 
       })));
@@ -147,62 +148,25 @@ const VisitLogsWarehouseSchedule = () => {
       setBarcodeLoading(true);
       console.log(`📋 Fetching barcodes for stock point ${stockPointId}...`);
       
-      // Find all transfers for this stock point
-      const transfersForStockPoint = stockTransfers.filter(transfer => 
-        transfer.from_stock_point_id === stockPointId || 
-        transfer.to_stock_point_id === stockPointId
-      );
+      // Use the backend API to fetch barcodes
+      const response = await axios.get(`${baseURL}/api/visit-logs-warehouse-schedule/barcodes/${stockPointId}`);
       
-      console.log(`📊 Transfers found: ${transfersForStockPoint.length}`);
-      
-      if (transfersForStockPoint.length === 0) {
+      if (response.data.success) {
+        console.log(`✅ Barcodes found: ${response.data.barcodes.length}`);
+        setAvailableBarcodes(response.data.barcodes);
+        setSelectedStockPoint(stockPoints.find(s => s.id === stockPointId));
+        setShowBarcodeModal(true);
+        // Reset selected barcodes when opening modal
+        setSelectedBarcodes([]);
+        setSelectedBarcodeDetails([]);
+      } else {
         setAvailableBarcodes([]);
         Swal.fire({
           icon: 'info',
-          title: 'No Transfers Found',
-          text: 'No stock transfers found for this stock point'
+          title: 'No Barcodes Found',
+          text: 'No barcodes found for this stock point'
         });
-        return;
       }
-
-      // Fetch items from all transfers and collect barcodes
-      let allBarcodes = [];
-      for (const transfer of transfersForStockPoint) {
-        try {
-          const response = await axios.get(`${baseURL}/api/stock-transfer/get-stock-transfer/${transfer.transfer_id}`);
-          const items = response.data.transfer_items || [];
-          console.log(`📊 Transfer ${transfer.transfer_number} has ${items.length} items`);
-          const barcodesWithDetails = items.map(item => ({
-            barcode: item.PCode_BarCode,
-            productName: item.product_name,
-            category: item.category,
-            designName: item.design_name,
-            qty: item.qty,
-            grossWeight: item.gross_weight,
-            netWeight: item.net_weight,
-            rate: item.rate,
-            totalPrice: item.total_price,
-            transferId: transfer.transfer_id,
-            transferNumber: transfer.transfer_number
-          }));
-          allBarcodes = [...allBarcodes, ...barcodesWithDetails];
-        } catch (error) {
-          console.error(`❌ Error fetching transfer ${transfer.transfer_id}:`, error);
-        }
-      }
-
-      // Remove duplicates based on barcode
-      const uniqueBarcodes = allBarcodes.filter((item, index, self) => 
-        index === self.findIndex((t) => t.barcode === item.barcode)
-      );
-
-      console.log(`✅ Unique barcodes found: ${uniqueBarcodes.length}`);
-      setAvailableBarcodes(uniqueBarcodes);
-      setSelectedStockPoint(stockPoints.find(s => s.id === stockPointId));
-      setShowBarcodeModal(true);
-      // Reset selected barcodes when opening modal
-      setSelectedBarcodes([]);
-      setSelectedBarcodeDetails([]);
     } catch (error) {
       console.error('❌ Error fetching barcodes:', error);
       Swal.fire({
@@ -304,27 +268,61 @@ const VisitLogsWarehouseSchedule = () => {
     
     console.log('📝 Submitting form data:', formData);
     
-    if (!formData.scheduled_date || !formData.customer_id || !formData.warehouse_id || formData.barcodes.length === 0) {
-      console.log('❌ Validation failed: Missing required fields');
+    // Validate required fields
+    if (!formData.scheduled_date) {
       Swal.fire({
         icon: 'warning',
         title: 'Validation Error',
-        text: 'Please fill all required fields and select at least one barcode'
+        text: 'Please select a scheduled date and time'
       });
       return;
     }
 
+    if (!formData.customer_id) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'Validation Error',
+        text: 'Please select a customer'
+      });
+      return;
+    }
+
+    if (!formData.warehouse_id) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'Validation Error',
+        text: 'Please select a stock point/warehouse'
+      });
+      return;
+    }
+
+    if (formData.barcodes.length === 0) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'Validation Error',
+        text: 'Please select at least one barcode'
+      });
+      return;
+    }
+
+    // Prepare data for API
+    // IMPORTANT: customer_id here is the account_id from the account_details table
+    const submitData = {
+      scheduled_date: formData.scheduled_date,
+      customer_id: parseInt(formData.customer_id), // This is the account_id (56, 53, etc.)
+      warehouse_id: parseInt(formData.warehouse_id),
+      barcodes: formData.barcodes
+    };
+    
+    console.log('📤 Sending data to API:', {
+      ...submitData,
+      // Log what this means
+      customer_account_id: submitData.customer_id,
+      note: 'customer_id in API is the account_id from account_details table'
+    });
+    
     try {
       setLoading(true);
-      
-      const submitData = {
-        scheduled_date: formData.scheduled_date,
-        customer_id: parseInt(formData.customer_id),
-        warehouse_id: parseInt(formData.warehouse_id),
-        barcodes: formData.barcodes
-      };
-      
-      console.log('📤 Sending data to API:', submitData);
       
       let response;
       if (isEditing) {
@@ -387,9 +385,9 @@ const VisitLogsWarehouseSchedule = () => {
     
     setFormData({
       scheduled_date: formattedDate,
-      customer_id: schedule.customer_id,
+      customer_id: schedule.customer_id, // This is the account_id
       warehouse_id: schedule.warehouse_id || '',
-      barcodes: schedule.barcode ? [schedule.barcode] : [] // For editing, convert single barcode to array
+      barcodes: schedule.barcode ? [schedule.barcode] : []
     });
     
     setIsEditing(true);
@@ -475,15 +473,15 @@ const VisitLogsWarehouseSchedule = () => {
     });
   };
 
-  // Get customer name by ID
-  const getCustomerName = (customerId) => {
-    const customer = customers.find(c => c.account_id === customerId);
+  // Get customer name by account_id
+  const getCustomerName = (accountId) => {
+    const customer = customers.find(c => c.account_id === accountId);
     return customer ? customer.account_name : 'Unknown Customer';
   };
 
-  // Get customer code by ID
-  const getCustomerCode = (customerId) => {
-    const customer = customers.find(c => c.account_id === customerId);
+  // Get customer code by account_id (this is the customer_id field from account_details)
+  const getCustomerCode = (accountId) => {
+    const customer = customers.find(c => c.account_id === accountId);
     return customer ? customer.customer_id || 'N/A' : 'N/A';
   };
 
@@ -570,10 +568,15 @@ const VisitLogsWarehouseSchedule = () => {
                           <option value="">-- Select Customer --</option>
                           {customers.map(customer => (
                             <option key={customer.account_id} value={customer.account_id}>
-                              {customer.account_name} {customer.customer_id ? `(${customer.customer_id})` : ''}
+                              {customer.account_name} 
+                              {customer.customer_id ? ` (${customer.customer_id})` : ''}
+                              {` - ID: ${customer.account_id}`}
                             </option>
                           ))}
                         </Form.Select>
+                        {/* <small className="text-muted">
+                          Note: Customer ID (account_id) will be stored in the schedule
+                        </small> */}
                       </Form.Group>
                     </Col>
 
@@ -685,11 +688,11 @@ const VisitLogsWarehouseSchedule = () => {
                                   <tr key={index}>
                                     <td>{index + 1}</td>
                                     <td><Badge bg="dark">{item.barcode}</Badge></td>
-                                    <td>{item.productName}</td>
+                                    <td>{item.product_name}</td>
                                     <td>{item.category}</td>
                                     <td>{item.qty}</td>
-                                    <td>{item.grossWeight}g</td>
-                                    <td>{item.netWeight}g</td>
+                                    <td>{item.gross_weight}g</td>
+                                    <td>{item.net_weight}g</td>
                                   </tr>
                                 ))}
                                 {selectedBarcodeDetails.length > 5 && (
@@ -749,6 +752,11 @@ const VisitLogsWarehouseSchedule = () => {
               <Alert variant="info" className="vlws-info-alert">
                 <FaClock className="me-2" />
                 <strong>Schedule Management:</strong> Select a stock point to see available barcodes, then choose multiple barcodes to associate with the customer visit.
+                <br />
+                <small className="text-muted">
+                  Note: The customer is identified by their account_id (e.g., 56, 53) which is stored in the schedule.
+                  The customer_code (e.g., CUST-001, CUST-002) is a separate identifier.
+                </small>
               </Alert>
             </Col>
           </Row>
@@ -769,7 +777,7 @@ const VisitLogsWarehouseSchedule = () => {
                       <tr>
                         <th>#</th>
                         <th>Scheduled Date & Time</th>
-                        <th>Customer</th>
+                        <th>Customer (account_id)</th>
                         <th>Customer Code</th>
                         <th>Stock Point</th>
                         <th>Barcode</th>
@@ -798,6 +806,8 @@ const VisitLogsWarehouseSchedule = () => {
                             <td>
                               <FaUser className="me-2 text-success" />
                               {schedule.customer_name || getCustomerName(schedule.customer_id)}
+                              <br />
+                              <small className="text-muted">ID: {schedule.customer_id}</small>
                             </td>
                             <td>
                               <Badge bg="info">{schedule.customer_code || getCustomerCode(schedule.customer_id)}</Badge>
@@ -947,13 +957,13 @@ const VisitLogsWarehouseSchedule = () => {
                                 {item.barcode}
                               </Badge>
                             </td>
-                            <td>{item.productName}</td>
+                            <td>{item.product_name}</td>
                             <td>{item.category}</td>
-                            <td>{item.designName || 'N/A'}</td>
+                            <td>{item.design_name || 'N/A'}</td>
                             <td>{item.qty}</td>
-                            <td>{item.grossWeight}g</td>
-                            <td>{item.netWeight}g</td>
-                            <td>{item.transferNumber}</td>
+                            <td>{item.gross_weight}g</td>
+                            <td>{item.net_weight}g</td>
+                            <td>{item.transfer_number}</td>
                           </tr>
                         ))}
                       </tbody>
