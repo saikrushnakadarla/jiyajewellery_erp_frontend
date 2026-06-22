@@ -1,0 +1,59 @@
+.warehouse-stock-container {
+  padding: 20px;
+  background-color: #f8f9fa;
+  min-height: calc(100vh - 80px);
+}
+
+.warehouse-stock-content {
+  background-color: #ffffff;
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.warehouse-stock-table thead th {
+  background-color: #a36e29;
+  color: white;
+  font-weight: 600;
+  font-size: 12px;
+  padding: 6px 8px;
+  text-align: center;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.warehouse-stock-table tbody td {
+  padding: 5px 8px;
+  vertical-align: middle;
+  text-align: center;
+  font-size: 12px;
+}
+
+.warehouse-stock-table tbody tr:hover {
+  background-color: #f1f3f5;
+}
+
+.warehouse-stock-table tfoot td {
+  font-weight: bold;
+  background-color: #f8f9fa;
+  padding: 6px 8px;
+  font-size: 12px;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .warehouse-stock-container {
+    padding: 10px;
+  }
+  
+  .warehouse-stock-content {
+    padding: 10px;
+  }
+  
+  .warehouse-stock-table thead th,
+  .warehouse-stock-table tbody td,
+  .warehouse-stock-table tfoot td {
+    font-size: 10px;
+    padding: 4px 6px;
+  }
+}

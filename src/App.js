@@ -93,6 +93,7 @@ import StockInward from "./Components/Modules/Transactions/StockInward/StockInwa
 import Selections from "./Components/Modules/Transactions/Selections/Selections";
 import VisitLogsWarehouseSchedule from './Components/Modules/Masters/VisitLogsWarehouse/VisitLogsWarehouseSchedule';
 import VisitLogsSalesmanSchedule from "./Components/Modules/Transactions/VisitLogsSalesman/VisitLogsSalesman";
+import WarehouseStockItems from './Components/Modules/Transactions/WarehouseStockItems/WarehouseStockItems';
 
 
 function App() {
@@ -237,6 +238,7 @@ function App() {
           
           <Route path="/visit-logs-salesman-schedule" element={<VisitLogsSalesmanSchedule />} />
 
+          <Route path="/warehouse-stock-items" element={<WarehouseStockItems />} />
 
 
 
