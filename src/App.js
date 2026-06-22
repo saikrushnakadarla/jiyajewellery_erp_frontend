@@ -94,6 +94,7 @@ import Selections from "./Components/Modules/Transactions/Selections/Selections"
 import VisitLogsWarehouseSchedule from './Components/Modules/Masters/VisitLogsWarehouse/VisitLogsWarehouseSchedule';
 import VisitLogsSalesmanSchedule from "./Components/Modules/Transactions/VisitLogsSalesman/VisitLogsSalesman";
 import WarehouseStockItems from './Components/Modules/Transactions/WarehouseStockItems/WarehouseStockItems';
+import WarehouseRespectiveStock from "./Components/Modules/WarehouseRespectiveStock/WarehouseRespectiveStock";
 import Footer from "./Footer/Footer"
 
 
@@ -111,7 +112,8 @@ function App() {
     location.pathname === "/return-to-main-stock" ||
     location.pathname === "/add-return-to-main-stock" ||
     location.pathname === "/stock-inward" ||
-     location.pathname === "/visit-logs-salesman-schedule" 
+     location.pathname === "/visit-logs-salesman-schedule" ||
+     location.pathname === "/warehouse-stock-respective-items" 
 
 
   const isERPModule = location.pathname === "/qrcodeprinting";
@@ -240,6 +242,8 @@ function App() {
           <Route path="/visit-logs-salesman-schedule" element={<VisitLogsSalesmanSchedule />} />
 
           <Route path="/warehouse-stock-items" element={<WarehouseStockItems />} />
+
+           <Route path="/warehouse-stock-respective-items" element={<WarehouseRespectiveStock />} />
 
         </Routes>
                 {!isAuthPage && isStockModule &&   <Footer />}
