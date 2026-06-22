@@ -59,7 +59,10 @@ const ProductDetails = ({
   handleOrderChange,
   selectedOrder,
   orderData,
-  selectedSalesmanProducts = []
+  selectedSalesmanProducts = [],
+  // NEW: pass stock data and active stock point so we can filter
+  stock = [],
+  activeStockPointDetails = null,
 }) => {
 
   const [showModal, setShowModal] = useState(false);
@@ -77,29 +80,48 @@ const ProductDetails = ({
     }
   }, []);
 
-  // Fetch estimates data from baseURL2
+  // ─── KEY FIX: filter selectedSalesmanProducts by active stock point ───────
+  // The stock array from opening_tags_entry has Stock_Point name per product.
+  // We match PCode_BarCode between selectedSalesmanProducts and stock to know
+  // which stock point each assigned product currently lives in.
+  const salesmanProductsForCurrentStock = React.useMemo(() => {
+    if (!activeStockPointDetails || !stock || stock.length === 0) {
+      // No stock point selected yet — show all
+      return selectedSalesmanProducts;
+    }
+
+    const activeStockPointName = activeStockPointDetails.stock_point_name;
+
+    // Build a set of barcodes that belong to the selected stock point
+    const barcodesInActiveStock = new Set(
+      stock
+        .filter(s => s.Stock_Point === activeStockPointName)
+        .map(s => s.PCode_BarCode)
+    );
+
+    return selectedSalesmanProducts.filter(p =>
+      barcodesInActiveStock.has(p.PCode_BarCode)
+    );
+  }, [selectedSalesmanProducts, stock, activeStockPointDetails]);
+
   useEffect(() => {
     const fetchEstimates = async () => {
       try {
         const response = await axios.get(`${baseURL2}/get/estimates`);
-        console.log("Estimates data fetched in ProductDetails:", response.data);
         setEstimatesData(response.data);
         
-        // Group products by packet barcode - ONLY for products assigned to the selected salesman
+        // Group products by packet barcode — only for products in current stock point
         const grouped = {};
         response.data.forEach(est => {
           if (est.code && est.packet_barcode) {
-            // Check if this product is assigned to the selected salesman
-            const isAssignedToSalesman = selectedSalesmanProducts.some(
+            const isAssignedToSalesman = salesmanProductsForCurrentStock.some(
               assigned => assigned.PCode_BarCode === est.code
             );
             
-            // Only include if assigned to the selected salesman
             if (isAssignedToSalesman) {
               if (!grouped[est.packet_barcode]) {
                 grouped[est.packet_barcode] = [];
               }
-              // Add product info to the group
               grouped[est.packet_barcode].push({
                 code: est.code,
                 product_name: est.product_name,
@@ -148,27 +170,23 @@ const ProductDetails = ({
           }
         });
         setGroupedPacketProducts(grouped);
-        console.log("Grouped packet products for salesman:", grouped);
+        console.log("Grouped packet products for current stock point:", grouped);
       } catch (error) {
         console.error("Error fetching estimates:", error);
       }
     };
     fetchEstimates();
-  }, [selectedSalesmanProducts]);
+  }, [salesmanProductsForCurrentStock]); // re-run when filtered list changes
 
-  // Get packet barcode from estimates for a given product code
   const getPacketBarcode = (productCode) => {
     if (!estimatesData || !productCode) return null;
-    
     const estimates = estimatesData.filter(item => item.code === productCode);
     const packetBarcodes = estimates
       .map(item => item.packet_barcode)
       .filter(barcode => barcode && barcode !== null && barcode !== '');
-    
     return packetBarcodes.length > 0 ? packetBarcodes[0] : null;
   };
 
-  // Check if a product has an estimate
   const hasEstimate = (productCode) => {
     if (!estimatesData || !productCode) return false;
     return estimatesData.some(item => item.code === productCode);
@@ -178,36 +196,33 @@ const ProductDetails = ({
     ? products.find((product) => product.product_name === formData.category)?.rbarcode || ""
     : "";
 
-  // Build barcode options - ONLY show packet barcode for estimated products assigned to salesman
+  // Build barcode options using FILTERED list (only products in active stock point)
   const barcodeOptions = [];
   const seenPacketBarcodes = new Set();
 
-  // First, add packet barcodes from grouped products (estimated products assigned to salesman)
+  // Packet barcodes first
   Object.keys(groupedPacketProducts).forEach(packetBarcode => {
     if (!seenPacketBarcodes.has(packetBarcode)) {
       seenPacketBarcodes.add(packetBarcode);
       const productsInPacket = groupedPacketProducts[packetBarcode];
-      
-      // Only add if there are products in the packet
       if (productsInPacket && productsInPacket.length > 0) {
         barcodeOptions.push({
-          value: packetBarcode, // Use packet barcode as value
-          label: packetBarcode, // Show only packet barcode
+          value: packetBarcode,
+          label: packetBarcode,
           type: "packet",
           packetBarcode: packetBarcode,
           isEstimated: true,
-          products: productsInPacket // Store all products in this packet
+          products: productsInPacket
         });
       }
     }
   });
 
-  // Then add non-estimated products (assigned products without packet)
-  (selectedSalesmanProducts || []).forEach((product) => {
+  // Non-estimated products from the FILTERED list
+  salesmanProductsForCurrentStock.forEach((product) => {
     const packetBarcode = getPacketBarcode(product.PCode_BarCode);
     const isEstimated = hasEstimate(product.PCode_BarCode);
     
-    // Only add if not estimated (no packet barcode)
     if (!isEstimated || !packetBarcode) {
       barcodeOptions.push({
         value: product.PCode_BarCode,
@@ -221,7 +236,7 @@ const ProductDetails = ({
     }
   });
 
-  // Remove duplicates
+  // Deduplicate
   const uniqueBarcodeOptions = [];
   const seenValues = new Set();
   for (const option of barcodeOptions) {
@@ -241,187 +256,168 @@ const ProductDetails = ({
     }
   }, [formData.category, defaultBarcode]);
 
-  // Handle barcode selection - for packet barcodes, add all products
- // Handle barcode selection - for packet barcodes, add all products
-const handleBarcodeSelect = (selectedValue) => {
-  const selectedOption = uniqueBarcodeOptions.find(opt => opt.value === selectedValue);
-  
-  if (selectedOption) {
-    if (selectedOption.type === "packet" && selectedOption.products && selectedOption.products.length > 0) {
-      // This is a packet barcode - add all products to the table
-      console.log("Packet selected with products:", selectedOption.products);
-      
-      // Get existing repair details from localStorage
-      const storedRepairDetails = JSON.parse(localStorage.getItem(`repairDetails_${tabId}`)) || [];
-      
-      // Check for duplicates before adding
-      const existingCodes = new Set(storedRepairDetails.map(item => item.code));
-      const newProducts = selectedOption.products.filter(product => !existingCodes.has(product.code));
-      
-      if (newProducts.length === 0) {
-        alert("All products in this packet are already added");
-        setFormData(prev => ({
-          ...prev,
-          code: selectedValue,
-          packet_barcode: selectedOption.packetBarcode,
-          is_estimated: true,
-          is_packet_selection: true
-        }));
-        return;
-      }
-      
-      // Get the image for each product from selectedSalesmanProducts
-      const productsWithImages = newProducts.map(product => {
-        // Find the assigned product to get its image
-        const assignedProduct = selectedSalesmanProducts?.find(
-          p => p.PCode_BarCode === product.code
-        );
+  const handleBarcodeSelect = (selectedValue) => {
+    const selectedOption = uniqueBarcodeOptions.find(opt => opt.value === selectedValue);
+    
+    if (selectedOption) {
+      if (selectedOption.type === "packet" && selectedOption.products && selectedOption.products.length > 0) {
+        console.log("Packet selected with products:", selectedOption.products);
         
-        let imagePath = assignedProduct?.image || null;
-        let imagePreview = null;
+        const storedRepairDetails = JSON.parse(localStorage.getItem(`repairDetails_${tabId}`)) || [];
+        const existingCodes = new Set(storedRepairDetails.map(item => item.code));
+        const newProducts = selectedOption.products.filter(product => !existingCodes.has(product.code));
         
-        if (imagePath) {
-          // Build the full URL for preview
-          if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
-            imagePreview = imagePath;
-          } else if (imagePath.startsWith('/')) {
-            imagePreview = `${baseURL}${imagePath}`;
-          } else {
-            imagePreview = `${baseURL}/${imagePath}`;
-          }
+        if (newProducts.length === 0) {
+          alert("All products in this packet are already added");
+          setFormData(prev => ({
+            ...prev,
+            code: selectedValue,
+            packet_barcode: selectedOption.packetBarcode,
+            is_estimated: true,
+            is_packet_selection: true
+          }));
+          return;
         }
         
-        return {
-          ...product,
-          // Map fields to match formData structure
-          code: product.code,
-          product_name: product.product_name || product.sub_category,
-          metal_type: product.metal_type,
-          purity: product.purity,
-          category: product.category,
-          sub_category: product.sub_category,
-          gross_weight: product.gross_weight,
-          stone_weight: product.stone_weight,
-          stone_price: product.stone_price,
-          weight_bw: product.weight_bw,
-          va_on: product.va_on || "Gross Weight",
-          va_percent: product.va_percent,
-          wastage_weight: product.wastage_weight,
-          total_weight_av: product.total_weight_av,
-          mc_on: product.mc_on || "MC %",
-          mc_per_gram: product.mc_per_gram,
-          making_charges: product.making_charges,
-          rate: product.rate,
-          rate_amt: product.rate_amt,
-          tax_percent: product.tax_percent || "03% GST",
-          tax_amt: product.tax_amt,
-          total_price: product.total_price,
-          pricing: product.pricing || "By Weight",
-          qty: product.qty || 1,
+        const productsWithImages = newProducts.map(product => {
+          const assignedProduct = salesmanProductsForCurrentStock?.find(
+            p => p.PCode_BarCode === product.code
+          );
+          
+          let imagePath = assignedProduct?.image || null;
+          let imagePreview = null;
+          
+          if (imagePath) {
+            if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
+              imagePreview = imagePath;
+            } else if (imagePath.startsWith('/')) {
+              imagePreview = `${baseURL}${imagePath}`;
+            } else {
+              imagePreview = `${baseURL}/${imagePath}`;
+            }
+          }
+          
+          return {
+            ...product,
+            code: product.code,
+            product_name: product.product_name || product.sub_category,
+            metal_type: product.metal_type,
+            purity: product.purity,
+            category: product.category,
+            sub_category: product.sub_category,
+            gross_weight: product.gross_weight,
+            stone_weight: product.stone_weight,
+            stone_price: product.stone_price,
+            weight_bw: product.weight_bw,
+            va_on: product.va_on || "Gross Weight",
+            va_percent: product.va_percent,
+            wastage_weight: product.wastage_weight,
+            total_weight_av: product.total_weight_av,
+            mc_on: product.mc_on || "MC %",
+            mc_per_gram: product.mc_per_gram,
+            making_charges: product.making_charges,
+            rate: product.rate,
+            rate_amt: product.rate_amt,
+            tax_percent: product.tax_percent || "03% GST",
+            tax_amt: product.tax_amt,
+            total_price: product.total_price,
+            pricing: product.pricing || "By Weight",
+            qty: product.qty || 1,
+            packet_barcode: selectedOption.packetBarcode,
+            is_estimated: true,
+            design_name: product.design_name,
+            imagePreview: imagePreview,
+            image: imagePath,
+            sale_status: "Delivered",
+            piece_taxable_amt: product.piece_taxable_amt || "",
+            festival_discount: product.festival_discount || "",
+            disscount: product.disscount || "",
+            disscount_percentage: product.disscount_percentage || "",
+            hm_charges: product.hm_charges || "60.00",
+            remarks: product.remarks || "",
+            printing_purity: product.printing_purity || "",
+            selling_purity: product.selling_purity || "",
+            is_packet_selection: true,
+            assigned_id: assignedProduct?.assigned_id || null,
+            item_id: assignedProduct?.item_id || null
+          };
+        });
+        
+        const updatedRepairDetails = [...storedRepairDetails, ...productsWithImages];
+        setRepairDetails(updatedRepairDetails);
+        localStorage.setItem(`repairDetails_${tabId}`, JSON.stringify(updatedRepairDetails));
+        
+        setIsPacketAdded(true);
+        
+        setFormData(prev => ({
+          ...prev,
+          code: selectedValue,
           packet_barcode: selectedOption.packetBarcode,
           is_estimated: true,
-          design_name: product.design_name,
-          imagePreview: imagePreview, // Set the image preview
-          image: imagePath, // Store the image path
-          sale_status: "Delivered",
-          piece_taxable_amt: product.piece_taxable_amt || "",
-          festival_discount: product.festival_discount || "",
-          disscount: product.disscount || "",
-          disscount_percentage: product.disscount_percentage || "",
-          hm_charges: product.hm_charges || "60.00",
-          remarks: product.remarks || "",
-          printing_purity: product.printing_purity || "",
-          selling_purity: product.selling_purity || "",
           is_packet_selection: true,
-          assigned_id: assignedProduct?.assigned_id || null,
-          item_id: assignedProduct?.item_id || null
-        };
-      });
-      
-      // Add all new products to repairDetails
-      const updatedRepairDetails = [
-        ...storedRepairDetails,
-        ...productsWithImages
-      ];
-      
-      // Use setRepairDetails to update state
-      setRepairDetails(updatedRepairDetails);
-      localStorage.setItem(`repairDetails_${tabId}`, JSON.stringify(updatedRepairDetails));
-      
-      // Set isPacketAdded to true to clear the form fields
-      setIsPacketAdded(true);
-      
-      // Clear form fields after packet selection - only show packet barcode info
-      setFormData(prev => ({
-        ...prev,
-        code: selectedValue,
-        packet_barcode: selectedOption.packetBarcode,
-        is_estimated: true,
-        is_packet_selection: true,
-        product_name: '',
-        metal_type: '',
-        purity: '',
-        category: '',
-        sub_category: '',
-        gross_weight: '',
-        stone_weight: '',
-        stone_price: '',
-        weight_bw: '',
-        va_on: 'Gross Weight',
-        va_percent: '',
-        wastage_weight: '',
-        total_weight_av: '',
-        mc_on: 'MC %',
-        mc_per_gram: '',
-        making_charges: '',
-        rate: '',
-        rate_amt: '',
-        tax_percent: '03% GST',
-        tax_amt: '',
-        total_price: '',
-        pricing: 'By Weight',
-        qty: '1',
-        design_name: '',
-        selling_purity: '',
-        printing_purity: '',
-        imagePreview: null,
-        image: null,
-        disscount: '',
-        disscount_percentage: '',
-        pieace_cost: '',
-        hm_charges: '60.00',
-        remarks: '',
-        piece_taxable_amt: '',
-        festival_discount: '',
-        custom_purity: ''
-      }));
-      
-      alert(`Added ${productsWithImages.length} product(s) from packet ${selectedOption.packetBarcode}`);
-      
-    } else {
-      // Regular barcode selection (non-packet)
-      setIsPacketAdded(false);
-      if (selectedOption.packetBarcode) {
-        setFormData(prev => ({
-          ...prev,
-          code: selectedValue,
-          packet_barcode: selectedOption.packetBarcode,
-          is_estimated: selectedOption.isEstimated || false,
-          is_packet_selection: false
+          product_name: '',
+          metal_type: '',
+          purity: '',
+          category: '',
+          sub_category: '',
+          gross_weight: '',
+          stone_weight: '',
+          stone_price: '',
+          weight_bw: '',
+          va_on: 'Gross Weight',
+          va_percent: '',
+          wastage_weight: '',
+          total_weight_av: '',
+          mc_on: 'MC %',
+          mc_per_gram: '',
+          making_charges: '',
+          rate: '',
+          rate_amt: '',
+          tax_percent: '03% GST',
+          tax_amt: '',
+          total_price: '',
+          pricing: 'By Weight',
+          qty: '1',
+          design_name: '',
+          selling_purity: '',
+          printing_purity: '',
+          imagePreview: null,
+          image: null,
+          disscount: '',
+          disscount_percentage: '',
+          pieace_cost: '',
+          hm_charges: '60.00',
+          remarks: '',
+          piece_taxable_amt: '',
+          festival_discount: '',
+          custom_purity: ''
         }));
+        
+        alert(`Added ${productsWithImages.length} product(s) from packet ${selectedOption.packetBarcode}`);
+        
       } else {
-        setFormData(prev => ({
-          ...prev,
-          code: selectedValue,
-          packet_barcode: null,
-          is_estimated: false,
-          is_packet_selection: false
-        }));
+        setIsPacketAdded(false);
+        if (selectedOption.packetBarcode) {
+          setFormData(prev => ({
+            ...prev,
+            code: selectedValue,
+            packet_barcode: selectedOption.packetBarcode,
+            is_estimated: selectedOption.isEstimated || false,
+            is_packet_selection: false
+          }));
+        } else {
+          setFormData(prev => ({
+            ...prev,
+            code: selectedValue,
+            packet_barcode: null,
+            is_estimated: false,
+            is_packet_selection: false
+          }));
+        }
+        handleBarcodeChange(selectedValue);
       }
-      handleBarcodeChange(selectedValue);
     }
-  }
-};
+  };
 
   const handleClear = () => {
     setIsPacketAdded(false);
@@ -471,7 +467,6 @@ const handleBarcodeSelect = (selectedValue) => {
     }));
   };
 
-  // Calculations for price fields
   useEffect(() => {
     const grossWeight = parseFloat(formData.gross_weight) || 0;
     const stoneWeight = parseFloat(formData.stone_weight) || 0;
@@ -486,12 +481,10 @@ const handleBarcodeSelect = (selectedValue) => {
     const pieceCost = parseFloat(formData.pieace_cost) || 0;
 
     const weightBW = grossWeight - stoneWeight;
-
     const wastageWeight =
       formData.va_on === "Gross Weight"
         ? (grossWeight * vaPercent) / 100
         : (weightBW * vaPercent) / 100;
-
     const totalWeightAW = weightBW + wastageWeight;
 
     let rateAmt = 0;
@@ -525,7 +518,6 @@ const handleBarcodeSelect = (selectedValue) => {
       const taxable = pieceCost * qty;
       taxAmt = (taxPercent * taxable) / 100;
       totalPrice = taxable;
-
       setFormData(prev => ({
         ...prev,
         piece_taxable_amt: taxable.toFixed(2),
@@ -574,15 +566,10 @@ const handleBarcodeSelect = (selectedValue) => {
     formData.pricing,
   ]);
 
-  // Function to get image URL for display
   const getImageUrl = (imagePath) => {
     if (!imagePath) return null;
-    if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
-      return imagePath;
-    }
-    if (imagePath.startsWith('/')) {
-      return `${baseURL}${imagePath}`;
-    }
+    if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) return imagePath;
+    if (imagePath.startsWith('/')) return `${baseURL}${imagePath}`;
     return `${baseURL}/${imagePath}`;
   };
 
@@ -597,24 +584,7 @@ const handleBarcodeSelect = (selectedValue) => {
             onChange={(e) => handleBarcodeSelect(e.target.value)}
             type="select"
             options={uniqueBarcodeOptions}
-            // autoFocus
           />
-          {/* Display packet barcode if available */}
-          {/* {formData.packet_barcode && (
-            <div style={{ fontSize: "12px", color: "#a36e29", marginTop: "2px", fontWeight: "bold" }}>
-              Packet: {formData.packet_barcode}
-            </div>
-          )}
-          {formData.is_estimated && (
-            <div style={{ fontSize: "11px", color: "#28a745", marginTop: "2px" }}>
-              ✓ Estimated
-            </div>
-          )}
-          {isPacketAdded && (
-            <div style={{ fontSize: "11px", color: "#a36e29", marginTop: "2px", fontWeight: "bold" }}>
-              ✓ Packet Added - Select another or clear
-            </div>
-          )} */}
         </Col>
 
         <Col xs={12} md={2} className="d-flex align-items-center">
@@ -632,18 +602,8 @@ const handleBarcodeSelect = (selectedValue) => {
           <AiOutlinePlus
             size={20}
             color="black"
-            style={{
-              marginLeft: "10px",
-              cursor: "pointer",
-              marginBottom: "20px",
-            }}
-            onClick={() =>
-              navigate("/itemmaster", {
-                state: {
-                  from: `/sales?tabId=${tabId}`
-                }
-              })
-            }
+            style={{ marginLeft: "10px", cursor: "pointer", marginBottom: "20px" }}
+            onClick={() => navigate("/itemmaster", { state: { from: `/sales?tabId=${tabId}` } })}
           />
         </Col>
 
@@ -674,19 +634,8 @@ const handleBarcodeSelect = (selectedValue) => {
           <AiOutlinePlus
             size={20}
             color="black"
-            style={{
-              marginLeft: "10px",
-              cursor: "pointer",
-              marginBottom: "20px",
-            }}
-            onClick={() =>
-              navigate("/subcategory", {
-                state: {
-                  from: `/sales?tabId=${tabId}`,
-                  metal_type: formData.metal_type
-                }
-              })
-            }
+            style={{ marginLeft: "10px", cursor: "pointer", marginBottom: "20px" }}
+            onClick={() => navigate("/subcategory", { state: { from: `/sales?tabId=${tabId}`, metal_type: formData.metal_type } })}
           />
         </Col>
 
@@ -702,114 +651,38 @@ const handleBarcodeSelect = (selectedValue) => {
           />
         </Col>
 
-        {/* By Fixed Pricing Fields */}
         {isByFixed ? (
           <>
             <Col xs={12} md={2}>
-              <InputField
-                label="Printing Purity"
-                name="printing_purity"
-                value={formData.printing_purity || ""}
-                onChange={handleChange}
-                disabled={isPacketAdded}
-              />
+              <InputField label="Printing Purity" name="printing_purity" value={formData.printing_purity || ""} onChange={handleChange} disabled={isPacketAdded} />
             </Col>
             <Col xs={12} md={2}>
-              <InputField
-                label="Piece Cost"
-                name="pieace_cost"
-                value={formData.pieace_cost}
-                onChange={handleChange}
-                disabled={isPacketAdded}
-              />
+              <InputField label="Piece Cost" name="pieace_cost" value={formData.pieace_cost} onChange={handleChange} disabled={isPacketAdded} />
             </Col>
             <Col xs={12} md={1}>
-              <InputField
-                label="Qty"
-                name="qty"
-                value={formData.qty}
-                onChange={handleChange}
-                readOnly={!isQtyEditable}
-                disabled={isPacketAdded}
-              />
+              <InputField label="Qty" name="qty" value={formData.qty} onChange={handleChange} readOnly={!isQtyEditable} disabled={isPacketAdded} />
             </Col>
             <Col xs={12} md={4}>
-              <DropdownButton
-                id="dropdown-basic-button"
-                title="Choose / Capture Image"
-                variant="primary"
-                size="sm"
-                onClick={() => setShowOptions(!showOptions)}
-                disabled={isPacketAdded}
-              >
+              <DropdownButton id="dropdown-basic-button" title="Choose / Capture Image" variant="primary" size="sm" onClick={() => setShowOptions(!showOptions)} disabled={isPacketAdded}>
                 {showOptions && (
                   <>
-                    <Dropdown.Item
-                      onClick={() => fileInputRef.current && fileInputRef.current.click()}
-                    >
-                      <FaUpload /> Choose Image
-                    </Dropdown.Item>
-                    <Dropdown.Item onClick={() => setShowWebcam(true)}>
-                      <FaCamera /> Capture Image
-                    </Dropdown.Item>
+                    <Dropdown.Item onClick={() => fileInputRef.current && fileInputRef.current.click()}><FaUpload /> Choose Image</Dropdown.Item>
+                    <Dropdown.Item onClick={() => setShowWebcam(true)}><FaCamera /> Capture Image</Dropdown.Item>
                   </>
                 )}
               </DropdownButton>
-
-              <input
-                type="file"
-                name="image"
-                accept="image/*"
-                ref={fileInputRef}
-                style={{ display: "none" }}
-                onChange={handleImageChange}
-              />
-
+              <input type="file" name="image" accept="image/*" ref={fileInputRef} style={{ display: "none" }} onChange={handleImageChange} />
               {showWebcam && (
                 <div>
-                  <Webcam
-                    audio={false}
-                    ref={webcamRef}
-                    screenshotFormat="image/jpeg"
-                    width={150}
-                    height={150}
-                  />
-                  <Button variant="success" size="sm" onClick={captureImage} style={{ marginRight: "5px" }}>
-                    Capture
-                  </Button>
-                  <Button variant="secondary" size="sm" onClick={() => setShowWebcam(false)}>
-                    Cancel
-                  </Button>
+                  <Webcam audio={false} ref={webcamRef} screenshotFormat="image/jpeg" width={150} height={150} />
+                  <Button variant="success" size="sm" onClick={captureImage} style={{ marginRight: "5px" }}>Capture</Button>
+                  <Button variant="secondary" size="sm" onClick={() => setShowWebcam(false)}>Cancel</Button>
                 </div>
               )}
               {formData.imagePreview && (
                 <div style={{ position: "relative", display: "inline-block", marginTop: "10px" }}>
-                  <img
-                    src={formData.imagePreview}
-                    alt="Selected"
-                    style={{
-                      width: "100px",
-                      height: "100px",
-                      borderRadius: "8px",
-                    }}
-                  />
-                  <button
-                    type="button"
-                    onClick={clearImage}
-                    style={{
-                      position: "absolute",
-                      top: "5px",
-                      right: "5px",
-                      background: "transparent",
-                      border: "none",
-                      color: "red",
-                      fontSize: "16px",
-                      cursor: "pointer",
-                      zIndex: 10,
-                    }}
-                  >
-                    <FaTrash />
-                  </button>
+                  <img src={formData.imagePreview} alt="Selected" style={{ width: "100px", height: "100px", borderRadius: "8px" }} />
+                  <button type="button" onClick={clearImage} style={{ position: "absolute", top: "5px", right: "5px", background: "transparent", border: "none", color: "red", fontSize: "16px", cursor: "pointer", zIndex: 10 }}><FaTrash /></button>
                 </div>
               )}
             </Col>
@@ -824,12 +697,10 @@ const handleBarcodeSelect = (selectedValue) => {
                 value={formData.selling_purity}
                 onChange={handleChange}
                 options={[
-                  ...(formData.product_name
-                    ? [{
-                        label: subcategoryOptions.find(option => option.value === formData.product_name)?.selling_purity || "Default Purity",
-                        value: subcategoryOptions.find(option => option.value === formData.product_name)?.selling_purity || ""
-                      }]
-                    : []),
+                  ...(formData.product_name ? [{
+                    label: subcategoryOptions.find(option => option.value === formData.product_name)?.selling_purity || "Default Purity",
+                    value: subcategoryOptions.find(option => option.value === formData.product_name)?.selling_purity || ""
+                  }] : []),
                   { label: "Manual", value: "Manual" }
                 ]}
                 disabled={isPacketAdded}
@@ -838,46 +709,13 @@ const handleBarcodeSelect = (selectedValue) => {
 
             {formData.selling_purity === "Manual" && (
               <Col xs={12} md={2}>
-                <InputField
-                  label="Custom Purity %"
-                  name="custom_purity"
-                  value={formData.custom_purity || ""}
-                  onChange={handleChange}
-                  disabled={isPacketAdded}
-                />
+                <InputField label="Custom Purity %" name="custom_purity" value={formData.custom_purity || ""} onChange={handleChange} disabled={isPacketAdded} />
               </Col>
             )}
 
-            <Col xs={12} md={1}>
-              <InputField
-                label="Gross Wt"
-                name="gross_weight"
-                type='number'
-                value={formData.gross_weight || ""}
-                onChange={handleChange}
-                disabled={isPacketAdded}
-              />
-            </Col>
-            <Col xs={12} md={1}>
-              <InputField
-                label="Stone Wt"
-                name="stone_weight"
-                type='number'
-                value={formData.stone_weight || ""}
-                onChange={handleChange}
-                disabled={isPacketAdded}
-              />
-            </Col>
-            <Col xs={12} md={1}>
-              <InputField
-                label="Weight BW"
-                name="weight_bw"
-                value={formData.weight_bw || ""}
-                onChange={handleChange}
-                readOnly
-                disabled={isPacketAdded}
-              />
-            </Col>
+            <Col xs={12} md={1}><InputField label="Gross Wt" name="gross_weight" type='number' value={formData.gross_weight || ""} onChange={handleChange} disabled={isPacketAdded} /></Col>
+            <Col xs={12} md={1}><InputField label="Stone Wt" name="stone_weight" type='number' value={formData.stone_weight || ""} onChange={handleChange} disabled={isPacketAdded} /></Col>
+            <Col xs={12} md={1}><InputField label="Weight BW" name="weight_bw" value={formData.weight_bw || ""} onChange={handleChange} readOnly disabled={isPacketAdded} /></Col>
 
             <Col xs={12} md={2}>
               <InputField
@@ -889,44 +727,14 @@ const handleBarcodeSelect = (selectedValue) => {
                 options={[
                   { value: "Gross Weight", label: "Gross Weight" },
                   { value: "Weight BW", label: "Weight BW" },
-                  ...(formData.va_on &&
-                    !["Gross Weight", "Weight BW"].includes(formData.va_on)
-                    ? [{ value: formData.va_on, label: formData.va_on }]
-                    : []),
+                  ...(formData.va_on && !["Gross Weight", "Weight BW"].includes(formData.va_on) ? [{ value: formData.va_on, label: formData.va_on }] : []),
                 ]}
                 disabled={isPacketAdded}
               />
             </Col>
-            <Col xs={12} md={1}>
-              <InputField
-                label="Wastage%"
-                name="va_percent"
-                type='number'
-                value={formData.va_percent || "0"}
-                onChange={handleChange}
-                disabled={isPacketAdded}
-              />
-            </Col>
-            <Col xs={12} md={1}>
-              <InputField
-                label="W.Wt"
-                name="wastage_weight"
-                value={formData.wastage_weight || "0.00"}
-                onChange={handleChange}
-                readOnly
-                disabled={isPacketAdded}
-              />
-            </Col>
-            <Col xs={12} md={2}>
-              <InputField
-                label="Total Weight AW"
-                name="total_weight_av"
-                value={formData.total_weight_av || ""}
-                onChange={handleChange}
-                readOnly
-                disabled={isPacketAdded}
-              />
-            </Col>
+            <Col xs={12} md={1}><InputField label="Wastage%" name="va_percent" type='number' value={formData.va_percent || "0"} onChange={handleChange} disabled={isPacketAdded} /></Col>
+            <Col xs={12} md={1}><InputField label="W.Wt" name="wastage_weight" value={formData.wastage_weight || "0.00"} onChange={handleChange} readOnly disabled={isPacketAdded} /></Col>
+            <Col xs={12} md={2}><InputField label="Total Weight AW" name="total_weight_av" value={formData.total_weight_av || ""} onChange={handleChange} readOnly disabled={isPacketAdded} /></Col>
 
             <Col xs={12} md={2}>
               <InputField
@@ -939,114 +747,35 @@ const handleBarcodeSelect = (selectedValue) => {
                   { value: "MC / Gram", label: "MC / Gram" },
                   { value: "MC / Piece", label: "MC / Piece" },
                   { value: "MC %", label: "MC %" },
-                  ...(formData.mc_on &&
-                    !["MC / Gram", "MC / Piece", "MC %"].includes(formData.mc_on)
-                    ? [{ value: formData.mc_on, label: formData.mc_on }]
-                    : []),
+                  ...(formData.mc_on && !["MC / Gram", "MC / Piece", "MC %"].includes(formData.mc_on) ? [{ value: formData.mc_on, label: formData.mc_on }] : []),
                 ]}
                 disabled={isPacketAdded}
               />
             </Col>
-
-            <Col xs={12} md={1}>
-              <InputField
-                label={formData.mc_on === "MC %" ? "MC %" : "MC/Gm"}
-                name="mc_per_gram"
-                type='number'
-                value={formData.mc_per_gram || ""}
-                onChange={handleChange}
-                readOnly={formData.mc_on === "MC / Piece"}
-                disabled={isPacketAdded}
-              />
-            </Col>
-            <Col xs={12} md={1}>
-              <InputField
-                label="Total MC"
-                name="making_charges"
-                type='number'
-                value={formData.making_charges || ""}
-                onChange={handleChange}
-                disabled={formData.mc_on === "MC / Gram" || isPacketAdded}
-              />
-            </Col>
+            <Col xs={12} md={1}><InputField label={formData.mc_on === "MC %" ? "MC %" : "MC/Gm"} name="mc_per_gram" type='number' value={formData.mc_per_gram || ""} onChange={handleChange} readOnly={formData.mc_on === "MC / Piece"} disabled={isPacketAdded} /></Col>
+            <Col xs={12} md={1}><InputField label="Total MC" name="making_charges" type='number' value={formData.making_charges || ""} onChange={handleChange} disabled={formData.mc_on === "MC / Gram" || isPacketAdded} /></Col>
 
             <Col xs={12} md={2}>
-              <DropdownButton
-                id="dropdown-basic-button"
-                title="Choose / Capture Image"
-                variant="primary"
-                size="sm"
-                onClick={() => setShowOptions(!showOptions)}
-                disabled={isPacketAdded}
-              >
+              <DropdownButton id="dropdown-basic-button" title="Choose / Capture Image" variant="primary" size="sm" onClick={() => setShowOptions(!showOptions)} disabled={isPacketAdded}>
                 {showOptions && (
                   <>
-                    <Dropdown.Item
-                      onClick={() => fileInputRef.current && fileInputRef.current.click()}
-                    >
-                      <FaUpload /> Choose Image
-                    </Dropdown.Item>
-                    <Dropdown.Item onClick={() => setShowWebcam(true)}>
-                      <FaCamera /> Capture Image
-                    </Dropdown.Item>
+                    <Dropdown.Item onClick={() => fileInputRef.current && fileInputRef.current.click()}><FaUpload /> Choose Image</Dropdown.Item>
+                    <Dropdown.Item onClick={() => setShowWebcam(true)}><FaCamera /> Capture Image</Dropdown.Item>
                   </>
                 )}
               </DropdownButton>
-
-              <input
-                type="file"
-                name="image"
-                accept="image/*"
-                ref={fileInputRef}
-                style={{ display: "none" }}
-                onChange={handleImageChange}
-              />
-
+              <input type="file" name="image" accept="image/*" ref={fileInputRef} style={{ display: "none" }} onChange={handleImageChange} />
               {showWebcam && (
                 <div>
-                  <Webcam
-                    audio={false}
-                    ref={webcamRef}
-                    screenshotFormat="image/jpeg"
-                    width={150}
-                    height={150}
-                  />
-                  <Button variant="success" size="sm" onClick={captureImage} style={{ marginRight: "5px" }}>
-                    Capture
-                  </Button>
-                  <Button variant="secondary" size="sm" onClick={() => setShowWebcam(false)}>
-                    Cancel
-                  </Button>
+                  <Webcam audio={false} ref={webcamRef} screenshotFormat="image/jpeg" width={150} height={150} />
+                  <Button variant="success" size="sm" onClick={captureImage} style={{ marginRight: "5px" }}>Capture</Button>
+                  <Button variant="secondary" size="sm" onClick={() => setShowWebcam(false)}>Cancel</Button>
                 </div>
               )}
               {formData.imagePreview && (
                 <div style={{ position: "relative", display: "inline-block", marginTop: "10px" }}>
-                  <img
-                    src={formData.imagePreview}
-                    alt="Selected"
-                    style={{
-                      width: "100px",
-                      height: "100px",
-                      borderRadius: "8px",
-                    }}
-                  />
-                  <button
-                    type="button"
-                    onClick={clearImage}
-                    style={{
-                      position: "absolute",
-                      top: "5px",
-                      right: "5px",
-                      background: "transparent",
-                      border: "none",
-                      color: "red",
-                      fontSize: "16px",
-                      cursor: "pointer",
-                      zIndex: 10,
-                    }}
-                  >
-                    <FaTrash />
-                  </button>
+                  <img src={formData.imagePreview} alt="Selected" style={{ width: "100px", height: "100px", borderRadius: "8px" }} />
+                  <button type="button" onClick={clearImage} style={{ position: "absolute", top: "5px", right: "5px", background: "transparent", border: "none", color: "red", fontSize: "16px", cursor: "pointer", zIndex: 10 }}><FaTrash /></button>
                 </div>
               )}
             </Col>
@@ -1056,14 +785,7 @@ const handleBarcodeSelect = (selectedValue) => {
         <Col xs={12} md={1}>
           <Button
             onClick={isEditing ? handleUpdate : handleAdd}
-            style={{
-              backgroundColor: "#a36e29",
-              borderColor: "#a36e29",
-              padding: "4px 7px",
-              marginTop: "5px",
-              marginLeft: "-1px",
-              fontSize: "13px"
-            }}
+            style={{ backgroundColor: "#a36e29", borderColor: "#a36e29", padding: "4px 7px", marginTop: "5px", marginLeft: "-1px", fontSize: "13px" }}
             disabled={isPacketAdded}
           >
             {isEditing ? "Update" : "Add"}
@@ -1073,13 +795,7 @@ const handleBarcodeSelect = (selectedValue) => {
           <Button
             variant="secondary"
             onClick={handleClear}
-            style={{
-              backgroundColor: 'gray',
-              marginLeft: '-52px',
-              padding: "4px 7px",
-              fontSize: "13px",
-              marginTop: "5px"
-            }}
+            style={{ backgroundColor: 'gray', marginLeft: '-52px', padding: "4px 7px", fontSize: "13px", marginTop: "5px" }}
           >
             Clear
           </Button>

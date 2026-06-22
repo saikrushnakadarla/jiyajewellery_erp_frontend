@@ -94,6 +94,7 @@ import Selections from "./Components/Modules/Transactions/Selections/Selections"
 import VisitLogsWarehouseSchedule from './Components/Modules/Masters/VisitLogsWarehouse/VisitLogsWarehouseSchedule';
 import VisitLogsSalesmanSchedule from "./Components/Modules/Transactions/VisitLogsSalesman/VisitLogsSalesman";
 import WarehouseStockItems from './Components/Modules/Transactions/WarehouseStockItems/WarehouseStockItems';
+import Footer from "./Footer/Footer"
 
 
 function App() {
@@ -240,17 +241,8 @@ function App() {
 
           <Route path="/warehouse-stock-items" element={<WarehouseStockItems />} />
 
-
-
-
-
-
-
-
-
-
-
         </Routes>
+                {!isAuthPage && isStockModule &&   <Footer />}
       </AuthProvider>
     </>
 

@@ -2912,7 +2912,7 @@ const handleSave = async () => {
             style={{ marginTop: "-20px", marginBottom: "5px" }}
           >
             <ProductDetails
-               selectedSalesmanProducts={selectedSalesmanProducts}
+              selectedSalesmanProducts={selectedSalesmanProducts}
               formData={formData}
               setFormData={setFormData}
               setRepairDetails={setRepairDetails}
