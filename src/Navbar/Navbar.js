@@ -8,6 +8,7 @@ import logo from "./jiya_logo.png";
 import "./Navbar.css";
 import { AuthContext } from "../Components/Pages/Login/Context";
 import Swal from "sweetalert2";
+import { v4 as uuidv4 } from 'uuid';
 
 function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
@@ -49,7 +50,7 @@ function Navbar() {
 
     // If still not found, generate new ID
     if (!tabId) {
-      tabId = crypto.randomUUID();
+      tabId = uuidv4();
       sessionStorage.setItem("tabId", tabId);
 
       // Update URL without page reload
