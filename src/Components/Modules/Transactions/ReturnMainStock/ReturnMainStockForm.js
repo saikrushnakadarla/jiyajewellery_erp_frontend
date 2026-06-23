@@ -2710,7 +2710,7 @@ const resetForm = () => {
   // ============================================================
   // UPDATED handleSave - Uses POST API to save return to main stock
   // ============================================================
- const handleSave = async () => {
+const handleSave = async () => {
   try {
     const activeStockPointDetails = formData.active_stock_point_details;
     const selectedSalesman = formData.salesman_id ? {
@@ -2747,7 +2747,8 @@ const resetForm = () => {
       barcodes: barcodes,
       status: "Selected",        // Status should be "Selected" (not "Available")
       stock_point: "MAIN STOCK ROOM",
-      user_id: null              // Set user_id to NULL
+      user_id: null,              // Set user_id to NULL
+      received_status: "pending"  // Explicitly set received_status to pending
     });
 
     if (updateResponse.status === 200) {
