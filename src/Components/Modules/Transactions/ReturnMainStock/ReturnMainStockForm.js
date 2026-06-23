@@ -479,29 +479,29 @@ useEffect(() => {
 // ✅ FIX THIS: Fetch next assigned number from assigned-salesman API
 // Replace this useEffect (it's fetching assigned number, not received number)
 useEffect(() => {
-  const fetchNextReceivedNumber = async () => {
+  const fetchNextReturnNumber = async () => {
     try {
-      // Change to received-salesman API
-      const response = await axios.get(`${baseURL}/api/received-salesman/lastReceivedNumber`);
-      const nextNumber = response.data.lastReceivedNumber;
-      console.log("Next Received Number to display:", nextNumber);
+      // Use return-to-main-stock API
+      const response = await axios.get(`${baseURL}/api/return-to-main-stock/lastReturnNumber`);
+      const nextNumber = response.data.lastReturnNumber;
+      console.log("Next Return Number to display:", nextNumber);
       setFormData((prev) => ({
         ...prev,
-        received_number: nextNumber,
+        return_number: nextNumber,
         transfer_number: nextNumber,
       }));
     } catch (error) {
-      console.error("Error fetching next received number:", error);
+      console.error("Error fetching next return number:", error);
       // Set default if API fails
       setFormData((prev) => ({
         ...prev,
-        received_number: "RCN001",
-        transfer_number: "RCN001",
+        return_number: "RTN001",
+        transfer_number: "RTN001",
       }));
     }
   };
 
-  fetchNextReceivedNumber();
+  fetchNextReturnNumber();
 }, []);
 
   // Fetch stock points for dropdown
@@ -2707,95 +2707,10 @@ const resetForm = () => {
     }
   };
 
-  // const handleSave = async () => {
-  //   if (!formData.account_name || !formData.mobile) {
-  //     alert("Please select the Customer or enter the Customer Mobile Number");
-  //     return;
-  //   }
-  //   const dataToSave = {
-  //     repairDetails: repairDetails.map(item => ({
-  //       ...item,
-  //       customer_id: formData.customer_id,
-  //       mobile: formData.mobile,
-  //       account_name: formData.account_name,
-  //       email: formData.email,
-  //       address1: formData.address1,
-  //       address2: formData.address2,
-  //       city: formData.city,
-  //       pincode: formData.pincode,
-  //       state: formData.state,
-  //       state_code: formData.state_code,
-  //       aadhar_card: formData.aadhar_card,
-  //       gst_in: formData.gst_in,
-  //       pan_card: formData.pan_card,
-  //       terms: formData.terms,
-  //       cash_amount: paymentDetails.cash_amount || 0,
-  //       card_amt: paymentDetails.card_amt || 0,
-  //       chq_amt: paymentDetails.chq_amt || 0,
-  //       online_amt: paymentDetails.online_amt || 0,
-  //     })),
-  //     oldItems: oldSalesData,
-  //     memberSchemes: schemeSalesData,
-  //     oldItemsAmount: oldItemsAmount || 0, // Explicitly include value
-  //     schemeAmount: schemeAmount || 0,    // Explicitly include value
-  //     salesNetAmount: salesAmountToPass || 0,
-  //   };
-
-  //   console.log("Payload to be sent:", JSON.stringify(dataToSave, null, 2));
-
-  //   console.log("Saving data:", dataToSave);
-
-  //   try {
-  //     await axios.post(`${baseURL}/save-repair-details`, dataToSave);
-  //     alert("Sales added successfully");
-
-  //     // Generate PDF Blob
-  //     const pdfDoc = (
-  //       <PDFLayout
-  //         formData={formData}
-  //         repairDetails={repairDetails}
-  //         cash_amount={paymentDetails.cash_amount || 0}
-  //         card_amt={paymentDetails.card_amt || 0}
-  //         chq_amt={paymentDetails.chq_amt || 0}
-  //         online_amt={paymentDetails.online_amt || 0}
-  //         taxableAmount={taxableAmount}
-  //         taxAmount={taxAmount}
-  //         discountAmt={discountAmt}
-  //         oldItemsAmount={oldItemsAmount}
-  //         schemeAmount={schemeAmount}
-  //         salesNetAmount={salesAmountToPass}
-  //         netAmount={netAmount}
-  //         netPayableAmount={netPayableAmount}
-  //       />
-  //     );
-
-  //     const pdfBlob = await pdf(pdfDoc).toBlob();
-
-  //     // Create a download link and trigger it
-  //     const link = document.createElement("a");
-  //     link.href = URL.createObjectURL(pdfBlob);
-  //     link.download = `invoice-${formData.invoice_number}.pdf`;
-  //     link.click();
-
-  //     // Clean up
-  //     URL.revokeObjectURL(link.href);
-
-  //     // Clear all data after saving
-  //     clearData();
-
-  //     // Reset the form and reload the page if necessary
-  //     resetForm();
-  //     navigate("/salestable");
-  //     window.location.reload();
-  //     await handleCheckout();
-  //   } catch (error) {
-  //     console.error("Error saving data:", error);
-  //     alert("Error saving data");
-  //   }
-  // };
-
-
-const handleSave = async () => {
+  // ============================================================
+  // UPDATED handleSave - Uses POST API to save return to main stock
+  // ============================================================
+ const handleSave = async () => {
   try {
     const activeStockPointDetails = formData.active_stock_point_details;
     const selectedSalesman = formData.salesman_id ? {
@@ -2823,68 +2738,153 @@ const handleSave = async () => {
 
     console.log("Updating opening tags for barcodes:", barcodes);
 
-    // Update opening_tags_entry table - Set Status to "Selected", Stock_Point to "MAIN STOCK ROOM", 
-    // user_id to NULL, and Received_Status to "pending"
+    // ============================================================
+    // STEP 1: Update opening_tags_entry table via PUT API
+    // This sets Status = "Selected", Received_Status = "pending",
+    // Stock_Point = "MAIN STOCK ROOM", user_id = NULL, Source = "ERP"
+    // ============================================================
     const updateResponse = await axios.put(`${baseURL}/update-opening-tags-status`, {
       barcodes: barcodes,
-      status: "Selected",
+      status: "Selected",        // Status should be "Selected" (not "Available")
       stock_point: "MAIN STOCK ROOM",
-      user_id: null  // Set user_id to NULL
+      user_id: null              // Set user_id to NULL
     });
 
     if (updateResponse.status === 200) {
       console.log("Opening tags updated successfully:", updateResponse.data);
-      alert(`Successfully updated ${barcodes.length} product(s). Status changed to "Selected", Stock Point to "MAIN STOCK ROOM", user_id set to NULL, and Received_Status set to "pending"`);
       
-      // Clear all data after successful save
-      setOldSalesData([]);
-      setSchemeSalesData([]);
-      setRepairDetails([]);
-      setPaymentDetails({
-        cash_amount: 0,
-        card_amt: 0,
-        chq: "",
-        chq_amt: 0,
-        online: "",
-        online_amt: 0,
-      });
-      setOldTableData([]);
-      setSchemeTableData([]);
-      setDiscount(0);
+      // ============================================================
+      // STEP 2: Save to Return to Main Stock table via POST API
+      // ============================================================
       
-      // Reset form data
-      setFormData({
-        ...formData,
-        customer_id: "",
-        mobile: "",
-        account_name: "",
-        email: "",
-        address1: "",
-        address2: "",
-        city: "",
-        pincode: "",
-        state: "",
-        state_code: "",
-        aadhar_card: "",
-        gst_in: "",
-        pan_card: "",
-        date: new Date().toISOString().split("T")[0],
-        transfer_number: "",
-        active_stock_point_id: "",
-        salesman_id: "",
-        salesman_name: "",
-        active_stock_point_details: null,
-        received_number: "",
-      });
+      // Get next return number from API
+      let nextReturnNumber = formData.return_number || formData.transfer_number;
       
-      // Navigate back to stock transfers page
-      navigate("/return-to-main-stock");
+      if (!nextReturnNumber) {
+        try {
+          const response = await axios.get(`${baseURL}/api/return-to-main-stock/lastReturnNumber`);
+          nextReturnNumber = response.data.lastReturnNumber;
+        } catch (error) {
+          console.error("Error fetching next return number:", error);
+          nextReturnNumber = "RTN001";
+        }
+      }
+
+      console.log("Saving with Return Number:", nextReturnNumber);
+      console.log("From User ID (loggedInUserId):", loggedInUserId);
+
+      // Check if any product was selected via packet barcode
+      const hasPacketSelection = repairDetails.some(item => item.is_packet_selection === true || item.packet_barcode !== null);
+
+      console.log("Has packet selection:", hasPacketSelection);
+
+      // Prepare return data with proper fields
+      const returnData = repairDetails.map(item => ({
+        item_id: item.item_id || null,
+        assigned_id: item.assigned_id || null,
+        product_id: item.product_id || null,
+        PCode_BarCode: item.code,
+        product_name: item.product_name || null,
+        metal_type: item.metal_type || null,
+        purity: item.purity || item.selling_purity || null,
+        category: item.category || null,
+        sub_category: item.sub_category || item.product_name || null,
+        design_name: item.design_name || null,
+        qty: parseFloat(item.qty) || 1,
+        gross_weight: parseFloat(item.gross_weight) || 0,
+        stone_weight: parseFloat(item.stone_weight) || 0,
+        net_weight: parseFloat(item.total_weight_av) || parseFloat(item.weight_bw) || 0,
+        rate: parseFloat(item.rate) || 0,
+        making_charges: parseFloat(item.making_charges) || 0,
+        stone_price: parseFloat(item.stone_price) || 0,
+        total_price: parseFloat(item.total_price) || 0,
+        remarks: item.remarks || null,
+        is_packet_selection: item.is_packet_selection || false,
+        packet_barcode: item.packet_barcode || null,
+        image: item.image || null
+      }));
+
+      // Collect assigned IDs to delete from assigned_salesman tables
+      const assignedIds = repairDetails
+        .map(item => item.assigned_id)
+        .filter(id => id !== null && id !== undefined);
+
+      // Build payload for Return to Main Stock API
+      const payload = {
+        return_data: returnData,
+        from_stock_point_id: parseInt(formData.active_stock_point_id),
+        to_stock_point_id: null, // Main stock doesn't have a stock point ID
+        return_date: formData.date || new Date().toISOString().split('T')[0],
+        reference_number: nextReturnNumber,
+        remarks: `Returned to MAIN STOCK ROOM from ${activeStockPointDetails.stock_point_name}`,
+        created_by: formData.account_name || "system",
+        from_user_id: loggedInUserId,
+        to_user_id: null,
+        assigned_ids: assignedIds,
+        is_packet_selection: hasPacketSelection
+      };
+
+      console.log("Sending Return to Main Stock Payload:", payload);
+
+      // Call the RETURN TO MAIN STOCK API
+      const response = await axios.post(`${baseURL}/api/return-to-main-stock/save-return-to-main-stock`, payload);
+     
+      if (response.status === 200 || response.status === 201) {
+        alert(`Return to Main Stock completed successfully! Return Number: ${nextReturnNumber}`);
+        
+        // Clear data
+        setOldSalesData([]);
+        setSchemeSalesData([]);
+        setRepairDetails([]);
+        setPaymentDetails({
+          cash_amount: 0,
+          card_amt: 0,
+          chq: "",
+          chq_amt: 0,
+          online: "",
+          online_amt: 0,
+        });
+        setOldTableData([]);
+        setSchemeTableData([]);
+        setDiscount(0);
+        
+        // Reset form data
+        setFormData({
+          ...formData,
+          customer_id: "",
+          mobile: "",
+          account_name: "",
+          email: "",
+          address1: "",
+          address2: "",
+          city: "",
+          pincode: "",
+          state: "",
+          state_code: "",
+          aadhar_card: "",
+          gst_in: "",
+          pan_card: "",
+          date: new Date().toISOString().split("T")[0],
+          transfer_number: "",
+          active_stock_point_id: "",
+          salesman_id: "",
+          salesman_name: "",
+          active_stock_point_details: null,
+          return_number: "",
+          received_number: "",
+        });
+        
+        // Navigate back to stock transfers page
+        navigate("/return-to-main-stock");
+      } else {
+        alert("Failed to save return to main stock record");
+      }
     } else {
       alert("Failed to update product status");
     }
   } catch (error) {
     console.error("Error saving data:", error);
-    alert("Error updating product status: " + (error.response?.data?.message || error.message));
+    alert("Error: " + (error.response?.data?.message || error.message));
   }
 };
 
