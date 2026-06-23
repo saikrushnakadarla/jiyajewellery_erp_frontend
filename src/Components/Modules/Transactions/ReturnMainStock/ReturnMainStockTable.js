@@ -15,7 +15,7 @@ const ReturnMainStockTable = () => {
   const [filteredData, setFilteredData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
-  const [selectedItem, setSelectedItem] = useState(null);
+  const [transferDetails, setTransferDetails] = useState(null);
   const { authToken, userId, userName, role } = useContext(AuthContext);
   const { mobile } = location.state || {};
   const initialSearchValue = location.state?.mobile || '';
@@ -40,15 +40,10 @@ const ReturnMainStockTable = () => {
 
   const tabId = getTabId();
 
-  // Get logged-in user ID and name from localStorage
+  // Get logged-in user ID from localStorage
   const getLoggedInUserId = () => {
     const storedUserId = localStorage.getItem('userId');
     return storedUserId ? parseInt(storedUserId) : null;
-  };
-
-  const getLoggedInUserName = () => {
-    const storedUserName = localStorage.getItem('userName');
-    return storedUserName || null;
   };
 
   const formatDate = (dateString) => {
@@ -61,10 +56,10 @@ const ReturnMainStockTable = () => {
 
   const getStatusBadge = (status) => {
     const statusColors = {
-      'Available': { color: '#17a2b8', text: 'Available' },
-      'Selected': { color: '#28a745', text: 'Selected' },
-      'Assigned': { color: '#ffc107', text: 'Assigned' },
-      'Sold': { color: '#dc3545', text: 'Sold' }
+      'pending': { color: '#ffc107', text: 'Pending' },
+      'in_transit': { color: '#17a2b8', text: 'In Transit' },
+      'completed': { color: '#28a745', text: 'Completed' },
+      'cancelled': { color: '#dc3545', text: 'Cancelled' }
     };
     const statusInfo = statusColors[status] || { color: '#6c757d', text: status };
     return (
@@ -88,89 +83,59 @@ const ReturnMainStockTable = () => {
         Cell: ({ row }) => row.index + 1,
       },
       {
-        Header: 'PCode/Barcode',
-        accessor: 'PCode_BarCode',
+        Header: 'Return No',
+        accessor: 'return_number',
       },
       {
-        Header: 'Design Master',
-        accessor: 'design_master',
+        Header: 'Return Date',
+        accessor: 'return_date',
+        Cell: ({ value }) => formatDate(value),
+      },
+      {
+        Header: 'From Stock Point',
+        accessor: 'from_stock_point_name',
         Cell: ({ value }) => value || 'N/A',
       },
       {
-        Header: 'Category',
-        accessor: 'category',
+        Header: 'From User',
+        accessor: 'from_user_name',
+        Cell: ({ value }) => value || 'N/A',
       },
       {
-        Header: 'Sub Category',
-        accessor: 'sub_category',
+        Header: 'Total Items',
+        accessor: 'total_items',
       },
       {
-        Header: 'Metal Type',
-        accessor: 'metal_type',
+        Header: 'Total Qty',
+        accessor: 'total_quantity',
       },
       {
-        Header: 'Purity',
-        accessor: 'Purity',
+        Header: 'Total Gross Wt',
+        accessor: 'total_gross_weight',
       },
       {
-        Header: 'Gross Weight',
-        accessor: 'Gross_Weight',
-      },
-      {
-        Header: 'Stone Weight',
-        accessor: 'Stones_Weight',
-      },
-      {
-        Header: 'Net Weight',
-        accessor: 'Weight_BW',
-      },
-      {
-        Header: 'Total Weight (AW)',
-        accessor: 'TotalWeight_AW',
-      },
-      {
-        Header: 'Rate',
-        accessor: 'rate',
-      },
-      {
-        Header: 'Making Charges',
-        accessor: 'Making_Charges',
-      },
-      {
-        Header: 'Stone Price',
-        accessor: 'Stones_Price',
-      },
-      {
-        Header: 'Total Price',
-        accessor: 'total_price',
+        Header: 'Total Net Wt',
+        accessor: 'total_net_weight',
       },
       {
         Header: 'Status',
-        accessor: 'Status',
+        accessor: 'status',
         Cell: ({ value }) => getStatusBadge(value),
-      },
-      
-      {
-        Header: 'Stock Point',
-        accessor: 'Stock_Point',
-      },
-      {
-        Header: 'Source',
-        accessor: 'Source',
       },
       {
         Header: 'Actions',
         id: 'actions',
         Cell: ({ row }) => {
           const isAdmin = userName === "ADMIN";
+          const canEdit = row.original.status === 'pending';
           
           return (
             <div>
               <FaEye
                 style={{ cursor: 'pointer', marginLeft: '10px', color: 'green' }}
-                onClick={() => handleViewDetails(row.original)}
+                onClick={() => handleViewDetails(row.original.return_id)}
               />
-              {isAdmin && (
+              {isAdmin && canEdit && (
                 <FaEdit
                   style={{
                     cursor: 'pointer',
@@ -180,14 +145,16 @@ const ReturnMainStockTable = () => {
                   onClick={() => handleEdit(row.original)}
                 />
               )}
-              <FaTrash
-                style={{
-                  cursor: 'pointer',
-                  marginLeft: '10px',
-                  color: 'red',
-                }}
-                onClick={() => handleDelete(row.original.opentag_id)}
-              />
+              {isAdmin && (
+                <FaTrash
+                  style={{
+                    cursor: 'pointer',
+                    marginLeft: '10px',
+                    color: 'red',
+                  }}
+                  onClick={() => handleDelete(row.original.return_id)}
+                />
+              )}
             </div>
           );
         },
@@ -196,21 +163,21 @@ const ReturnMainStockTable = () => {
     [userName]
   );
 
-  const handleEdit = (item) => {
+  const handleEdit = (transfer) => {
     const tabId = crypto.randomUUID();
     navigate("/add-return-to-main-stock", { 
       state: { 
         tabId,
-        editData: item,
+        editData: transfer,
         isEdit: true 
       } 
     });
   };
 
-  const handleDelete = async (opentagId) => {
+  const handleDelete = async (returnId) => {
     Swal.fire({
       title: 'Are you sure?',
-      text: `Do you really want to delete this item?`,
+      text: `Do you really want to delete this return transfer?`,
       icon: 'warning',
       showCancelButton: true,
       confirmButtonColor: '#d33',
@@ -219,14 +186,14 @@ const ReturnMainStockTable = () => {
     }).then(async (result) => {
       if (result.isConfirmed) {
         try {
-          const response = await axios.delete(`${baseURL}/api/opening-tags/delete/${opentagId}`);
+          const response = await axios.delete(`${baseURL}/api/return-to-main-stock/delete-return-transfer/${returnId}`);
           if (response.status === 200) {
             Swal.fire('Deleted!', response.data.message, 'success');
-            fetchOpeningTags();
+            fetchReturnTransfers();
           }
         } catch (error) {
-          console.error('Error deleting item:', error);
-          Swal.fire('Error!', 'Failed to delete item. Please try again.', 'error');
+          console.error('Error deleting return transfer:', error);
+          Swal.fire('Error!', 'Failed to delete return transfer. Please try again.', 'error');
         }
       }
     });
@@ -237,70 +204,66 @@ const ReturnMainStockTable = () => {
     navigate("/add-return-to-main-stock", { state: { tabId } });
   };
 
-  const fetchOpeningTags = async () => {
+  const fetchReturnTransfers = async () => {
     try {
       setLoading(true);
-      const response = await axios.get(`${baseURL}/get/opening-tags-entry`);
-      console.log("Opening Tags Response: ", response.data);
+      // Use the RETURN TO MAIN STOCK API endpoint
+      const response = await axios.get(`${baseURL}/api/return-to-main-stock/get-return-transfers`);
+      console.log("Return Transfers Response: ", response.data);
       
-      // Get logged-in user ID and name from localStorage
+      // Get logged-in user ID from localStorage
       const loggedInUserId = getLoggedInUserId();
-      const loggedInUserName = getLoggedInUserName();
-      console.log("Logged in User ID:", loggedInUserId);
-      console.log("Logged in User Name:", loggedInUserName);
+      console.log("Logged in User ID from localStorage:", loggedInUserId);
       
-      // Filter data based on:
-      // 1. Status === "Selected"
-      // 2. user_id matches loggedInUserId
-      // 3. Stock_Point matches loggedInUserName
-      let filteredItems = [];
-      if (response.data.result && Array.isArray(response.data.result)) {
-        filteredItems = response.data.result.filter(item => {
-          const statusMatch = item.Status === "Selected";
-          const userIdMatch = loggedInUserId ? item.user_id === loggedInUserId : true;
-          const stockPointMatch = loggedInUserName ? item.Stock_Point === loggedInUserName : true;
-          
-          return statusMatch && userIdMatch && stockPointMatch;
-        });
-        console.log("Filtered Items (Selected, user_id match, Stock_Point match):", filteredItems);
+      // Filter data where from_user_id matches the logged-in user
+      let filteredTransfers = response.data;
+      if (loggedInUserId) {
+        filteredTransfers = response.data.filter(
+          transfer => transfer.from_user_id === loggedInUserId
+        );
+        console.log("Filtered Transfers (from_user_id match):", filteredTransfers);
       }
       
-      setData(filteredItems);
-      setFilteredData(filteredItems);
+      setData(filteredTransfers);
+      setFilteredData(filteredTransfers);
       setLoading(false);
     } catch (error) {
-      console.error('Error fetching opening tags:', error);
+      console.error('Error fetching return transfers:', error);
       setLoading(false);
-      Swal.fire('Error!', 'Failed to fetch data from server.', 'error');
     }
   };
 
-  const handleViewDetails = (item) => {
-    // Verify access permission before showing details
-    const loggedInUserId = getLoggedInUserId();
-    const loggedInUserName = getLoggedInUserName();
-    
-    if (loggedInUserId && item.user_id !== loggedInUserId) {
-      Swal.fire('Access Denied', 'You do not have permission to view this item', 'error');
-      return;
+  const handleViewDetails = async (returnId) => {
+    try {
+      // Use the RETURN TO MAIN STOCK API endpoint
+      const response = await axios.get(`${baseURL}/api/return-to-main-stock/get-return-transfer/${returnId}`);
+      console.log("Fetched return details: ", response.data);
+      
+      // Verify that the user has access to view this transfer
+      const loggedInUserId = getLoggedInUserId();
+      if (loggedInUserId) {
+        const transfer = response.data.return_details;
+        if (transfer.from_user_id !== loggedInUserId) {
+          Swal.fire('Access Denied', 'You do not have permission to view this transfer', 'error');
+          return;
+        }
+      }
+      
+      setTransferDetails(response.data);
+      setShowModal(true);
+    } catch (error) {
+      console.error("Error fetching return details:", error);
+      Swal.fire('Error', 'Failed to fetch return details', 'error');
     }
-    
-    if (loggedInUserName && item.Stock_Point !== loggedInUserName) {
-      Swal.fire('Access Denied', 'You do not have permission to view this item', 'error');
-      return;
-    }
-    
-    setSelectedItem(item);
-    setShowModal(true);
   };
 
   const handleCloseModal = () => {
     setShowModal(false);
-    setSelectedItem(null);
+    setTransferDetails(null);
   };
 
   useEffect(() => {
-    fetchOpeningTags();
+    fetchReturnTransfers();
   }, []);
 
   return (
@@ -308,7 +271,7 @@ const ReturnMainStockTable = () => {
       <div className="sales-table-container">
         <Row className="mb-3">
           <Col className="d-flex justify-content-between align-items-center">
-            <h3>Return to Main Stock - Selected Items</h3>
+            <h3>Return to Main Stock</h3>
             <Button
               className="create_but"
               onClick={handleCreate}
@@ -327,130 +290,118 @@ const ReturnMainStockTable = () => {
 
       <Modal show={showModal} onHide={handleCloseModal} size="xl" className="m-auto">
         <Modal.Header closeButton>
-          <Modal.Title>Item Details</Modal.Title>
+          <Modal.Title>Return to Main Stock Details</Modal.Title>
         </Modal.Header>
         <Modal.Body style={{ fontSize: '13px' }}>
-          {selectedItem && (
+          {transferDetails && (
             <>
-              <h5>Product Information</h5>
+              <h5>Return Information</h5>
               <Table bordered>
                 <tbody>
                   <tr>
-                    <td width="30%"><strong>PCode/Barcode</strong></td>
-                    <td>{selectedItem.PCode_BarCode}</td>
+                    <td width="30%"><strong>Return Number</strong></td>
+                    <td>{transferDetails.return_details.return_number}</td>
                   </tr>
                   <tr>
-                    <td><strong>Product Name</strong></td>
-                    <td>{selectedItem.product_Name || 'N/A'}</td>
+                    <td><strong>Return Date</strong></td>
+                    <td>{formatDate(transferDetails.return_details.return_date)}</td>
                   </tr>
                   <tr>
-                    <td><strong>Design Master</strong></td>
-                    <td>{selectedItem.design_master || 'N/A'}</td>
+                    <td><strong>From Stock Point</strong></td>
+                    <td>{transferDetails.return_details.from_stock_point_name || 'N/A'}</td>
                   </tr>
                   <tr>
-                    <td><strong>Category</strong></td>
-                    <td>{selectedItem.category}</td>
+                    <td><strong>From User</strong></td>
+                    <td>{transferDetails.return_details.from_user_name || 'N/A'}</td>
                   </tr>
                   <tr>
-                    <td><strong>Sub Category</strong></td>
-                    <td>{selectedItem.sub_category}</td>
-                  </tr>
-                  <tr>
-                    <td><strong>Metal Type</strong></td>
-                    <td>{selectedItem.metal_type}</td>
-                  </tr>
-                  <tr>
-                    <td><strong>Purity</strong></td>
-                    <td>{selectedItem.Purity}</td>
+                    <td><strong>To Stock Point</strong></td>
+                    <td>{transferDetails.return_details.to_stock_point_name || 'MAIN STOCK ROOM'}</td>
                   </tr>
                   <tr>
                     <td><strong>Status</strong></td>
-                    <td>{getStatusBadge(selectedItem.Status)}</td>
+                    <td>{getStatusBadge(transferDetails.return_details.status)}</td>
                   </tr>
                   <tr>
-                    <td><strong>Stock Point</strong></td>
-                    <td>{selectedItem.Stock_Point}</td>
+                    <td><strong>Remarks</strong></td>
+                    <td>{transferDetails.return_details.remarks || 'N/A'}</td>
                   </tr>
                   <tr>
-                    <td><strong>Source</strong></td>
-                    <td>{selectedItem.Source}</td>
+                    <td><strong>Created By</strong></td>
+                    <td>{transferDetails.return_details.created_by || 'System'}</td>
                   </tr>
                   <tr>
-                    <td><strong>Account Name</strong></td>
-                    <td>{selectedItem.account_name || 'N/A'}</td>
-                  </tr>
-                  <tr>
-                    <td><strong>Invoice</strong></td>
-                    <td>{selectedItem.invoice || 'N/A'}</td>
-                  </tr>
-                  <tr>
-                    <td><strong>Date</strong></td>
-                    <td>{formatDate(selectedItem.date)}</td>
+                    <td><strong>Created At</strong></td>
+                    <td>{formatDate(transferDetails.return_details.created_at)}</td>
                   </tr>
                 </tbody>
               </Table>
 
-              <h5>Weight & Pricing Details</h5>
-              <Table bordered>
-                <tbody>
-                  <tr>
-                    <td width="30%"><strong>Gross Weight</strong></td>
-                    <td>{selectedItem.Gross_Weight} g</td>
-                  </tr>
-                  <tr>
-                    <td><strong>Stone Weight</strong></td>
-                    <td>{selectedItem.Stones_Weight} g</td>
-                  </tr>
-                  <tr>
-                    <td><strong>Net Weight (BW)</strong></td>
-                    <td>{selectedItem.Weight_BW} g</td>
-                  </tr>
-                  <tr>
-                    <td><strong>Wastage %</strong></td>
-                    <td>{selectedItem.Wastage_Percentage}%</td>
-                  </tr>
-                  <tr>
-                    <td><strong>Wastage Weight</strong></td>
-                    <td>{selectedItem.WastageWeight} g</td>
-                  </tr>
-                  <tr>
-                    <td><strong>Total Weight (AW)</strong></td>
-                    <td>{selectedItem.TotalWeight_AW} g</td>
-                  </tr>
-                  <tr>
-                    <td><strong>MC Per Gram</strong></td>
-                    <td>{selectedItem.MC_Per_Gram}</td>
-                  </tr>
-                  <tr>
-                    <td><strong>Making Charges</strong></td>
-                    <td>₹{selectedItem.Making_Charges}</td>
-                  </tr>
-                  <tr>
-                    <td><strong>Rate</strong></td>
-                    <td>₹{selectedItem.rate}</td>
-                  </tr>
-                  <tr>
-                    <td><strong>Stone Price</strong></td>
-                    <td>₹{selectedItem.Stones_Price}</td>
-                  </tr>
-                  <tr>
-                    <td><strong>Tax</strong></td>
-                    <td>{selectedItem.tax}</td>
-                  </tr>
-                  <tr>
-                    <td><strong>Tax Amount</strong></td>
-                    <td>₹{selectedItem.tax_amt}</td>
-                  </tr>
-                  <tr>
-                    <td><strong>Total Price</strong></td>
-                    <td><strong>₹{selectedItem.total_price}</strong></td>
-                  </tr>
-                  <tr>
-                    <td><strong>Pieces</strong></td>
-                    <td>{selectedItem.pcs}</td>
-                  </tr>
-                </tbody>
-              </Table>
+              <h5>Returned Items</h5>
+              <div className="table-responsive">
+                <Table bordered>
+                  <thead style={{ whiteSpace: 'nowrap', fontSize: '13px' }}>
+                    <tr>
+                      <th>SI</th>
+                      <th>Product Name</th>
+                      <th>PCode/Barcode</th>
+                      <th>Metal Type</th>
+                      <th>Purity</th>
+                      <th>Category</th>
+                      <th>Sub Category</th>
+                      <th>Design Name</th>
+                      <th>Qty</th>
+                      <th>Gross Wt</th>
+                      <th>Stone Wt</th>
+                      <th>Net Wt</th>
+                      <th>Rate</th>
+                      <th>MC</th>
+                      <th>Stone Price</th>
+                      <th>Total Price</th>
+                    </tr>
+                  </thead>
+                  <tbody style={{ whiteSpace: 'nowrap', fontSize: '13px' }}>
+                    {transferDetails.return_items && transferDetails.return_items.length > 0 ? (
+                      transferDetails.return_items.map((item, index) => (
+                        <tr key={index}>
+                          <td>{index + 1}</td>
+                          <td>{item.product_name || 'N/A'}</td>
+                          <td>{item.PCode_BarCode || 'N/A'}</td>
+                          <td>{item.metal_type || 'N/A'}</td>
+                          <td>{item.purity || 'N/A'}</td>
+                          <td>{item.category || 'N/A'}</td>
+                          <td>{item.sub_category || 'N/A'}</td>
+                          <td>{item.design_name || 'N/A'}</td>
+                          <td>{item.qty}</td>
+                          <td>{item.gross_weight}</td>
+                          <td>{item.stone_weight}</td>
+                          <td>{item.net_weight}</td>
+                          <td>{item.rate}</td>
+                          <td>{item.making_charges}</td>
+                          <td>{item.stone_price}</td>
+                          <td><strong>{item.total_price}</strong></td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan="16" className="text-center">No items found</td>
+                      </tr>
+                    )}
+                    {transferDetails.return_items && transferDetails.return_items.length > 0 && (
+                      <tr style={{ fontWeight: 'bold', backgroundColor: '#f8f9fa' }}>
+                        <td colSpan="8" className="text-end"><strong>Totals:</strong></td>
+                        <td><strong>{transferDetails.return_items.reduce((sum, item) => sum + parseFloat(item.qty || 0), 0).toFixed(3)}</strong></td>
+                        <td><strong>{transferDetails.return_items.reduce((sum, item) => sum + parseFloat(item.gross_weight || 0), 0).toFixed(3)}</strong></td>
+                        <td><strong>{transferDetails.return_items.reduce((sum, item) => sum + parseFloat(item.stone_weight || 0), 0).toFixed(3)}</strong></td>
+                        <td><strong>{transferDetails.return_items.reduce((sum, item) => sum + parseFloat(item.net_weight || 0), 0).toFixed(3)}</strong></td>
+                        <td colSpan="2"></td>
+                        <td></td>
+                        <td><strong>{transferDetails.return_items.reduce((sum, item) => sum + parseFloat(item.total_price || 0), 0).toFixed(2)}</strong></td>
+                      </tr>
+                    )}
+                  </tbody>
+                </Table>
+              </div>
             </>
           )}
         </Modal.Body>
