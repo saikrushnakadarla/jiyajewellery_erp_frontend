@@ -401,6 +401,14 @@ function Navbar() {
               >
                 Stock Transfer
               </Link>
+                {/* New Warehouse Stock Items field added below Stock Transfer */}
+              <Link
+                to="/warehouse-stock-items"
+                onClick={handleItemClick}
+                className={isActive("/warehouse-stock-items")}
+              >
+                Warehouse Stock Items
+              </Link>
               <Link
                 to="/paymentstable"
                 onClick={handleItemClick}
