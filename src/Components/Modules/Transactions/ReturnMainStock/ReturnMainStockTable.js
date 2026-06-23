@@ -149,6 +149,7 @@ const ReturnMainStockTable = () => {
         accessor: 'Status',
         Cell: ({ value }) => getStatusBadge(value),
       },
+      
       {
         Header: 'Stock Point',
         accessor: 'Stock_Point',

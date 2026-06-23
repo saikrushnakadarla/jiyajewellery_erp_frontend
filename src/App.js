@@ -96,6 +96,8 @@ import VisitLogsSalesmanSchedule from "./Components/Modules/Transactions/VisitLo
 import WarehouseStockItems from './Components/Modules/Transactions/WarehouseStockItems/WarehouseStockItems';
 import WarehouseRespectiveStock from "./Components/Modules/WarehouseRespectiveStock/WarehouseRespectiveStock";
 import Footer from "./Footer/Footer"
+import ReceivedStock from './Components/Modules/ReceivedStock/ReceivedStock';
+
 
 
 function App() {
@@ -244,6 +246,8 @@ function App() {
           <Route path="/warehouse-stock-items" element={<WarehouseStockItems />} />
 
            <Route path="/warehouse-stock-respective-items" element={<WarehouseRespectiveStock />} />
+
+          <Route path="/received-stock" element={<ReceivedStock />} />
 
         </Routes>
                 {!isAuthPage && isStockModule &&   <Footer />}

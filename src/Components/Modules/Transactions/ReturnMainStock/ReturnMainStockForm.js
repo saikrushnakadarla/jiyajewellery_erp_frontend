@@ -2808,11 +2808,6 @@ const handleSave = async () => {
       return;
     }
 
-    // if (!selectedSalesman) {
-    //   alert("Please select a Salesman");
-    //   return;
-    // }
-
     if (!repairDetails || repairDetails.length === 0) {
       alert("Please add items to transfer");
       return;
@@ -2828,17 +2823,18 @@ const handleSave = async () => {
 
     console.log("Updating opening tags for barcodes:", barcodes);
 
-    // Update opening_tags_entry table - Set Status to "Selected", Stock_Point to "MAIN STOCK ROOM", and user_id to NULL
+    // Update opening_tags_entry table - Set Status to "Selected", Stock_Point to "MAIN STOCK ROOM", 
+    // user_id to NULL, and Received_Status to "pending"
     const updateResponse = await axios.put(`${baseURL}/update-opening-tags-status`, {
       barcodes: barcodes,
       status: "Selected",
       stock_point: "MAIN STOCK ROOM",
-      user_id: null  // Add this to set user_id to NULL
+      user_id: null  // Set user_id to NULL
     });
 
     if (updateResponse.status === 200) {
       console.log("Opening tags updated successfully:", updateResponse.data);
-      alert(`Successfully updated ${barcodes.length} product(s). Status changed to "Selected", Stock Point to "MAIN STOCK ROOM", and user_id set to NULL`);
+      alert(`Successfully updated ${barcodes.length} product(s). Status changed to "Selected", Stock Point to "MAIN STOCK ROOM", user_id set to NULL, and Received_Status set to "pending"`);
       
       // Clear all data after successful save
       setOldSalesData([]);
