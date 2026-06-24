@@ -1,6 +1,8 @@
 // StockNavbar.js
 import React, { useState, useContext } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faChevronDown, faChevronUp } from "@fortawesome/free-solid-svg-icons";
 import { FaSignOutAlt } from "react-icons/fa";
 import { AuthContext } from "../Components/Pages/Login/Context";
 import Swal from "sweetalert2";
@@ -9,6 +11,7 @@ import "./Navbar.css"; // Reusing the same CSS for consistency
 
 function StockNavbar() {
   const [isOpen, setIsOpen] = useState(false);
+  const [stockManagementDropdownOpen, setStockManagementDropdownOpen] = useState(false);
   const { userName } = useContext(AuthContext);
   const location = useLocation();
   const navigate = useNavigate();
@@ -17,7 +20,16 @@ function StockNavbar() {
     setIsOpen(!isOpen);
   };
 
+  const openDropdown = (type) => {
+    if (type === "stockManagement") setStockManagementDropdownOpen(true);
+  };
+
+  const closeDropdown = (type) => {
+    if (type === "stockManagement") setStockManagementDropdownOpen(false);
+  };
+
   const handleItemClick = () => {
+    setStockManagementDropdownOpen(false);
     setIsOpen(false);
   };
 
@@ -79,58 +91,50 @@ function StockNavbar() {
           </Link>
         </div>
 
-           {/* NEW: Stock Link - Added after Dashboard */}
-        <div>
-          <Link
-            to="/warehouse-stock-respective-items"
-            onClick={handleItemClick}
-            style={{
-              color: location.pathname === "/warehouse-stock-respective-items" ? "#a36e29" : "black",
-              backgroundColor: "transparent",
-              textDecoration: "none",
-            }}
-          >
-            STOCK
-          </Link>
+        {/* Stock Management Dropdown - New */}
+        <div
+          className="navbar-dropdown"
+          onMouseEnter={() => openDropdown("stockManagement")}
+          onMouseLeave={() => closeDropdown("stockManagement")}
+        >
+          <span className="navbar-dropdown-title">
+            STOCK MANAGEMENT{" "}
+            <FontAwesomeIcon
+              icon={stockManagementDropdownOpen ? faChevronUp : faChevronDown}
+              className="dropdown-arrow-icon"
+            />
+          </span>
+          {stockManagementDropdownOpen && (
+            <div className="navbar-dropdown-content">
+              <Link
+                to="/warehouse-stock-respective-items"
+                onClick={handleItemClick}
+                className={isActive("/warehouse-stock-respective-items")}
+              >
+                Stock
+              </Link>
+              <Link
+                to="/stock-inward"
+                onClick={handleItemClick}
+                className={isActive("/stock-inward")}
+              >
+                Stock Inward
+              </Link>
+              <Link
+                to="/return-to-main-stock"
+                onClick={handleItemClick}
+                className={isActive("/return-to-main-stock")}
+              >
+                Stock Outward
+              </Link>
+            </div>
+          )}
         </div>
-
-
-
-        {/* Stock Inward Link - NEW (Added after Dashboard) */}
-
-        <div>
-          <Link
-            to="/stock-inward"
-            onClick={handleItemClick}
-            style={{
-              color: location.pathname === "/stock-inward" ? "#a36e29" : "black",
-              backgroundColor: "transparent",
-              textDecoration: "none",
-            }}
-          >
-            STOCK INWARD
-          </Link>
-        </div> 
-
-
-          {/* <div>
-          <Link
-            to="/selections"
-            onClick={handleItemClick}
-            style={{
-              color: location.pathname === "/selections" ? "#a36e29" : "black",
-              backgroundColor: "transparent",
-              textDecoration: "none",
-            }}
-          >
-            SELECTIONS
-          </Link>
-        </div> */}
 
         {/* Assign to Salesman Link */}
         <div>
           <Link
-            to="/assign-to-salesman" // Replace with your actual route
+            to="/assign-to-salesman"
             onClick={handleItemClick}
             style={{
               color: location.pathname === "/assign-to-salesman" ? "#a36e29" : "black",
@@ -138,14 +142,14 @@ function StockNavbar() {
               textDecoration: "none",
             }}
           >
-            ASSIGN 
+            ASSIGN
           </Link>
         </div>
 
         {/* Receive from Salesman Link */}
         <div>
           <Link
-            to="/receive-from-salesman" // Replace with your actual route
+            to="/receive-from-salesman"
             onClick={handleItemClick}
             style={{
               color: location.pathname === "/receive-from-salesman" ? "#a36e29" : "black",
@@ -153,26 +157,11 @@ function StockNavbar() {
               textDecoration: "none",
             }}
           >
-            RECEIVE 
+            RECEIVE
           </Link>
         </div>
 
-         {/* Return to Main Stock Link - NEW */}
-        <div>
-          <Link
-            to="/return-to-main-stock" // Replace with your actual route
-            onClick={handleItemClick}
-            style={{
-              color: location.pathname === "/return-to-main-stock" ? "#a36e29" : "black",
-              backgroundColor: "transparent",
-              textDecoration: "none",
-            }}
-          >
-            STOCK OUTWARD
-          </Link>
-        </div>
-        
-         {/* NEW: Visit Logs Salesman Schedule Link */}
+        {/* Visit Logs Salesman Schedule Link */}
         <div>
           <Link
             to="/visit-logs-salesman-schedule"
@@ -186,7 +175,6 @@ function StockNavbar() {
             VISIT LOGS SALESMAN
           </Link>
         </div>
-
       </nav>
 
       <div className="username">{userName}</div>
