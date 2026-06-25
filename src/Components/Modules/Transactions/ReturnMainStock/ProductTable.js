@@ -119,13 +119,13 @@ const ProductTable = ({ repairDetails, onDelete, onEdit }) => {
                         onClick={() => handleView(detail)}
                         style={{ cursor: 'pointer', marginLeft: '10px', color: 'green' }}
                       />
-                      <FaEdit
+                      {/* <FaEdit
                         onClick={() => {
                           onEdit(index);
                           setTimeout(() => onEdit(index), 1);
                         }}
                         style={{ cursor: "pointer", marginLeft: "10px", color: "blue" }}
-                      />
+                      /> */}
                       <FaTrash
                         style={{ cursor: "pointer", marginLeft: "10px", color: "red" }}
                         onClick={() => onDelete(index)}

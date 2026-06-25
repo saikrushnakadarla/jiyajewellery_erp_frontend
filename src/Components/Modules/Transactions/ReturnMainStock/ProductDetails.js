@@ -1045,32 +1045,59 @@ const ProductDetails = ({
   return (
     <Col>
       <Row>
-        <Col xs={12} md={2}>
-          <InputField
-            label="BarCode/Rbarcode"
-            name="code"
-            value={formData.code || defaultBarcode}
-            onChange={(e) => handleBarcodeSelect(e.target.value)}
-            type="select"
-            options={uniqueBarcodeOptions}
-            // autoFocus
-          />
-          {/* Display packet barcode if available */}
-          {formData.packet_barcode && (
-            <div style={{ fontSize: "12px", color: "#a36e29", marginTop: "2px", fontWeight: "bold" }}>
-              Packet: {formData.packet_barcode}
+        {/* Barcode with Scan Packet Button */}
+        <Col xs={12} md={4}>
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: '6px' }}>
+            <div style={{ flex: 1, minWidth: '80px' }}>
+              <InputField
+                label="BarCode/Rbarcode"
+                name="code"
+                value={formData.code || defaultBarcode}
+                onChange={(e) => handleBarcodeSelect(e.target.value)}
+                type="select"
+                options={uniqueBarcodeOptions}
+              />
+              {/* Display packet barcode if available */}
+              {formData.packet_barcode && (
+                <div style={{ fontSize: "12px", color: "#a36e29", marginTop: "2px", fontWeight: "bold" }}>
+                  Packet: {formData.packet_barcode}
+                </div>
+              )}
+              {/* {formData.is_estimated && (
+                <div style={{ fontSize: "11px", color: "#28a745", marginTop: "2px" }}>
+                  ✓ Estimated
+                </div>
+              )}
+              {isPacketAdded && (
+                <div style={{ fontSize: "11px", color: "#a36e29", marginTop: "2px", fontWeight: "bold" }}>
+                  ✓ Packet Added - Select another or clear
+                </div>
+              )} */}
             </div>
-          )}
-          {formData.is_estimated && (
-            <div style={{ fontSize: "11px", color: "#28a745", marginTop: "2px" }}>
-              ✓ Estimated
-            </div>
-          )}
-          {isPacketAdded && (
-            <div style={{ fontSize: "11px", color: "#a36e29", marginTop: "2px", fontWeight: "bold" }}>
-              ✓ Packet Added - Select another or clear
-            </div>
-          )}
+            <Button
+              variant="success"
+              size="sm"
+              onClick={startPacketScanner}
+              style={{ 
+                backgroundColor: '#28a745',
+                borderColor: '#28a745',
+                whiteSpace: 'nowrap',
+                padding: '4px 8px',
+                fontSize: '11px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                flexShrink: 0,
+                minWidth: '90px',
+                height: '38px',
+                marginBottom: '0px',
+                marginTop: '22px'
+              }}
+              title="Scan Packet"
+            >
+              <FaBarcode size={13} /> Scan Packet
+            </Button>
+          </div>
         </Col>
 
         <Col xs={12} md={2} className="d-flex align-items-center">
@@ -1231,21 +1258,6 @@ const ProductDetails = ({
                 </Button>
 
                 <Button
-                  variant="success"
-                  size="sm"
-                  onClick={startPacketScanner}
-                  style={{ 
-                    backgroundColor: '#28a745',
-                    borderColor: '#28a745',
-                    whiteSpace: 'nowrap',
-                    minWidth: '110px',
-                    flexShrink: 0
-                  }}
-                >
-                  <FaBarcode /> Scan Packet
-                </Button>
-
-                <Button
                   onClick={isEditing ? handleUpdate : handleAdd}
                   style={{
                     backgroundColor: "#a36e29",
@@ -1343,6 +1355,10 @@ const ProductDetails = ({
           </>
         ) : (
           <>
+            {/* ================================================ */}
+            {/* COMMENTED OUT: All fields from Selling Purity to Total MC */}
+            {/* ================================================ */}
+            {/* 
             <Col xs={12} md={2}>
               <InputField
                 label="Selling Purity"
@@ -1496,6 +1512,7 @@ const ProductDetails = ({
                 disabled={formData.mc_on === "MC / Gram" || isPacketAdded}
               />
             </Col>
+            */}
 
             <Col xs={12} md={5}>
               {/* All buttons in one row - no wrapping */}
@@ -1522,36 +1539,6 @@ const ProductDetails = ({
                     </>
                   )}
                 </DropdownButton>
-
-                {/* <Button
-                  variant="primary"
-                  size="sm"
-                  onClick={startScanner}
-                  style={{ 
-                    backgroundColor: '#007bff',
-                    borderColor: '#007bff',
-                    whiteSpace: 'nowrap',
-                    minWidth: '105px',
-                    flexShrink: 0
-                  }}
-                >
-                  <FaQrcode /> Scan Barcode
-                </Button> */}
-
-                <Button
-                  variant="success"
-                  size="sm"
-                  onClick={startPacketScanner}
-                  style={{ 
-                    backgroundColor: '#28a745',
-                    borderColor: '#28a745',
-                    whiteSpace: 'nowrap',
-                    minWidth: '110px',
-                    flexShrink: 0
-                  }}
-                >
-                  <FaBarcode /> Scan Packet
-                </Button>
 
                 <Button
                   onClick={isEditing ? handleUpdate : handleAdd}
