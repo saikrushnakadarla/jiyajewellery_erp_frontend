@@ -10,6 +10,7 @@ import Webcam from "react-webcam";
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import Swal from 'sweetalert2';
 import './SalesForm.css';
+import "./ProductDetails.css"
 
 const ProductDetails = ({
   handleAdd,
@@ -429,17 +430,45 @@ const ProductDetails = ({
 
   return (
     <Col>
+      {/* First Row - All Fields in One Line */}
       <Row>
-        <Col xs={12} md={2}>
-          <InputField
-            label="BarCode/Rbarcode"
-            name="code"
-            value={formData.code || defaultBarcode}
-            onChange={(e) => handleBarcodeChange(e.target.value)}
-            type="select"
-            options={barcodeOptions}
-            autoFocus
-          />
+        {/* Barcode/Rbarcode with Scan Button */}
+        <Col xs={12} md={3}>
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: '4px' }}>
+            <div style={{ flex: 1, minWidth: '100px' }}>
+              <InputField
+                label="BarCode/Rbarcode"
+                name="code"
+                value={formData.code || defaultBarcode}
+                onChange={(e) => handleBarcodeChange(e.target.value)}
+                type="select"
+                options={barcodeOptions}
+                autoFocus
+              />
+            </div>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={startScanner}
+                className="scan-barcode-btn"
+              style={{ 
+                backgroundColor: '#007bff',
+                borderColor: '#007bff',
+                whiteSpace: 'nowrap',
+                padding: '4px 10px',
+                fontSize: '12px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                flexShrink: 0,
+                minWidth: '55px',
+                height: '38px',
+              }}
+              title="Scan Barcode"
+            >
+              <FaQrcode size={13} /> Scan Barcode
+            </Button>
+          </div>
         </Col>
 
         <Col xs={12} md={2} className="d-flex align-items-center">
@@ -454,12 +483,13 @@ const ProductDetails = ({
             />
           </div>
           <AiOutlinePlus
-            size={20}
+            size={18}
             color="black"
             style={{
-              marginLeft: "10px",
+              marginLeft: "8px",
               cursor: "pointer",
               marginBottom: "20px",
+              flexShrink: 0
             }}
             onClick={() =>
               navigate("/itemmaster", {
@@ -494,12 +524,13 @@ const ProductDetails = ({
             />
           </div>
           <AiOutlinePlus
-            size={20}
+            size={18}
             color="black"
             style={{
-              marginLeft: "10px",
+              marginLeft: "8px",
               cursor: "pointer",
               marginBottom: "20px",
+              flexShrink: 0
             }}
             onClick={() =>
               navigate("/subcategory", {
@@ -523,10 +554,10 @@ const ProductDetails = ({
           />
         </Col>
 
-        {/* By Fixed Pricing Fields */}
+        {/* By Fixed Pricing Fields - Hidden/Commented */}
         {isByFixed ? (
           <>
-            <Col xs={12} md={2}>
+            <Col xs={12} md={2} style={{ display: 'none' }}>
               <InputField
                 label="Printing Purity"
                 name="printing_purity"
@@ -534,7 +565,7 @@ const ProductDetails = ({
                 onChange={handleChange}
               />
             </Col>
-            <Col xs={12} md={2}>
+            <Col xs={12} md={2} style={{ display: 'none' }}>
               <InputField
                 label="Piece Cost"
                 name="pieace_cost"
@@ -542,7 +573,7 @@ const ProductDetails = ({
                 onChange={handleChange}
               />
             </Col>
-            <Col xs={12} md={1}>
+            <Col xs={12} md={1} style={{ display: 'none' }}>
               <InputField
                 label="Qty"
                 name="qty"
@@ -551,134 +582,13 @@ const ProductDetails = ({
                 readOnly={!isQtyEditable}
               />
             </Col>
-            <Col xs={12} md={5}>
-              <div className="d-flex align-items-center" style={{ gap: '8px', flexWrap: 'wrap' }}>
-                <DropdownButton
-                  id="dropdown-basic-button"
-                  title="Choose / Capture Image"
-                  variant="primary"
-                  size="sm"
-                  onClick={() => setShowOptions(!showOptions)}
-                  style={{ minWidth: '170px' }}
-                >
-                  {showOptions && (
-                    <>
-                      <Dropdown.Item
-                        onClick={() => fileInputRef.current && fileInputRef.current.click()}
-                      >
-                        <FaUpload /> Choose Image
-                      </Dropdown.Item>
-                      <Dropdown.Item onClick={() => setShowWebcam(true)}>
-                        <FaCamera /> Capture Image
-                      </Dropdown.Item>
-                    </>
-                  )}
-                </DropdownButton>
-
-                <Button
-                  variant="primary"
-                  size="sm"
-                  onClick={startScanner}
-                  className="scan-barcode-btn"
-                  style={{ 
-                    backgroundColor: '#007bff',
-                    borderColor: '#007bff',
-                    whiteSpace: 'nowrap',
-                    minWidth: '120px'
-                  }}
-                >
-                  <FaQrcode /> Scan Barcode
-                </Button>
-
-                <Button
-                  onClick={isEditing ? handleUpdate : handleAdd}
-                  style={{
-                    backgroundColor: "#a36e29",
-                    borderColor: "#a36e29",
-                    padding: "4px 12px",
-                    fontSize: "13px",
-                    whiteSpace: 'nowrap',
-                    minWidth: '60px'
-                  }}
-                >
-                  {isEditing ? "Update" : "Add"}
-                </Button>
-
-                <Button
-                  variant="secondary"
-                  onClick={handleClear}
-                  style={{
-                    backgroundColor: 'gray',
-                    padding: "4px 12px",
-                    fontSize: "13px",
-                    whiteSpace: 'nowrap',
-                    minWidth: '60px'
-                  }}
-                >
-                  Clear
-                </Button>
-              </div>
-
-              <input
-                type="file"
-                name="image"
-                accept="image/*"
-                ref={fileInputRef}
-                style={{ display: "none" }}
-                onChange={handleImageChange}
-              />
-
-              {showWebcam && (
-                <div>
-                  <Webcam
-                    audio={false}
-                    ref={webcamRef}
-                    screenshotFormat="image/jpeg"
-                    width={150}
-                    height={150}
-                  />
-                  <Button variant="success" size="sm" onClick={captureImage} style={{ marginRight: "5px" }}>
-                    Capture
-                  </Button>
-                  <Button variant="secondary" size="sm" onClick={() => setShowWebcam(false)}>
-                    Cancel
-                  </Button>
-                </div>
-              )}
-              {formData.imagePreview && (
-                <div style={{ position: "relative", display: "inline-block", marginTop: "10px" }}>
-                  <img
-                    src={formData.imagePreview}
-                    alt="Selected"
-                    style={{
-                      width: "100px",
-                      height: "100px",
-                      borderRadius: "8px",
-                    }}
-                  />
-                  <button
-                    type="button"
-                    onClick={clearImage}
-                    style={{
-                      position: "absolute",
-                      top: "5px",
-                      right: "5px",
-                      background: "transparent",
-                      border: "none",
-                      color: "red",
-                      fontSize: "16px",
-                      cursor: "pointer",
-                      zIndex: 10,
-                    }}
-                  >
-                    <FaTrash />
-                  </button>
-                </div>
-              )}
-            </Col>
           </>
         ) : (
           <>
+            {/* ================================================ */}
+            {/* COMMENTED OUT: All fields from Selling Purity to Total MC */}
+            {/* ================================================ */}
+            {/* 
             <Col xs={12} md={2}>
               <InputField
                 label="Selling Purity"
@@ -821,134 +731,121 @@ const ProductDetails = ({
                 disabled={formData.mc_on === "MC / Gram"}
               />
             </Col>
-
-            <Col xs={12} md={5}>
-              <div className="d-flex align-items-center" style={{ gap: '8px', flexWrap: 'wrap' }}>
-                <DropdownButton
-                  id="dropdown-basic-button"
-                  title="Choose / Capture Image"
-                  variant="primary"
-                  size="sm"
-                  onClick={() => setShowOptions(!showOptions)}
-                  style={{ minWidth: '170px' }}
-                >
-                  {showOptions && (
-                    <>
-                      <Dropdown.Item
-                        onClick={() => fileInputRef.current && fileInputRef.current.click()}
-                      >
-                        <FaUpload /> Choose Image
-                      </Dropdown.Item>
-                      <Dropdown.Item onClick={() => setShowWebcam(true)}>
-                        <FaCamera /> Capture Image
-                      </Dropdown.Item>
-                    </>
-                  )}
-                </DropdownButton>
-
-                <Button
-                  variant="primary"
-                  size="sm"
-                  onClick={startScanner}
-                  className="scan-barcode-btn"
-                  style={{ 
-                    backgroundColor: '#007bff',
-                    borderColor: '#007bff',
-                    whiteSpace: 'nowrap',
-                    minWidth: '120px'
-                  }}
-                >
-                  <FaQrcode /> Scan Barcode
-                </Button>
-
-                <Button
-                  onClick={isEditing ? handleUpdate : handleAdd}
-                  style={{
-                    backgroundColor: "#a36e29",
-                    borderColor: "#a36e29",
-                    padding: "4px 12px",
-                    fontSize: "13px",
-                    whiteSpace: 'nowrap',
-                    minWidth: '60px'
-                  }}
-                >
-                  {isEditing ? "Update" : "Add"}
-                </Button>
-
-                <Button
-                  variant="secondary"
-                  onClick={handleClear}
-                  style={{
-                    backgroundColor: 'gray',
-                    padding: "4px 12px",
-                    fontSize: "13px",
-                    whiteSpace: 'nowrap',
-                    minWidth: '60px'
-                  }}
-                >
-                  Clear
-                </Button>
-              </div>
-
-              <input
-                type="file"
-                name="image"
-                accept="image/*"
-                ref={fileInputRef}
-                style={{ display: "none" }}
-                onChange={handleImageChange}
-              />
-
-              {showWebcam && (
-                <div>
-                  <Webcam
-                    audio={false}
-                    ref={webcamRef}
-                    screenshotFormat="image/jpeg"
-                    width={150}
-                    height={150}
-                  />
-                  <Button variant="success" size="sm" onClick={captureImage} style={{ marginRight: "5px" }}>
-                    Capture
-                  </Button>
-                  <Button variant="secondary" size="sm" onClick={() => setShowWebcam(false)}>
-                    Cancel
-                  </Button>
-                </div>
-              )}
-              {formData.imagePreview && (
-                <div style={{ position: "relative", display: "inline-block", marginTop: "10px" }}>
-                  <img
-                    src={formData.imagePreview}
-                    alt="Selected"
-                    style={{
-                      width: "100px",
-                      height: "100px",
-                      borderRadius: "8px",
-                    }}
-                  />
-                  <button
-                    type="button"
-                    onClick={clearImage}
-                    style={{
-                      position: "absolute",
-                      top: "5px",
-                      right: "5px",
-                      background: "transparent",
-                      border: "none",
-                      color: "red",
-                      fontSize: "16px",
-                      cursor: "pointer",
-                      zIndex: 10,
-                    }}
-                  >
-                    <FaTrash />
-                  </button>
-                </div>
-              )}
-            </Col>
+            */}
           </>
         )}
+      </Row>
+
+      {/* Second Row - Action Buttons */}
+      <Row style={{ marginTop: '10px' }}>
+        <Col xs={12} md={12}>
+          <div className="d-flex align-items-center" style={{ gap: '10px', flexWrap: 'wrap' }}>
+            <DropdownButton
+              id="dropdown-basic-button"
+              title="Choose / Capture Image"
+              variant="primary"
+              size="sm"
+              onClick={() => setShowOptions(!showOptions)}
+              style={{ minWidth: '170px' }}
+            >
+              {showOptions && (
+                <>
+                  <Dropdown.Item
+                    onClick={() => fileInputRef.current && fileInputRef.current.click()}
+                  >
+                    <FaUpload /> Choose Image
+                  </Dropdown.Item>
+                  <Dropdown.Item onClick={() => setShowWebcam(true)}>
+                    <FaCamera /> Capture Image
+                  </Dropdown.Item>
+                </>
+              )}
+            </DropdownButton>
+
+            <Button
+              onClick={isEditing ? handleUpdate : handleAdd}
+              style={{
+                backgroundColor: "#a36e29",
+                borderColor: "#a36e29",
+                padding: "4px 20px",
+                fontSize: "13px",
+                whiteSpace: 'nowrap'
+              }}
+            >
+              {isEditing ? "Update" : "Add"}
+            </Button>
+
+            <Button
+              variant="secondary"
+              onClick={handleClear}
+              style={{
+                backgroundColor: 'gray',
+                padding: "4px 20px",
+                fontSize: "13px",
+                whiteSpace: 'nowrap'
+              }}
+            >
+              Clear
+            </Button>
+          </div>
+
+          <input
+            type="file"
+            name="image"
+            accept="image/*"
+            ref={fileInputRef}
+            style={{ display: "none" }}
+            onChange={handleImageChange}
+          />
+
+          {showWebcam && (
+            <div>
+              <Webcam
+                audio={false}
+                ref={webcamRef}
+                screenshotFormat="image/jpeg"
+                width={150}
+                height={150}
+              />
+              <Button variant="success" size="sm" onClick={captureImage} style={{ marginRight: "5px" }}>
+                Capture
+              </Button>
+              <Button variant="secondary" size="sm" onClick={() => setShowWebcam(false)}>
+                Cancel
+              </Button>
+            </div>
+          )}
+          {formData.imagePreview && (
+            <div style={{ position: "relative", display: "inline-block", marginTop: "10px" }}>
+              <img
+                src={formData.imagePreview}
+                alt="Selected"
+                style={{
+                  width: "100px",
+                  height: "100px",
+                  borderRadius: "8px",
+                }}
+              />
+              <button
+                type="button"
+                onClick={clearImage}
+                style={{
+                  position: "absolute",
+                  top: "5px",
+                  right: "5px",
+                  background: "transparent",
+                  border: "none",
+                  color: "red",
+                  fontSize: "16px",
+                  cursor: "pointer",
+                  zIndex: 10,
+                }}
+              >
+                <FaTrash />
+              </button>
+            </div>
+          )}
+        </Col>
       </Row>
 
       {/* Barcode Scanner Modal */}
