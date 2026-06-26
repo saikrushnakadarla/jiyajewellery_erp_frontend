@@ -2774,6 +2774,10 @@ const handleSave = async () => {
       console.log("Saving with Return Number:", nextReturnNumber);
       console.log("From User ID (loggedInUserId):", loggedInUserId);
 
+      // Get the capture image from formData (from Customer Details)
+      const captureImage = formData.capture_image || null;
+      console.log("📷 Capture Image present:", !!captureImage);
+
       // Check if any product was selected via packet barcode
       const hasPacketSelection = repairDetails.some(item => item.is_packet_selection === true || item.packet_barcode !== null);
 
@@ -2822,10 +2826,11 @@ const handleSave = async () => {
         from_user_id: loggedInUserId,
         to_user_id: null,
         assigned_ids: assignedIds,
-        is_packet_selection: hasPacketSelection
+        is_packet_selection: hasPacketSelection,
+        capture_image: captureImage  // <-- NEW: Add capture image from Customer Details
       };
 
-      console.log("Sending Return to Main Stock Payload:", payload);
+      console.log("📦 Sending Return to Main Stock Payload with capture_image:", !!payload.capture_image);
 
       // Call the RETURN TO MAIN STOCK API
       const response = await axios.post(`${baseURL}/api/return-to-main-stock/save-return-to-main-stock`, payload);
@@ -2873,6 +2878,8 @@ const handleSave = async () => {
           active_stock_point_details: null,
           return_number: "",
           received_number: "",
+          capture_image: null,  // Clear capture image
+          capture_image_file: null
         });
         
         // Navigate back to stock transfers page

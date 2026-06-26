@@ -2427,6 +2427,10 @@ const handleSave = async () => {
 
     console.log("Saving with Assigned Number:", nextAssignedNumber);
 
+    // Get the capture image from formData (from Customer Details)
+    const captureImage = formData.capture_image || null;
+    console.log("📷 Capture Image present:", !!captureImage);
+
     const transferData = repairDetails.map(item => ({
       product_id: item.product_id || null,
       product_name: item.product_name || null,
@@ -2457,10 +2461,11 @@ const handleSave = async () => {
       remarks: `Assigned to ${selectedSalesman.salesman_name} from ${activeStockPointDetails.stock_point_name}`,
       created_by: formData.account_name || "system",
       from_user_id: activeStockPointDetails.user_id || null,
-      to_user_id: null
+      to_user_id: null,
+      capture_image: captureImage  // <-- NEW: Add capture image from Customer Details
     };
 
-    console.log("Sending Assigned Salesman Payload:", payload);
+    console.log("📦 Sending Assigned Salesman Payload with capture_image:", !!payload.capture_image);
 
     const response = await axios.post(`${baseURL}/api/assigned-salesman/save-assigned-salesman`, payload);
    
@@ -2492,6 +2497,8 @@ const handleSave = async () => {
         active_stock_point_details: null,
         assigned_number: "",
         transfer_number: "",
+        capture_image: null,  // Clear capture image
+        capture_image_file: null
       });
       
       navigate("/assign-to-salesman");

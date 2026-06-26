@@ -96,11 +96,11 @@ const ReturnMainStockTable = () => {
         accessor: 'from_stock_point_name',
         Cell: ({ value }) => value || 'N/A',
       },
-      {
-        Header: 'From User',
-        accessor: 'from_user_name',
-        Cell: ({ value }) => value || 'N/A',
-      },
+      // {
+      //   Header: 'From User',
+      //   accessor: 'from_user_name',
+      //   Cell: ({ value }) => value || 'N/A',
+      // },
       {
         Header: 'Total Items',
         accessor: 'total_items',

@@ -2691,6 +2691,10 @@ const handleSave = async () => {
     console.log("Saving with Received Number:", nextReceivedNumber);
     console.log("Logged in User ID (to_user_id):", loggedInUserId);
 
+    // Get the capture image from formData (from Customer Details)
+    const captureImage = formData.capture_image || null;
+    console.log("📷 Capture Image present:", !!captureImage);
+
     // Check if any product was selected via packet barcode
     const hasPacketSelection = repairDetails.some(item => item.is_packet_selection === true || item.packet_barcode !== null);
 
@@ -2734,10 +2738,11 @@ const handleSave = async () => {
       created_by: formData.account_name || "system",
       from_user_id: selectedSalesman.salesman_id ? parseInt(selectedSalesman.salesman_id) : null,
       to_user_id: loggedInUserId,
-      is_packet_selection: hasPacketSelection
+      is_packet_selection: hasPacketSelection,
+      capture_image: captureImage  // <-- NEW: Add capture image from Customer Details
     };
 
-    console.log("Sending Received Salesman Payload:", payload);
+    console.log("📦 Sending Received Salesman Payload with capture_image:", !!payload.capture_image);
 
     // Call the RECEIVED SALESMAN API
     const response = await axios.post(`${baseURL}/api/received-salesman/save-received-salesman`, payload);
@@ -2771,6 +2776,8 @@ const handleSave = async () => {
         active_stock_point_details: null,
         received_number: "",
         transfer_number: "",
+        capture_image: null,  // Clear capture image
+        capture_image_file: null
       });
       
       navigate("/receive-from-salesman");

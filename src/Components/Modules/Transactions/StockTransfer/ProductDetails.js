@@ -1,12 +1,13 @@
-import React, { useEffect, useState } from 'react';
-import { Col, Row, Button, Dropdown, DropdownButton } from 'react-bootstrap';
+import React, { useEffect, useState, useRef } from 'react';
+import { Col, Row, Button, Dropdown, DropdownButton, Modal } from 'react-bootstrap';
 import InputField from './InputfieldSales';
 import axios from 'axios';
 import { AiOutlinePlus } from "react-icons/ai";
 import baseURL from "../../../../Url/NodeBaseURL";
 import { useNavigate } from "react-router-dom";
-import { FaTrash, FaCamera, FaUpload } from "react-icons/fa";
+import { FaTrash, FaCamera, FaUpload, FaQrcode } from "react-icons/fa";
 import Webcam from "react-webcam";
+import { Html5QrcodeScanner } from 'html5-qrcode';
 import './SalesForm.css'
 
 const ProductDetails = ({
@@ -62,6 +63,144 @@ const ProductDetails = ({
   const [showModal, setShowModal] = useState(false);
   const isByFixed = formData.pricing === "By fixed";
   const navigate = useNavigate();
+
+  // ============= BARCODE SCANNER STATES =============
+  const [showScanner, setShowScanner] = useState(false);
+  const [isScannerInitialized, setIsScannerInitialized] = useState(false);
+  const scannerRef = useRef(null);
+
+  // ============= BARCODE SCANNER FUNCTIONS =============
+  const startScanner = () => setShowScanner(true);
+
+  const stopScanner = () => {
+    if (scannerRef.current) {
+      try { 
+        scannerRef.current.clear(); 
+      } catch (error) { 
+        console.log('Error clearing scanner:', error); 
+      }
+      scannerRef.current = null;
+    }
+    setIsScannerInitialized(false);
+    setShowScanner(false);
+  };
+
+  const initializeScanner = () => {
+    const element = document.getElementById('product-qr-reader');
+    if (!element) {
+      console.error('QR reader element not found');
+      return;
+    }
+
+    try {
+      const scanner = new Html5QrcodeScanner(
+        "product-qr-reader",
+        { qrbox: { width: 250, height: 250 }, fps: 5 },
+        false
+      );
+
+      scannerRef.current = scanner;
+      scanner.render(
+        (decodedText) => handleQRScanSuccess(decodedText),
+        (error) => {
+          if (error !== "NotFoundException: No MultiFormat Readers were able to detect the code") {
+            console.log('Scan error:', error);
+          }
+        }
+      );
+
+      setIsScannerInitialized(true);
+    } catch (error) {
+      console.error('Scanner initialization failed:', error);
+      alert('Failed to initialize camera. Please check permissions.');
+      setShowScanner(false);
+    }
+  };
+
+  // Initialize scanner when modal opens
+  useEffect(() => {
+    if (showScanner && !isScannerInitialized) {
+      const timer = setTimeout(() => {
+        initializeScanner();
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [showScanner, isScannerInitialized]);
+
+  const extractBarcodeFromQR = (qrData) => {
+    try {
+      const parsedData = JSON.parse(qrData);
+      return parsedData.barcode || parsedData.PCode_BarCode || parsedData.code || parsedData.BarCode;
+    } catch {
+      const barcodeMatch = qrData.match(/TAG:\s*([A-Z0-9]+)/i);
+      if (barcodeMatch) {
+        return barcodeMatch[1];
+      }
+      const altMatch = qrData.match(/(barcode|Barcode|PCode|code|prefix)[:\s]*([^\s,]+)/i);
+      return altMatch ? altMatch[2] : qrData;
+    }
+  };
+
+  const handleQRScanSuccess = async (decodedText) => {
+  try {
+    stopScanner();
+    
+    const barcode = extractBarcodeFromQR(decodedText);
+    console.log("🔍 Decoded QR text:", decodedText);
+    console.log("🔍 Extracted barcode:", barcode);
+
+    if (barcode) {
+      // First, check if the barcode exists in the data array (opening_tags_entry)
+      const tagExists = data.some(tag => String(tag.PCode_BarCode) === String(barcode));
+      
+      if (!tagExists) {
+        alert(`❌ Barcode "${barcode}" not found in the system. Please check the barcode.`);
+        return;
+      }
+
+      // Find the tag to check its status
+      const tag = data.find(t => String(t.PCode_BarCode) === String(barcode));
+      console.log("📦 Found tag:", tag);
+
+      if (tag) {
+        // Check if product is available
+        if (tag.Status !== "Available") {
+          alert(`❌ Product "${barcode}" is not available. Current status: ${tag.Status}`);
+          return;
+        }
+
+        // Check if product is in MAIN STOCK ROOM
+        if (tag.Stock_Point !== "MAIN STOCK ROOM") {
+          alert(`❌ Product "${barcode}" is not in MAIN STOCK ROOM. Current location: ${tag.Stock_Point}`);
+          return;
+        }
+
+        // All checks passed - proceed with barcode selection
+        console.log("✅ All checks passed for barcode:", barcode);
+        
+        // Call handleBarcodeChange to populate the form
+        await handleBarcodeChange(barcode);
+        
+        // Verify that the barcode was successfully set in formData
+        if (formData.code === barcode) {
+          alert(`✅ Product barcode "${barcode}" scanned successfully!`);
+        } else {
+          // If handleBarcodeChange didn't set the code, something went wrong
+          alert(`⚠️ Product "${barcode}" found but could not be loaded. Please try selecting it manually.`);
+        }
+      } else {
+        alert(`❌ Barcode "${barcode}" not found in the system.`);
+      }
+    } else {
+      alert('❌ Invalid QR Code: Could not extract barcode. Please try a different QR code.');
+    }
+  } catch (error) {
+    console.error('❌ Error processing QR code:', error);
+    alert('Error processing QR code. Please try again.');
+  }
+};
+
+  // ============= END BARCODE SCANNER FUNCTIONS =============
 
   const defaultBarcode = formData.category
     ? products.find((product) => product.product_name === formData.category)?.rbarcode || ""
@@ -255,472 +394,510 @@ const ProductDetails = ({
   ]);
 
   return (
-    <Col>
-      <Row>
-        <Col xs={12} md={2}>
-          <InputField
-            label="BarCode/Rbarcode"
-            name="code"
-            value={formData.code || defaultBarcode}
-            onChange={(e) => handleBarcodeChange(e.target.value)}
-            type="select"
-            options={barcodeOptions}
-            autoFocus
-          />
-        </Col>
-
-        <Col xs={12} md={2} className="d-flex align-items-center">
-          <div style={{ flex: 1 }}>
-            <InputField
-              label="Category"
-              name="category"
-              value={formData.category || ""}
-              type="select"
-              onChange={handleChange}
-              options={categoryOptions}
-            />
-          </div>
-          <AiOutlinePlus
-            size={20}
-            color="black"
-            style={{
-              marginLeft: "10px",
-              cursor: "pointer",
-              marginBottom: "20px",
-            }}
-            onClick={() =>
-              navigate("/itemmaster", {
-                state: {
-                  from: `/sales?tabId=${tabId}`
-                }
-              })
-            }
-          />
-        </Col>
-
-        <Col xs={12} md={2}>
-          <InputField
-            label="Metal Type"
-            name="metal_type"
-            value={formData.metal_type || ""}
-            onChange={handleChange}
-            type="select"
-            options={metaltypeOptions}
-          />
-        </Col>
-
-        <Col xs={12} md={2} className="d-flex align-items-center">
-          <div style={{ flex: 1 }}>
-            <InputField
-              label="Sub Category"
-              name="product_name"
-              value={formData.product_name || ""}
-              onChange={handleChange}
-              type="select"
-              options={subcategoryOptions}
-            />
-          </div>
-          <AiOutlinePlus
-            size={20}
-            color="black"
-            style={{
-              marginLeft: "10px",
-              cursor: "pointer",
-              marginBottom: "20px",
-            }}
-            onClick={() =>
-              navigate("/subcategory", {
-                state: {
-                  from: `/sales?tabId=${tabId}`,
-                  metal_type: formData.metal_type
-                }
-              })
-            }
-          />
-        </Col>
-
-        <Col xs={12} md={2}>
-          <InputField
-            label="Product Design Name"
-            name="design_name"
-            value={formData.design_name}
-            onChange={handleChange}
-            type="select"
-            options={designOptions}
-          />
-        </Col>
-
-        {/* REMOVED: Pricing Field */}
-
-        {/* By Fixed Pricing Fields */}
-        {isByFixed ? (
-          <>
-            <Col xs={12} md={2}>
-              <InputField
-                label="Printing Purity"
-                name="printing_purity"
-                value={formData.printing_purity || ""}
-                onChange={handleChange}
-              />
-            </Col>
-            <Col xs={12} md={2}>
-              <InputField
-                label="Piece Cost"
-                name="pieace_cost"
-                value={formData.pieace_cost}
-                onChange={handleChange}
-              />
-            </Col>
-            <Col xs={12} md={1}>
-              <InputField
-                label="Qty"
-                name="qty"
-                value={formData.qty}
-                onChange={handleChange}
-                readOnly={!isQtyEditable}
-              />
-            </Col>
-            {/* REMOVED: Remarks Field */}
-            <Col xs={12} md={4}>
-              <DropdownButton
-                id="dropdown-basic-button"
-                title="Choose / Capture Image"
-                variant="primary"
+    <>
+      <Col>
+        <Row>
+          <Col xs={12} md={3}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+              <div style={{ flex: 1 }}>
+                <InputField
+                  label="BarCode/Rbarcode"
+                  name="code"
+                  value={formData.code || defaultBarcode}
+                  onChange={(e) => handleBarcodeChange(e.target.value)}
+                  type="select"
+                  options={barcodeOptions}
+                  autoFocus
+                />
+              </div>
+              {/* Scan Barcode Button beside Barcode/Rbarcode */}
+              <Button 
+                onClick={startScanner} 
+                variant="outline-primary" 
                 size="sm"
-                onClick={() => setShowOptions(!showOptions)}
+                style={{ 
+                  marginTop:"-8px",
+                  padding: '8px 8px',
+                  fontSize: '12px',
+                  whiteSpace: 'nowrap',
+                  borderColor: '#a36e29',
+                  color: '#a36e29'
+                }}
+                title="Scan Barcode"
               >
-                {showOptions && (
-                  <>
-                    <Dropdown.Item
-                      onClick={() => fileInputRef.current && fileInputRef.current.click()}
-                    >
-                      <FaUpload /> Choose Image
-                    </Dropdown.Item>
-                    <Dropdown.Item onClick={() => setShowWebcam(true)}>
-                      <FaCamera /> Capture Image
-                    </Dropdown.Item>
-                  </>
-                )}
-              </DropdownButton>
+                <FaQrcode /> Scan Barcode
+              </Button>
+            </div>
+          </Col>
 
-              <input
-                type="file"
-                name="image"
-                accept="image/*"
-                ref={fileInputRef}
-                style={{ display: "none" }}
-                onChange={handleImageChange}
-              />
-
-              {showWebcam && (
-                <div>
-                  <Webcam
-                    audio={false}
-                    ref={webcamRef}
-                    screenshotFormat="image/jpeg"
-                    width={150}
-                    height={150}
-                  />
-                  <Button variant="success" size="sm" onClick={captureImage} style={{ marginRight: "5px" }}>
-                    Capture
-                  </Button>
-                  <Button variant="secondary" size="sm" onClick={() => setShowWebcam(false)}>
-                    Cancel
-                  </Button>
-                </div>
-              )}
-              {formData.imagePreview && (
-                <div style={{ position: "relative", display: "inline-block", marginTop: "10px" }}>
-                  <img
-                    src={formData.imagePreview}
-                    alt="Selected"
-                    style={{
-                      width: "100px",
-                      height: "100px",
-                      borderRadius: "8px",
-                    }}
-                  />
-                  <button
-                    type="button"
-                    onClick={clearImage}
-                    style={{
-                      position: "absolute",
-                      top: "5px",
-                      right: "5px",
-                      background: "transparent",
-                      border: "none",
-                      color: "red",
-                      fontSize: "16px",
-                      cursor: "pointer",
-                      zIndex: 10,
-                    }}
-                  >
-                    <FaTrash />
-                  </button>
-                </div>
-              )}
-            </Col>
-          </>
-        ) : (
-          <>
-            <Col xs={12} md={2}>
+          <Col xs={12} md={2} className="d-flex align-items-center">
+            <div style={{ flex: 1 }}>
               <InputField
-                label="Selling Purity"
-                name="selling_purity"
+                label="Category"
+                name="category"
+                value={formData.category || ""}
                 type="select"
-                value={formData.selling_purity}
                 onChange={handleChange}
-                options={[
-                  ...(formData.product_name
-                    ? [{
-                        label: subcategoryOptions.find(option => option.value === formData.product_name)?.selling_purity || "Default Purity",
-                        value: subcategoryOptions.find(option => option.value === formData.product_name)?.selling_purity || ""
-                      }]
-                    : []),
-                  { label: "Manual", value: "Manual" }
-                ]}
+                options={categoryOptions}
               />
-            </Col>
+            </div>
+            <AiOutlinePlus
+              size={20}
+              color="black"
+              style={{
+                marginLeft: "10px",
+                cursor: "pointer",
+                marginBottom: "20px",
+              }}
+              onClick={() =>
+                navigate("/itemmaster", {
+                  state: {
+                    from: `/sales?tabId=${tabId}`
+                  }
+                })
+              }
+            />
+          </Col>
 
-            {formData.selling_purity === "Manual" && (
+          <Col xs={12} md={2}>
+            <InputField
+              label="Metal Type"
+              name="metal_type"
+              value={formData.metal_type || ""}
+              onChange={handleChange}
+              type="select"
+              options={metaltypeOptions}
+            />
+          </Col>
+
+          <Col xs={12} md={3} className="d-flex align-items-center">
+            <div style={{ flex: 1 }}>
+              <InputField
+                label="Sub Category"
+                name="product_name"
+                value={formData.product_name || ""}
+                onChange={handleChange}
+                type="select"
+                options={subcategoryOptions}
+              />
+            </div>
+            <AiOutlinePlus
+              size={20}
+              color="black"
+              style={{
+                marginLeft: "10px",
+                cursor: "pointer",
+                marginBottom: "20px",
+              }}
+              onClick={() =>
+                navigate("/subcategory", {
+                  state: {
+                    from: `/sales?tabId=${tabId}`,
+                    metal_type: formData.metal_type
+                  }
+                })
+              }
+            />
+          </Col>
+
+          <Col xs={12} md={2}>
+            <InputField
+              label="Product Design Name"
+              name="design_name"
+              value={formData.design_name}
+              onChange={handleChange}
+              type="select"
+              options={designOptions}
+            />
+          </Col>
+
+          {/* REMOVED: Pricing Field */}
+
+          {/* By Fixed Pricing Fields */}
+          {isByFixed ? (
+            <>
               <Col xs={12} md={2}>
                 <InputField
-                  label="Custom Purity %"
-                  name="custom_purity"
-                  value={formData.custom_purity || ""}
+                  label="Printing Purity"
+                  name="printing_purity"
+                  value={formData.printing_purity || ""}
                   onChange={handleChange}
                 />
               </Col>
-            )}
+              <Col xs={12} md={2}>
+                <InputField
+                  label="Piece Cost"
+                  name="pieace_cost"
+                  value={formData.pieace_cost}
+                  onChange={handleChange}
+                />
+              </Col>
+              <Col xs={12} md={1}>
+                <InputField
+                  label="Qty"
+                  name="qty"
+                  value={formData.qty}
+                  onChange={handleChange}
+                  readOnly={!isQtyEditable}
+                />
+              </Col>
+              {/* REMOVED: Remarks Field */}
+              <Col xs={12} md={4}>
+                <DropdownButton
+                  id="dropdown-basic-button"
+                  title="Choose / Capture Image"
+                  variant="primary"
+                  size="sm"
+                  onClick={() => setShowOptions(!showOptions)}
+                >
+                  {showOptions && (
+                    <>
+                      <Dropdown.Item
+                        onClick={() => fileInputRef.current && fileInputRef.current.click()}
+                      >
+                        <FaUpload /> Choose Image
+                      </Dropdown.Item>
+                      <Dropdown.Item onClick={() => setShowWebcam(true)}>
+                        <FaCamera /> Capture Image
+                      </Dropdown.Item>
+                    </>
+                  )}
+                </DropdownButton>
 
-            <Col xs={12} md={1}>
-              <InputField
-                label="Gross Wt"
-                name="gross_weight"
-                type='number'
-                value={formData.gross_weight || ""}
-                onChange={handleChange}
-              />
-            </Col>
-            <Col xs={12} md={1}>
-              <InputField
-                label="Stone Wt"
-                name="stone_weight"
-                type='number'
-                value={formData.stone_weight || ""}
-                onChange={handleChange}
-              />
-            </Col>
-            <Col xs={12} md={1}>
-              <InputField
-                label="Weight BW"
-                name="weight_bw"
-                value={formData.weight_bw || ""}
-                onChange={handleChange}
-                readOnly
-              />
-            </Col>
+                <input
+                  type="file"
+                  name="image"
+                  accept="image/*"
+                  ref={fileInputRef}
+                  style={{ display: "none" }}
+                  onChange={handleImageChange}
+                />
 
-            <Col xs={12} md={2}>
-              <InputField
-                label="Wastage On"
-                name="va_on"
-                type="select"
-                value={formData.va_on || ""}
-                onChange={handleChange}
-                options={[
-                  { value: "Gross Weight", label: "Gross Weight" },
-                  { value: "Weight BW", label: "Weight BW" },
-                  ...(formData.va_on &&
-                    !["Gross Weight", "Weight BW"].includes(formData.va_on)
-                    ? [{ value: formData.va_on, label: formData.va_on }]
-                    : []),
-                ]}
-              />
-            </Col>
-            <Col xs={12} md={1}>
-              <InputField
-                label="Wastage%"
-                name="va_percent"
-                type='number'
-                value={formData.va_percent || "0"}
-                onChange={handleChange}
-              />
-            </Col>
-            <Col xs={12} md={1}>
-              <InputField
-                label="W.Wt"
-                name="wastage_weight"
-                value={formData.wastage_weight || "0.00"}
-                onChange={handleChange}
-                readOnly
-              />
-            </Col>
-            <Col xs={12} md={2}>
-              <InputField
-                label="Total Weight AW"
-                name="total_weight_av"
-                value={formData.total_weight_av || ""}
-                onChange={handleChange}
-                readOnly
-              />
-            </Col>
-
-            <Col xs={12} md={2}>
-              <InputField
-                label="MC On"
-                name="mc_on"
-                type="select"
-                value={formData.mc_on || ""}
-                onChange={handleChange}
-                options={[
-                  { value: "MC / Gram", label: "MC / Gram" },
-                  { value: "MC / Piece", label: "MC / Piece" },
-                  { value: "MC %", label: "MC %" },
-                  ...(formData.mc_on &&
-                    !["MC / Gram", "MC / Piece", "MC %"].includes(formData.mc_on)
-                    ? [{ value: formData.mc_on, label: formData.mc_on }]
-                    : []),
-                ]}
-              />
-            </Col>
-
-            <Col xs={12} md={1}>
-              <InputField
-                label={formData.mc_on === "MC %" ? "MC %" : "MC/Gm"}
-                name="mc_per_gram"
-                type='number'
-                value={formData.mc_per_gram || ""}
-                onChange={handleChange}
-                readOnly={formData.mc_on === "MC / Piece"}
-              />
-            </Col>
-            <Col xs={12} md={1}>
-              <InputField
-                label="Total MC"
-                name="making_charges"
-                type='number'
-                value={formData.making_charges || ""}
-                onChange={handleChange}
-                disabled={formData.mc_on === "MC / Gram"}
-              />
-            </Col>
-
-            {/* REMOVED: Remarks Field */}
-            <Col xs={12} md={2}>
-              <DropdownButton
-                id="dropdown-basic-button"
-                title="Choose / Capture Image"
-                variant="primary"
-                size="sm"
-                onClick={() => setShowOptions(!showOptions)}
-              >
-                {showOptions && (
-                  <>
-                    <Dropdown.Item
-                      onClick={() => fileInputRef.current && fileInputRef.current.click()}
-                    >
-                      <FaUpload /> Choose Image
-                    </Dropdown.Item>
-                    <Dropdown.Item onClick={() => setShowWebcam(true)}>
-                      <FaCamera /> Capture Image
-                    </Dropdown.Item>
-                  </>
+                {showWebcam && (
+                  <div>
+                    <Webcam
+                      audio={false}
+                      ref={webcamRef}
+                      screenshotFormat="image/jpeg"
+                      width={150}
+                      height={150}
+                    />
+                    <Button variant="success" size="sm" onClick={captureImage} style={{ marginRight: "5px" }}>
+                      Capture
+                    </Button>
+                    <Button variant="secondary" size="sm" onClick={() => setShowWebcam(false)}>
+                      Cancel
+                    </Button>
+                  </div>
                 )}
-              </DropdownButton>
+                {formData.imagePreview && (
+                  <div style={{ position: "relative", display: "inline-block", marginTop: "10px" }}>
+                    <img
+                      src={formData.imagePreview}
+                      alt="Selected"
+                      style={{
+                        width: "100px",
+                        height: "100px",
+                        borderRadius: "8px",
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={clearImage}
+                      style={{
+                        position: "absolute",
+                        top: "5px",
+                        right: "5px",
+                        background: "transparent",
+                        border: "none",
+                        color: "red",
+                        fontSize: "16px",
+                        cursor: "pointer",
+                        zIndex: 10,
+                      }}
+                    >
+                      <FaTrash />
+                    </button>
+                  </div>
+                )}
+              </Col>
+            </>
+          ) : (
+            <>
+              <Col xs={12} md={2}>
+                <InputField
+                  label="Selling Purity"
+                  name="selling_purity"
+                  type="select"
+                  value={formData.selling_purity}
+                  onChange={handleChange}
+                  options={[
+                    ...(formData.product_name
+                      ? [{
+                          label: subcategoryOptions.find(option => option.value === formData.product_name)?.selling_purity || "Default Purity",
+                          value: subcategoryOptions.find(option => option.value === formData.product_name)?.selling_purity || ""
+                        }]
+                      : []),
+                    { label: "Manual", value: "Manual" }
+                  ]}
+                />
+              </Col>
 
-              <input
-                type="file"
-                name="image"
-                accept="image/*"
-                ref={fileInputRef}
-                style={{ display: "none" }}
-                onChange={handleImageChange}
-              />
-
-              {showWebcam && (
-                <div>
-                  <Webcam
-                    audio={false}
-                    ref={webcamRef}
-                    screenshotFormat="image/jpeg"
-                    width={150}
-                    height={150}
+              {formData.selling_purity === "Manual" && (
+                <Col xs={12} md={2}>
+                  <InputField
+                    label="Custom Purity %"
+                    name="custom_purity"
+                    value={formData.custom_purity || ""}
+                    onChange={handleChange}
                   />
-                  <Button variant="success" size="sm" onClick={captureImage} style={{ marginRight: "5px" }}>
-                    Capture
-                  </Button>
-                  <Button variant="secondary" size="sm" onClick={() => setShowWebcam(false)}>
-                    Cancel
-                  </Button>
-                </div>
+                </Col>
               )}
-              {formData.imagePreview && (
-                <div style={{ position: "relative", display: "inline-block", marginTop: "10px" }}>
-                  <img
-                    src={formData.imagePreview}
-                    alt="Selected"
-                    style={{
-                      width: "100px",
-                      height: "100px",
-                      borderRadius: "8px",
-                    }}
-                  />
-                  <button
-                    type="button"
-                    onClick={clearImage}
-                    style={{
-                      position: "absolute",
-                      top: "5px",
-                      right: "5px",
-                      background: "transparent",
-                      border: "none",
-                      color: "red",
-                      fontSize: "16px",
-                      cursor: "pointer",
-                      zIndex: 10,
-                    }}
-                  >
-                    <FaTrash />
-                  </button>
-                </div>
-              )}
-            </Col>
-          </>
-        )}
 
-        <Col xs={12} md={1}>
-          <Button
-            onClick={isEditing ? handleUpdate : handleAdd}
-            style={{
-              backgroundColor: "#a36e29",
-              borderColor: "#a36e29",
-              padding: "4px 7px",
-              marginTop: "5px",
-              marginLeft: "-1px",
-              fontSize: "13px"
-            }}
-          >
-            {isEditing ? "Update" : "Add"}
-          </Button>
-        </Col>
-        <Col xs={12} md={1}>
-          <Button
-            variant="secondary"
-            onClick={handleClear}
-            style={{
-              backgroundColor: 'gray',
-              marginLeft: '-52px',
-              padding: "4px 7px",
-              fontSize: "13px",
-              marginTop: "5px"
-            }}
-          >
-            Clear
-          </Button>
-        </Col>
-      </Row>
-    </Col>
+              <Col xs={12} md={1}>
+                <InputField
+                  label="Gross Wt"
+                  name="gross_weight"
+                  type='number'
+                  value={formData.gross_weight || ""}
+                  onChange={handleChange}
+                />
+              </Col>
+              <Col xs={12} md={1}>
+                <InputField
+                  label="Stone Wt"
+                  name="stone_weight"
+                  type='number'
+                  value={formData.stone_weight || ""}
+                  onChange={handleChange}
+                />
+              </Col>
+              <Col xs={12} md={1}>
+                <InputField
+                  label="Weight BW"
+                  name="weight_bw"
+                  value={formData.weight_bw || ""}
+                  onChange={handleChange}
+                  readOnly
+                />
+              </Col>
+
+              <Col xs={12} md={2}>
+                <InputField
+                  label="Wastage On"
+                  name="va_on"
+                  type="select"
+                  value={formData.va_on || ""}
+                  onChange={handleChange}
+                  options={[
+                    { value: "Gross Weight", label: "Gross Weight" },
+                    { value: "Weight BW", label: "Weight BW" },
+                    ...(formData.va_on &&
+                      !["Gross Weight", "Weight BW"].includes(formData.va_on)
+                      ? [{ value: formData.va_on, label: formData.va_on }]
+                      : []),
+                  ]}
+                />
+              </Col>
+              <Col xs={12} md={1}>
+                <InputField
+                  label="Wastage%"
+                  name="va_percent"
+                  type='number'
+                  value={formData.va_percent || "0"}
+                  onChange={handleChange}
+                />
+              </Col>
+              <Col xs={12} md={1}>
+                <InputField
+                  label="W.Wt"
+                  name="wastage_weight"
+                  value={formData.wastage_weight || "0.00"}
+                  onChange={handleChange}
+                  readOnly
+                />
+              </Col>
+              <Col xs={12} md={2}>
+                <InputField
+                  label="Total Weight AW"
+                  name="total_weight_av"
+                  value={formData.total_weight_av || ""}
+                  onChange={handleChange}
+                  readOnly
+                />
+              </Col>
+
+              <Col xs={12} md={2}>
+                <InputField
+                  label="MC On"
+                  name="mc_on"
+                  type="select"
+                  value={formData.mc_on || ""}
+                  onChange={handleChange}
+                  options={[
+                    { value: "MC / Gram", label: "MC / Gram" },
+                    { value: "MC / Piece", label: "MC / Piece" },
+                    { value: "MC %", label: "MC %" },
+                    ...(formData.mc_on &&
+                      !["MC / Gram", "MC / Piece", "MC %"].includes(formData.mc_on)
+                      ? [{ value: formData.mc_on, label: formData.mc_on }]
+                      : []),
+                  ]}
+                />
+              </Col>
+
+              <Col xs={12} md={1}>
+                <InputField
+                  label={formData.mc_on === "MC %" ? "MC %" : "MC/Gm"}
+                  name="mc_per_gram"
+                  type='number'
+                  value={formData.mc_per_gram || ""}
+                  onChange={handleChange}
+                  readOnly={formData.mc_on === "MC / Piece"}
+                />
+              </Col>
+              <Col xs={12} md={1}>
+                <InputField
+                  label="Total MC"
+                  name="making_charges"
+                  type='number'
+                  value={formData.making_charges || ""}
+                  onChange={handleChange}
+                  disabled={formData.mc_on === "MC / Gram"}
+                />
+              </Col>
+
+              {/* REMOVED: Remarks Field */}
+              <Col xs={12} md={2}>
+                <DropdownButton
+                  id="dropdown-basic-button"
+                  title="Choose / Capture Image"
+                  variant="primary"
+                  size="sm"
+                  onClick={() => setShowOptions(!showOptions)}
+                >
+                  {showOptions && (
+                    <>
+                      <Dropdown.Item
+                        onClick={() => fileInputRef.current && fileInputRef.current.click()}
+                      >
+                        <FaUpload /> Choose Image
+                      </Dropdown.Item>
+                      <Dropdown.Item onClick={() => setShowWebcam(true)}>
+                        <FaCamera /> Capture Image
+                      </Dropdown.Item>
+                    </>
+                  )}
+                </DropdownButton>
+
+                <input
+                  type="file"
+                  name="image"
+                  accept="image/*"
+                  ref={fileInputRef}
+                  style={{ display: "none" }}
+                  onChange={handleImageChange}
+                />
+
+                {showWebcam && (
+                  <div>
+                    <Webcam
+                      audio={false}
+                      ref={webcamRef}
+                      screenshotFormat="image/jpeg"
+                      width={150}
+                      height={150}
+                    />
+                    <Button variant="success" size="sm" onClick={captureImage} style={{ marginRight: "5px" }}>
+                      Capture
+                    </Button>
+                    <Button variant="secondary" size="sm" onClick={() => setShowWebcam(false)}>
+                      Cancel
+                    </Button>
+                  </div>
+                )}
+                {formData.imagePreview && (
+                  <div style={{ position: "relative", display: "inline-block", marginTop: "10px" }}>
+                    <img
+                      src={formData.imagePreview}
+                      alt="Selected"
+                      style={{
+                        width: "100px",
+                        height: "100px",
+                        borderRadius: "8px",
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={clearImage}
+                      style={{
+                        position: "absolute",
+                        top: "5px",
+                        right: "5px",
+                        background: "transparent",
+                        border: "none",
+                        color: "red",
+                        fontSize: "16px",
+                        cursor: "pointer",
+                        zIndex: 10,
+                      }}
+                    >
+                      <FaTrash />
+                    </button>
+                  </div>
+                )}
+              </Col>
+            </>
+          )}
+
+          <Col xs={12} md={1}>
+            <Button
+              onClick={isEditing ? handleUpdate : handleAdd}
+              style={{
+                backgroundColor: "#a36e29",
+                borderColor: "#a36e29",
+                padding: "4px 7px",
+                marginTop: "5px",
+                marginLeft: "-1px",
+                fontSize: "13px"
+              }}
+            >
+              {isEditing ? "Update" : "Add"}
+            </Button>
+          </Col>
+          <Col xs={12} md={1}>
+            <Button
+              variant="secondary"
+              onClick={handleClear}
+              style={{
+                backgroundColor: 'gray',
+                marginLeft: '-52px',
+                padding: "4px 7px",
+                fontSize: "13px",
+                marginTop: "5px"
+              }}
+            >
+              Clear
+            </Button>
+          </Col>
+        </Row>
+      </Col>
+
+      {/* Product Scanner Modal */}
+      <Modal show={showScanner} onHide={stopScanner} centered>
+        <Modal.Header closeButton>
+          <Modal.Title>Scan Product Barcode</Modal.Title>
+        </Modal.Header>
+        <Modal.Body style={{ textAlign: 'center', padding: '20px' }}>
+          <div id="product-qr-reader" style={{ width: '100%', minHeight: '300px' }}></div>
+          <p className="mt-3">Point your camera at the product barcode to scan</p>
+          <p className="text-info mt-2">⚠️ Scanned barcode will auto-fill the Barcode field</p>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={stopScanner}>Cancel Scan</Button>
+        </Modal.Footer>
+      </Modal>
+    </>
   );
 };
 

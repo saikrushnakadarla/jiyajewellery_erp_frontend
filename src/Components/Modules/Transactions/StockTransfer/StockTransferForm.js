@@ -2373,6 +2373,10 @@ const handleSave = async () => {
 
     console.log("Saving with Transfer Number:", nextTransferNumber);
 
+    // Get the capture image from formData (from Customer Details)
+    const captureImage = formData.stock_point_image || null;
+    console.log("📷 Capture Image present:", !!captureImage);
+
     // IMPORTANT: Include PCode_BarCode, image, and user_id from stock points
     const transferData = repairDetails.map(item => ({
       product_id: item.product_id || null,
@@ -2391,8 +2395,9 @@ const handleSave = async () => {
       stone_price: parseFloat(item.stone_price) || 0,
       total_price: parseFloat(item.total_price) || 0,
       remarks: item.remarks || null,
-      PCode_BarCode: item.code,  // KEY: Add PCode_BarCode for stock point update
-      image: item.imagePreview || item.image || null  // Add image field
+      PCode_BarCode: item.code,
+      // Include image from each item (Product Details image)
+      image: item.imagePreview || item.image || null
     }));
 
     const payload = {
@@ -2405,18 +2410,17 @@ const handleSave = async () => {
       reference_number: nextTransferNumber,
       remarks: `Transfer from ${activeStockPointDetails.stock_point_name} to ${otherStockPointDetails.stock_point_name}`,
       created_by: formData.account_name || "system",
-      // Include user_id from stock points
       from_user_id: activeStockPointDetails.user_id || null,
-      to_user_id: otherStockPointDetails.user_id || null
+      to_user_id: otherStockPointDetails.user_id || null,
+      capture_image: captureImage  // <-- NEW: Add capture image from Customer Details
     };
 
-    console.log("Sending Stock Transfer Payload:", payload);
+    console.log("📦 Sending Stock Transfer Payload with capture_image:", !!payload.capture_image);
 
     const response = await axios.post(`${baseURL}/api/stock-transfer/save-stock-transfer`, payload);
 
     if (response.status === 200 || response.status === 201) {
       alert(`Stock Transfer completed successfully! Transfer Number: ${nextTransferNumber}`);
-      
       
       clearData();
       setFormData({
@@ -2426,6 +2430,8 @@ const handleSave = async () => {
         active_stock_point_details: null,
         other_stock_point_details: null,
         transfer_number: "",
+        stock_point_image: null,  // Clear capture image
+        stock_point_image_file: null
       });
       
       setRepairDetails([]);
