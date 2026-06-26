@@ -581,7 +581,7 @@ function Navbar() {
                 onClick={handleItemClick}
                 className={isActive("/warehouse-stock-items")}
               >
-                Warehouse Available Stock Items
+                Warehouse Available Stock
               </Link>
             </div>
           )}
