@@ -162,7 +162,7 @@ function StockNavbar() {
         </div>
 
         {/* Visit Logs Salesman Schedule Link */}
-        <div>
+        {/* <div>
           <Link
             to="/visit-logs-salesman-schedule"
             onClick={handleItemClick}
@@ -174,7 +174,7 @@ function StockNavbar() {
           >
             VISIT LOGS SALESMAN
           </Link>
-        </div>
+        </div> */}
       </nav>
 
       <div className="username">{userName}</div>
