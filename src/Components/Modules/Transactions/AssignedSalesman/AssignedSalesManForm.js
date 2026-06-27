@@ -1493,7 +1493,7 @@ const resetForm = () => {
   };
 
   const handleBack = () => {
-    navigate("/stock-transfers"); // Change from "/salestable" to "/stock-transfers"
+    navigate("/assign-to-salesman"); // Change from "/salestable" to "/stock-transfers"
   };
 
   // const handleAddCustomer = () => {

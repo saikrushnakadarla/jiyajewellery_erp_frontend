@@ -9,7 +9,7 @@ const PaymentDetails = ({
   const navigate = useNavigate();
 
   const handleClose = () => {
-    navigate("/stock-transfers");
+    navigate("/assign-to-salesman");
   };
 
   return (

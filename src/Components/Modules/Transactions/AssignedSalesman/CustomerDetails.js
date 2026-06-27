@@ -293,11 +293,21 @@ const CustomerDetails = ({
                 whiteSpace: 'nowrap',
                 borderColor: '#a36e29',
                 color: '#a36e29',
-                marginTop: '24px',
                 height: '38px',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '6px'
+                gap: '6px',
+                marginBottom: "5px",
+                backgroundColor: 'transparent'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = 'transparent'; // Light brown on hover
+                // Use 'transparent' if you want no background on hover
+                e.currentTarget.style.boxShadow = 'none';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = 'transparent';
+                e.currentTarget.style.boxShadow = 'none';
               }}
             >
               <FaCamera /> Capture Image

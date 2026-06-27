@@ -4,6 +4,7 @@ import InputField from "./../../Transactions/SalesForm/InputfieldSales";
 import axios from "axios";
 import baseURL from './../../../../Url/NodeBaseURL';
 import { FaCamera, FaTimes } from 'react-icons/fa';
+import "./CustomerDetails.css"
 
 const CustomerDetails = ({
   formData,
@@ -298,8 +299,11 @@ const CustomerDetails = ({
                 height: '38px',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '6px'
+                gap: '6px',
+                backgroundColor: 'transparent',
+                marginBottom:"5px"
               }}
+               className="capture-image-btn"
             >
               <FaCamera /> Capture Image
             </Button>

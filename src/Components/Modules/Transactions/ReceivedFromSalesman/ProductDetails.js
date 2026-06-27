@@ -1048,15 +1048,14 @@ const ProductDetails = ({
                 borderColor: '#007bff',
                 whiteSpace: 'nowrap',
                 padding: '4px 8px',
-                fontSize: '11px',
+                fontSize: '13px',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '4px',
+                gap: '10px',
                 flexShrink: 0,
                 minWidth: '90px',
                 height: '38px',
-                marginBottom: '0px',
-                marginTop: '10px'
+                marginBottom: '8px',
               }}
               title="Scan Barcode"
             >
@@ -1071,15 +1070,14 @@ const ProductDetails = ({
                 borderColor: '#28a745',
                 whiteSpace: 'nowrap',
                 padding: '4px 8px',
-                fontSize: '11px',
+                fontSize: '13px',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '4px',
+                gap: '10px',
                 flexShrink: 0,
                 minWidth: '90px',
                 height: '38px',
-                marginBottom: '0px',
-                marginTop: '22px'
+                marginBottom: '8px',
               }}
               title="Scan Packet"
             >

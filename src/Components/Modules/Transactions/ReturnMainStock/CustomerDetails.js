@@ -4,6 +4,7 @@ import InputField from "./../../Transactions/SalesForm/InputfieldSales";
 import axios from "axios";
 import baseURL from './../../../../Url/NodeBaseURL';
 import { FaCamera, FaTimes } from 'react-icons/fa';
+// import "./CustomerDetails.css"
 
 const CustomerDetails = ({
   formData,
@@ -252,24 +253,32 @@ const CustomerDetails = ({
           }}>
             {/* Capture Image Button */}
             <Button 
-              onClick={startCamera} 
-              variant="outline-primary" 
-              size="sm"
-              style={{ 
-                padding: '6px 14px',
-                fontSize: '13px',
-                whiteSpace: 'nowrap',
-                borderColor: '#a36e29',
-                color: '#a36e29',
-                marginTop: '24px',
-                height: '38px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px'
-              }}
-            >
-              <FaCamera /> Capture Image
-            </Button>
+                  onClick={startCamera} 
+                  variant="outline-primary" 
+                  size="sm"
+                  style={{ 
+                    padding: '6px 14px',
+                    fontSize: '13px',
+                    whiteSpace: 'nowrap',
+                    borderColor: '#a36e29',
+                    color: '#a36e29',
+                    height: '38px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    marginBottom: "5px",
+                    backgroundColor: 'transparent'
+                  }}
+                  onMouseEnter={(e) => {
+                   e.currentTarget.style.backgroundColor = 'transparent';
+                    // Use 'transparent' if you want no background on hover
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = 'transparent';
+                  }}
+                >
+                  <FaCamera /> Capture Image
+                </Button>
             <input
               ref={fileInputRef}
               type="file"

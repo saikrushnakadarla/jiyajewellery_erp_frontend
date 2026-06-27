@@ -433,7 +433,7 @@ const ProductDetails = ({
       {/* First Row - All Fields in One Line */}
       <Row>
         {/* Barcode/Rbarcode with Scan Button */}
-        <Col xs={12} md={3}>
+        <Col xs={12} md={4}>
           <div style={{ display: 'flex', alignItems: 'flex-end', gap: '4px' }}>
             <div style={{ flex: 1, minWidth: '100px' }}>
               <InputField
@@ -456,13 +456,14 @@ const ProductDetails = ({
                 borderColor: '#007bff',
                 whiteSpace: 'nowrap',
                 padding: '4px 10px',
-                fontSize: '12px',
+                fontSize: '14px',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '4px',
+                gap: '10px',
                 flexShrink: 0,
-                minWidth: '55px',
+                minWidth: '80px',
                 height: '38px',
+                marginBottom:"8px"
               }}
               title="Scan Barcode"
             >

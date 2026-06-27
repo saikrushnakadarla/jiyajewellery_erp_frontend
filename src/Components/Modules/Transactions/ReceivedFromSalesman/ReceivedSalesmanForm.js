@@ -1756,7 +1756,7 @@ const resetForm = () => {
   };
 
   const handleBack = () => {
-    navigate("/stock-transfers"); // Change from "/salestable" to "/stock-transfers"
+    navigate("/receive-from-salesman"); // Change from "/salestable" to "/stock-transfers"
   };
 
   // const handleAddCustomer = () => {
