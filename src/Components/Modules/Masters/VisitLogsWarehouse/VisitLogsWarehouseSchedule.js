@@ -6,7 +6,8 @@ import Navbar from '../../../../Navbar/Navbar';
 import { 
   FaPlus, FaEdit, FaTrash, FaCalendarCheck, FaUser, 
   FaClock, FaCheck, FaTimes, FaWarehouse, FaBarcode, 
-  FaBoxes, FaList, FaEye, FaCheckCircle, FaMinusCircle
+  FaBoxes, FaList, FaEye, FaCheckCircle, FaMinusCircle,
+  FaUserTie, FaUserCheck, FaUserPlus
 } from 'react-icons/fa';
 import './VisitLogsWarehouseSchedule.css';
 import Swal from 'sweetalert2';
@@ -17,12 +18,14 @@ const VisitLogsWarehouseSchedule = () => {
     scheduled_date: '',
     customer_id: '',
     warehouse_id: '',
-    barcodes: []
+    barcodes: [],
+    salesman_id: ''  // Added salesman_id
   });
 
   // State for dropdown data
   const [customers, setCustomers] = useState([]);
   const [stockPoints, setStockPoints] = useState([]);
+  const [salesmen, setSalesmen] = useState([]);  // Added salesmen state
   
   // State for scheduled visits list
   const [scheduledVisits, setScheduledVisits] = useState([]);
@@ -46,38 +49,30 @@ const VisitLogsWarehouseSchedule = () => {
   // Get today's date for min date validation
   const today = new Date().toISOString().split('T')[0];
 
-  // Fetch customers and stock points on component mount
+  // Fetch customers, stock points, and salesmen on component mount
   useEffect(() => {
     console.log('🚀 Component mounted - fetching data...');
     fetchCustomers();
     fetchStockPoints();
     fetchScheduledVisits();
     fetchStockTransfers();
+    fetchSalesmen();  // Added salesmen fetch
   }, []);
 
   // Fetch customers from account-details API
   const fetchCustomers = async () => {
     try {
       console.log('📋 Fetching customers from account-details API...');
-      // Use the correct API endpoint from your backend
       const response = await axios.get(`${baseURL}/get/account-details`);
       const accounts = response.data;
       
       console.log(`📊 Total accounts fetched: ${accounts.length}`);
       
-      // Filter customers (already filtered by backend but double-check)
       const customerList = accounts.filter(account => 
         account.account_group && account.account_group.toUpperCase() === 'CUSTOMERS'
       );
       
       console.log(`✅ Customers found: ${customerList.length}`);
-      console.log('📋 Customer list:', customerList.map(c => ({ 
-        account_id: c.account_id,        // This is what we store in the schedule table
-        customer_id: c.customer_id,      // This is the customer code (CUST-001, CUST-002, etc.)
-        name: c.account_name, 
-        group: c.account_group 
-      })));
-      
       setCustomers(customerList);
     } catch (error) {
       console.error('❌ Error fetching customers:', error);
@@ -86,6 +81,24 @@ const VisitLogsWarehouseSchedule = () => {
         title: 'Error',
         text: 'Failed to fetch customers data'
       });
+    }
+  };
+
+  // Fetch salesmen from account-details API
+  const fetchSalesmen = async () => {
+    try {
+      console.log('📋 Fetching salesmen from account-details API...');
+      const response = await axios.get(`${baseURL}/get/account-details`);
+      const accounts = response.data;
+      
+      const salesmanList = accounts.filter(account => 
+        account.account_group && account.account_group.toUpperCase() === 'SALESMAN'
+      );
+      
+      console.log(`✅ Salesmen found: ${salesmanList.length}`);
+      setSalesmen(salesmanList);
+    } catch (error) {
+      console.error('❌ Error fetching salesmen:', error);
     }
   };
 
@@ -148,7 +161,6 @@ const VisitLogsWarehouseSchedule = () => {
       setBarcodeLoading(true);
       console.log(`📋 Fetching barcodes for stock point ${stockPointId}...`);
       
-      // Use the backend API to fetch barcodes
       const response = await axios.get(`${baseURL}/api/visit-logs-warehouse-schedule/barcodes/${stockPointId}`);
       
       if (response.data.success) {
@@ -156,7 +168,6 @@ const VisitLogsWarehouseSchedule = () => {
         setAvailableBarcodes(response.data.barcodes);
         setSelectedStockPoint(stockPoints.find(s => s.id === stockPointId));
         setShowBarcodeModal(true);
-        // Reset selected barcodes when opening modal
         setSelectedBarcodes([]);
         setSelectedBarcodeDetails([]);
       } else {
@@ -186,10 +197,9 @@ const VisitLogsWarehouseSchedule = () => {
     setFormData(prev => ({
       ...prev,
       warehouse_id: value,
-      barcodes: [] // Reset barcodes when stock point changes
+      barcodes: []
     }));
     
-    // Fetch barcodes for the selected stock point
     if (value) {
       fetchBarcodesForStockPoint(parseInt(value));
     }
@@ -211,11 +221,9 @@ const VisitLogsWarehouseSchedule = () => {
     const isSelected = selectedBarcodes.includes(barcode);
     
     if (isSelected) {
-      // Remove barcode
       setSelectedBarcodes(prev => prev.filter(b => b !== barcode));
       setSelectedBarcodeDetails(prev => prev.filter(b => b.barcode !== barcode));
     } else {
-      // Add barcode
       setSelectedBarcodes(prev => [...prev, barcode]);
       setSelectedBarcodeDetails(prev => [...prev, barcodeItem]);
     }
@@ -252,7 +260,6 @@ const VisitLogsWarehouseSchedule = () => {
     }));
     setShowBarcodeModal(false);
     
-    // Show success message
     Swal.fire({
       icon: 'success',
       title: 'Barcodes Selected',
@@ -262,13 +269,19 @@ const VisitLogsWarehouseSchedule = () => {
     });
   };
 
+  // Get salesman name by ID
+  const getSalesmanName = (salesmanId) => {
+    if (!salesmanId) return 'Not Assigned';
+    const salesman = salesmen.find(s => s.account_id === salesmanId);
+    return salesman ? salesman.account_name : 'Unknown Salesman';
+  };
+
   // Handle form submission
   const handleSubmit = async (e) => {
     e.preventDefault();
     
     console.log('📝 Submitting form data:', formData);
     
-    // Validate required fields
     if (!formData.scheduled_date) {
       Swal.fire({
         icon: 'warning',
@@ -305,21 +318,19 @@ const VisitLogsWarehouseSchedule = () => {
       return;
     }
 
-    // Prepare data for API
-    // IMPORTANT: customer_id here is the account_id from the account_details table
+    // Prepare data for API including salesman
+    const selectedSalesman = salesmen.find(s => s.account_id === parseInt(formData.salesman_id));
+    
     const submitData = {
       scheduled_date: formData.scheduled_date,
-      customer_id: parseInt(formData.customer_id), // This is the account_id (56, 53, etc.)
+      customer_id: parseInt(formData.customer_id),
       warehouse_id: parseInt(formData.warehouse_id),
-      barcodes: formData.barcodes
+      barcodes: formData.barcodes,
+      salesman_id: formData.salesman_id ? parseInt(formData.salesman_id) : null,
+      salesman_name: selectedSalesman ? selectedSalesman.account_name : ''
     };
     
-    console.log('📤 Sending data to API:', {
-      ...submitData,
-      // Log what this means
-      customer_account_id: submitData.customer_id,
-      note: 'customer_id in API is the account_id from account_details table'
-    });
+    console.log('📤 Sending data to API:', submitData);
     
     try {
       setLoading(true);
@@ -367,7 +378,8 @@ const VisitLogsWarehouseSchedule = () => {
       scheduled_date: '',
       customer_id: '',
       warehouse_id: '',
-      barcodes: []
+      barcodes: [],
+      salesman_id: ''  // Reset salesman
     });
     setIsEditing(false);
     setEditingId(null);
@@ -385,9 +397,10 @@ const VisitLogsWarehouseSchedule = () => {
     
     setFormData({
       scheduled_date: formattedDate,
-      customer_id: schedule.customer_id, // This is the account_id
+      customer_id: schedule.customer_account_id || schedule.customer_id,
       warehouse_id: schedule.warehouse_id || '',
-      barcodes: schedule.barcode ? [schedule.barcode] : []
+      barcodes: schedule.barcode ? [schedule.barcode] : [],
+      salesman_id: schedule.salesman_id || ''  // Set salesman if exists
     });
     
     setIsEditing(true);
@@ -479,7 +492,7 @@ const VisitLogsWarehouseSchedule = () => {
     return customer ? customer.account_name : 'Unknown Customer';
   };
 
-  // Get customer code by account_id (this is the customer_id field from account_details)
+  // Get customer code by account_id
   const getCustomerCode = (accountId) => {
     const customer = customers.find(c => c.account_id === accountId);
     return customer ? customer.customer_id || 'N/A' : 'N/A';
@@ -570,13 +583,9 @@ const VisitLogsWarehouseSchedule = () => {
                             <option key={customer.account_id} value={customer.account_id}>
                               {customer.account_name} 
                               {customer.customer_id ? ` (${customer.customer_id})` : ''}
-                              {` - ID: ${customer.account_id}`}
                             </option>
                           ))}
                         </Form.Select>
-                        {/* <small className="text-muted">
-                          Note: Customer ID (account_id) will be stored in the schedule
-                        </small> */}
                       </Form.Group>
                     </Col>
 
@@ -603,8 +612,37 @@ const VisitLogsWarehouseSchedule = () => {
                       </Form.Group>
                     </Col>
 
-                    {/* Selected Barcodes Display */}
+                    {/* Salesman Dropdown - NEW */}
                     <Col lg={3} md={6} className="mb-3">
+                      <Form.Group>
+                        <Form.Label className="vlws-label">
+                          <FaUserTie className="me-1" /> Salesman (Optional)
+                        </Form.Label>
+                        <Form.Select
+                          name="salesman_id"
+                          value={formData.salesman_id}
+                          onChange={handleInputChange}
+                          className="vlws-select"
+                        >
+                          <option value="">-- Select Salesman (Optional) --</option>
+                          {salesmen.map(salesman => (
+                            <option key={salesman.account_id} value={salesman.account_id}>
+                              {salesman.account_name} {salesman.phone ? `(${salesman.phone})` : ''}
+                            </option>
+                          ))}
+                        </Form.Select>
+                        {salesmen.length === 0 && (
+                          <small className="text-muted mt-1 d-block">
+                            No salesmen available. You can assign later.
+                          </small>
+                        )}
+                      </Form.Group>
+                    </Col>
+                  </Row>
+
+                  {/* Selected Barcodes Display */}
+                  <Row className="mt-2">
+                    <Col md={12}>
                       <Form.Group>
                         <Form.Label className="vlws-label">
                           <FaBarcode className="me-1" /> Selected Barcodes <span className="text-danger">*</span>
@@ -746,22 +784,21 @@ const VisitLogsWarehouseSchedule = () => {
             </Col>
           </Row>
 
-          {/* Info Alert */}
+          {/* Info Alert - Updated with Salesman info */}
           <Row className="mb-4">
             <Col md={12}>
               <Alert variant="info" className="vlws-info-alert">
                 <FaClock className="me-2" />
-                <strong>Schedule Management:</strong> Select a stock point to see available barcodes, then choose multiple barcodes to associate with the customer visit.
+                <strong>Schedule Management:</strong> Select a stock point to see available barcodes, then choose multiple barcodes to associate with the customer visit. You can optionally assign a salesman to this visit.
                 <br />
                 <small className="text-muted">
                   Note: The customer is identified by their account_id (e.g., 56, 53) which is stored in the schedule.
-                  The customer_code (e.g., CUST-001, CUST-002) is a separate identifier.
                 </small>
               </Alert>
             </Col>
           </Row>
 
-          {/* Scheduled Visits Table */}
+          {/* Scheduled Visits Table - Updated with Salesman column */}
           <Row className="vlws-table-section">
             <Col md={12}>
               <div className="vlws-table-card">
@@ -777,10 +814,11 @@ const VisitLogsWarehouseSchedule = () => {
                       <tr>
                         <th>#</th>
                         <th>Scheduled Date & Time</th>
-                        <th>Customer (account_id)</th>
+                        <th>Customer</th>
                         <th>Customer Code</th>
                         <th>Stock Point</th>
                         <th>Barcode</th>
+                        <th>Salesman</th>
                         <th>Status</th>
                         <th>Created At</th>
                         <th>Actions</th>
@@ -789,7 +827,7 @@ const VisitLogsWarehouseSchedule = () => {
                     <tbody>
                       {fetchLoading ? (
                         <tr>
-                          <td colSpan="9" className="text-center py-4">
+                          <td colSpan="10" className="text-center py-4">
                             <div className="spinner-border text-primary" role="status">
                               <span className="visually-hidden">Loading...</span>
                             </div>
@@ -805,12 +843,12 @@ const VisitLogsWarehouseSchedule = () => {
                             </td>
                             <td>
                               <FaUser className="me-2 text-success" />
-                              {schedule.customer_name || getCustomerName(schedule.customer_id)}
+                              {schedule.customer_name || getCustomerName(schedule.customer_account_id)}
                               <br />
-                              <small className="text-muted">ID: {schedule.customer_id}</small>
+                              <small className="text-muted">ID: {schedule.customer_account_id}</small>
                             </td>
                             <td>
-                              <Badge bg="info">{schedule.customer_code || getCustomerCode(schedule.customer_id)}</Badge>
+                              <Badge bg="info">{schedule.customer_id || getCustomerCode(schedule.customer_account_id)}</Badge>
                             </td>
                             <td>
                               <FaWarehouse className="me-2 text-warning" />
@@ -821,6 +859,16 @@ const VisitLogsWarehouseSchedule = () => {
                                 <FaBarcode className="me-1" />
                                 {schedule.barcode || 'N/A'}
                               </Badge>
+                            </td>
+                            <td>
+                              {schedule.salesman_id ? (
+                                <Badge bg="success" className="vlws-salesman-badge">
+                                  <FaUserCheck className="me-1" />
+                                  {schedule.salesman_name || getSalesmanName(schedule.salesman_id)}
+                                </Badge>
+                              ) : (
+                                <Badge bg="secondary">Not Assigned</Badge>
+                              )}
                             </td>
                             <td>{getVisitStatusBadge(schedule.status)}</td>
                             <td>{formatDateTime(schedule.created_at)}</td>
@@ -849,7 +897,7 @@ const VisitLogsWarehouseSchedule = () => {
                         ))
                       ) : (
                         <tr>
-                          <td colSpan="9" className="text-center py-4 text-muted">
+                          <td colSpan="10" className="text-center py-4 text-muted">
                             No scheduled visits found
                           </td>
                         </tr>

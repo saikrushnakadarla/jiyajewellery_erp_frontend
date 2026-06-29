@@ -2,18 +2,25 @@
 import React, { useState, useContext } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faChevronDown, faChevronUp } from "@fortawesome/free-solid-svg-icons";
+import {
+  faChevronDown,
+  faChevronUp,
+  faChevronRight,
+} from "@fortawesome/free-solid-svg-icons";
 import { FaSignOutAlt } from "react-icons/fa";
 import { AuthContext } from "../Components/Pages/Login/Context";
 import Swal from "sweetalert2";
-import logo from "./jiya_logo.png"; // Adjust the path if needed
-import "./Navbar.css"; // Reusing the same CSS for consistency
+import logo from "./jiya_logo.png";
+import "./StockNavbar.css"; // New unique CSS file
 
 function StockNavbar() {
   const [isOpen, setIsOpen] = useState(false);
-  const [stockManagementDropdownOpen, setStockManagementDropdownOpen] = useState(false);
-  const [stockInwardDropdownOpen, setStockInwardDropdownOpen] = useState(false);
-  const [stockOutwardDropdownOpen, setStockOutwardDropdownOpen] = useState(false);
+  const [stockManagementDropdownOpen, setStockManagementDropdownOpen] =
+    useState(false);
+  // New state for sub-dropdowns
+  const [inwardSubDropdownOpen, setInwardSubDropdownOpen] = useState(false);
+  const [outwardSubDropdownOpen, setOutwardSubDropdownOpen] = useState(false);
+
   const { userName } = useContext(AuthContext);
   const location = useLocation();
   const navigate = useNavigate();
@@ -23,21 +30,30 @@ function StockNavbar() {
   };
 
   const openDropdown = (type) => {
-    if (type === "stockManagement") setStockManagementDropdownOpen(true);
-    if (type === "stockInward") setStockInwardDropdownOpen(true);
-    if (type === "stockOutward") setStockOutwardDropdownOpen(true);
+    if (type === "stockManagement") {
+      setStockManagementDropdownOpen(true);
+    }
   };
 
   const closeDropdown = (type) => {
-    if (type === "stockManagement") setStockManagementDropdownOpen(false);
-    if (type === "stockInward") setStockInwardDropdownOpen(false);
-    if (type === "stockOutward") setStockOutwardDropdownOpen(false);
+    if (type === "stockManagement") {
+      setStockManagementDropdownOpen(false);
+    }
+  };
+
+  // Handle sub-dropdown toggles for mobile
+  const toggleInwardSubDropdown = () => {
+    setInwardSubDropdownOpen(!inwardSubDropdownOpen);
+  };
+
+  const toggleOutwardSubDropdown = () => {
+    setOutwardSubDropdownOpen(!outwardSubDropdownOpen);
   };
 
   const handleItemClick = () => {
     setStockManagementDropdownOpen(false);
-    setStockInwardDropdownOpen(false);
-    setStockOutwardDropdownOpen(false);
+    setInwardSubDropdownOpen(false);
+    setOutwardSubDropdownOpen(false);
     setIsOpen(false);
   };
 
@@ -60,35 +76,43 @@ function StockNavbar() {
 
   // Helper to check if a link is active
   const isActive = (path) => {
-    return location.pathname === path ? "active" : "";
+    return location.pathname === path ? "stock-navbar-active" : "";
+  };
+
+  // Helper to check if any sub-link is active
+  const isSubActive = (paths) => {
+    return paths.includes(location.pathname) ? "stock-navbar-active" : "";
   };
 
   return (
-    <header className="navbar-header">
-      <div className="navbar-brand">
+    <header className="stock-navbar-header">
+      <div className="stock-navbar-brand">
         <img
           src={logo}
           alt="Logo"
-          className=""
+          className="stock-navbar-logo-img"
           style={{ width: "110px", height: "60px" }}
         />
       </div>
 
       <div
-        className={`navbar-hamburger ${isOpen ? "open" : ""}`}
+        className={`stock-navbar-hamburger ${
+          isOpen ? "stock-navbar-hamburger-open" : ""
+        }`}
         onClick={toggleMenu}
       >
-        <div className="navbar-bar"></div>
-        <div className="navbar-bar"></div>
-        <div className="navbar-bar"></div>
+        <div className="stock-navbar-bar"></div>
+        <div className="stock-navbar-bar"></div>
+        <div className="stock-navbar-bar"></div>
       </div>
 
-      <nav className={`navbar-links ${isOpen ? "open" : ""}`}>
+      <nav className={`stock-navbar-links ${isOpen ? "stock-navbar-links-open" : ""}`}>
         {/* Dashboard Link */}
         <div>
           <Link
             to="/stock-dashboard"
             onClick={handleItemClick}
+            className={isActive("/stock-dashboard")}
             style={{
               color: location.pathname === "/stock-dashboard" ? "#a36e29" : "black",
               backgroundColor: "transparent",
@@ -99,21 +123,22 @@ function StockNavbar() {
           </Link>
         </div>
 
-        {/* Stock Management Dropdown - Updated with nested structure */}
+        {/* Stock Management Dropdown - Main */}
         <div
-          className="navbar-dropdown"
+          className="stock-navbar-dropdown"
           onMouseEnter={() => openDropdown("stockManagement")}
           onMouseLeave={() => closeDropdown("stockManagement")}
         >
-          <span className="navbar-dropdown-title">
+          <span className="stock-navbar-dropdown-title">
             STOCK MANAGEMENT{" "}
             <FontAwesomeIcon
               icon={stockManagementDropdownOpen ? faChevronUp : faChevronDown}
-              className="dropdown-arrow-icon"
+              className="stock-dropdown-arrow-icon"
             />
           </span>
           {stockManagementDropdownOpen && (
-            <div className="navbar-dropdown-content">
+            <div className="stock-navbar-dropdown-content">
+              {/* Stock Link - Direct */}
               <Link
                 to="/warehouse-stock-respective-items"
                 onClick={handleItemClick}
@@ -121,71 +146,117 @@ function StockNavbar() {
               >
                 Stock
               </Link>
-              
-              {/* Stock Inward Sub-dropdown */}
+
+              {/* Stock Inward Sub-Dropdown */}
               <div
-                className="navbar-sub-dropdown"
-                onMouseEnter={() => openDropdown("stockInward")}
-                onMouseLeave={() => closeDropdown("stockInward")}
+                className="stock-navbar-sub-dropdown"
+                onMouseEnter={() => setInwardSubDropdownOpen(true)}
+                onMouseLeave={() => setInwardSubDropdownOpen(false)}
               >
-                <span className="navbar-sub-dropdown-title">
-                  Stock Inward{" "}
+                <div
+                  className="stock-navbar-sub-dropdown-title"
+                  onClick={toggleInwardSubDropdown}
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    padding: "0.7rem 1.5rem",
+                    color: isSubActive(["/stock-inward", "/receive-from-salesman"])
+                      ? "#a36e29"
+                      : "#333",
+                    fontWeight: isSubActive(["/stock-inward", "/receive-from-salesman"])
+                      ? "bold"
+                      : "normal",
+                  }}
+                >
+                  Stock Inward
                   <FontAwesomeIcon
-                    icon={stockInwardDropdownOpen ? faChevronUp : faChevronDown}
-                    className="dropdown-arrow-icon"
+                    icon={faChevronRight}
+                    className="stock-sub-arrow-icon"
                   />
-                </span>
-                {stockInwardDropdownOpen && (
-                  <div className="navbar-sub-dropdown-content">
-                    <Link
-                      to="/stock-inward"
-                      onClick={handleItemClick}
-                      className={isActive("/stock-inward")}
-                    >
-                      Inward from Main Admin
-                    </Link>
-                    <Link
-                      to="/receive-from-salesman"
-                      onClick={handleItemClick}
-                      className={isActive("/receive-from-salesman")}
-                    >
-                      Inward from Salesman (Receive)
-                    </Link>
-                  </div>
-                )}
+                </div>
+                <div
+                  className={`stock-navbar-sub-dropdown-content ${
+                    inwardSubDropdownOpen ? "show-mobile" : ""
+                  }`}
+                  style={{
+                    display:
+                      inwardSubDropdownOpen && window.innerWidth <= 768
+                        ? "block"
+                        : "",
+                  }}
+                >
+                  <Link
+                    to="/stock-inward"
+                    onClick={handleItemClick}
+                    className={isActive("/stock-inward")}
+                  >
+                    Inward from Main Admin
+                  </Link>
+                  <Link
+                    to="/receive-from-salesman"
+                    onClick={handleItemClick}
+                    className={isActive("/receive-from-salesman")}
+                  >
+                    Inward from Salesman (Receive)
+                  </Link>
+                </div>
               </div>
 
-              {/* Stock Outward Sub-dropdown */}
+              {/* Stock Outward Sub-Dropdown */}
               <div
-                className="navbar-sub-dropdown"
-                onMouseEnter={() => openDropdown("stockOutward")}
-                onMouseLeave={() => closeDropdown("stockOutward")}
+                className="stock-navbar-sub-dropdown"
+                onMouseEnter={() => setOutwardSubDropdownOpen(true)}
+                onMouseLeave={() => setOutwardSubDropdownOpen(false)}
               >
-                <span className="navbar-sub-dropdown-title">
-                  Stock Outward{" "}
+                <div
+                  className="stock-navbar-sub-dropdown-title"
+                  onClick={toggleOutwardSubDropdown}
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    padding: "0.7rem 1.5rem",
+                    color: isSubActive(["/return-to-main-stock", "/assign-to-salesman"])
+                      ? "#a36e29"
+                      : "#333",
+                    fontWeight: isSubActive(["/return-to-main-stock", "/assign-to-salesman"])
+                      ? "bold"
+                      : "normal",
+                  }}
+                >
+                  Stock Outward
                   <FontAwesomeIcon
-                    icon={stockOutwardDropdownOpen ? faChevronUp : faChevronDown}
-                    className="dropdown-arrow-icon"
+                    icon={faChevronRight}
+                    className="stock-sub-arrow-icon"
                   />
-                </span>
-                {stockOutwardDropdownOpen && (
-                  <div className="navbar-sub-dropdown-content">
-                    <Link
-                      to="/return-to-main-stock"
-                      onClick={handleItemClick}
-                      className={isActive("/return-to-main-stock")}
-                    >
-                      Outward to Main Admin
-                    </Link>
-                    <Link
-                      to="/assign-to-salesman"
-                      onClick={handleItemClick}
-                      className={isActive("/assign-to-salesman")}
-                    >
-                      Outward to Salesman (Assign)
-                    </Link>
-                  </div>
-                )}
+                </div>
+                <div
+                  className={`stock-navbar-sub-dropdown-content ${
+                    outwardSubDropdownOpen ? "show-mobile" : ""
+                  }`}
+                  style={{
+                    display:
+                      outwardSubDropdownOpen && window.innerWidth <= 768
+                        ? "block"
+                        : "",
+                  }}
+                >
+                  <Link
+                    to="/return-to-main-stock"
+                    onClick={handleItemClick}
+                    className={isActive("/return-to-main-stock")}
+                  >
+                    Outward to Main Admin
+                  </Link>
+                  <Link
+                    to="/assign-to-salesman"
+                    onClick={handleItemClick}
+                    className={isActive("/assign-to-salesman")}
+                  >
+                    Outward to Salesman (Assign)
+                  </Link>
+                </div>
               </div>
             </div>
           )}
@@ -208,9 +279,9 @@ function StockNavbar() {
         </div> */}
       </nav>
 
-      <div className="username">{userName}</div>
-      <div className="navbar-logout">
-        <button className="logout-button" onClick={handleLogout}>
+      <div className="stock-username">{userName}</div>
+      <div className="stock-navbar-logout">
+        <button className="stock-logout-button" onClick={handleLogout}>
           <FaSignOutAlt size={18} /> Logout
         </button>
       </div>
