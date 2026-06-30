@@ -11,22 +11,44 @@ const ReceivedStock = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [loading, setLoading] = useState(true);
-  const [stockData, setStockData] = useState([]);
+  const [returnData, setReturnData] = useState([]);
+  const [stockPoints, setStockPoints] = useState([]);
   const [showModal, setShowModal] = useState(false);
-  const [selectedStockPoint, setSelectedStockPoint] = useState(null);
+  const [selectedReturn, setSelectedReturn] = useState(null);
   const [selectedItems, setSelectedItems] = useState([]);
 
-  const [expandedStockPoints, setExpandedStockPoints] = useState({});
+  const [expandedReturns, setExpandedReturns] = useState({});
   const [showImageModal, setShowImageModal] = useState(false);
   const [selectedImage, setSelectedImage] = useState(null);
   const [selectedItemName, setSelectedItemName] = useState('');
 
-  const [transferImageMap, setTransferImageMap] = useState({});
+  const [returnDetailsMap, setReturnDetailsMap] = useState({});
+  const [loadingDetails, setLoadingDetails] = useState({});
+  
+  // For stock point grouping
+  const [expandedStockPoints, setExpandedStockPoints] = useState({});
+  
+  // For Received Status functionality (from original code)
   const [updatingStatus, setUpdatingStatus] = useState({});
-  // ✅ Added: Filter state for pending/received
-  const [statusFilter, setStatusFilter] = useState('all'); // 'all', 'pending', 'received'
+  const [statusFilter, setStatusFilter] = useState('all');
 
   const userName = localStorage.getItem('userName');
+
+  // Function to get stock point name based on from_user_id
+  const getStockPointName = (fromUserId) => {
+    if (!stockPoints || stockPoints.length === 0) return 'N/A';
+    
+    // Find stock point where user_id matches fromUserId
+    const stockPoint = stockPoints.find(sp => sp.user_id === fromUserId);
+    
+    if (stockPoint) {
+      return stockPoint.stock_point_name;
+    }
+    
+    // If no match found, check if it's MAIN STOCK ROOM (user_id is null)
+    const mainStock = stockPoints.find(sp => sp.user_id === null && sp.default_status === 'applied');
+    return mainStock ? mainStock.stock_point_name : 'N/A';
+  };
 
   const handleImageClick = (imagePath, itemName) => {
     if (imagePath) {
@@ -77,66 +99,164 @@ const ReceivedStock = () => {
     );
   };
 
-  // Fetch all transfer images and build PCode_BarCode -> image map
-  const fetchTransferImages = async () => {
-    try {
-      const transfersRes = await axios.get(`${baseURL}/api/stock-transfer/get-stock-transfers`);
-      const transfers = transfersRes.data || [];
-
-      const imageMap = {};
-
-      await Promise.all(
-        transfers.map(async (transfer) => {
-          try {
-            const detailRes = await axios.get(
-              `${baseURL}/api/stock-transfer/get-stock-transfer/${transfer.transfer_id}`
-            );
-            const items = detailRes.data?.transfer_items || [];
-            items.forEach((item) => {
-              if (item.PCode_BarCode && item.image) {
-                imageMap[item.PCode_BarCode] = item.image;
-              }
-            });
-          } catch (err) {
-            console.warn(`Failed to fetch transfer ${transfer.transfer_id}`, err);
-          }
-        })
-      );
-
-      setTransferImageMap(imageMap);
-    } catch (error) {
-      console.error('Error fetching transfer images:', error);
-    }
-  };
-
-  const fetchStockData = async () => {
+  // Fetch return transfers
+  const fetchReturnTransfers = async () => {
     try {
       setLoading(true);
-      const response = await axios.get(`${baseURL}/get/opening-tags-entry`);
-
-      if (response.data && response.data.result) {
-        // ✅ Updated: Filter for both 'pending' and 'received' statuses
-        const filtered = response.data.result.filter(
-          (item) => 
-            item.Status === 'Selected' && 
-            (item.Received_Status === 'pending' || item.Received_Status === 'received')
-        );
-        setStockData(filtered);
-      } else {
-        setStockData([]);
-      }
+      
+      // Fetch stock points first and wait for completion
+      const stockPointsResponse = await axios.get(`${baseURL}/api/stockpoints`);
+      console.log("Stock Points Response: ", stockPointsResponse.data);
+      const stockPointsData = stockPointsResponse.data;
+      setStockPoints(stockPointsData);
+      
+      // Now fetch return transfers
+      const response = await axios.get(`${baseURL}/api/return-to-main-stock/get-return-transfers`);
+      console.log("Return Transfers Response: ", response.data);
+      
+      // Enrich data with proper stock point names using the mapping function
+      // Use the stockPointsData directly instead of relying on state
+      const enrichedData = response.data.map(returnItem => {
+        // Find stock point where user_id matches fromUserId
+        const stockPoint = stockPointsData.find(sp => sp.user_id === returnItem.from_user_id);
+        let stockPointName = 'N/A';
+        
+        if (stockPoint) {
+          stockPointName = stockPoint.stock_point_name;
+        } else {
+          // If no match found, check if it's MAIN STOCK ROOM (user_id is null)
+          const mainStock = stockPointsData.find(sp => sp.user_id === null && sp.default_status === 'applied');
+          stockPointName = mainStock ? mainStock.stock_point_name : 'N/A';
+        }
+        
+        return {
+          ...returnItem,
+          from_stock_point_name: stockPointName
+        };
+      });
+      
+      console.log("Enriched Return Data: ", enrichedData);
+      setReturnData(enrichedData);
       setLoading(false);
     } catch (error) {
-      console.error('Error fetching stock data:', error);
-      Swal.fire('Error', 'Failed to fetch received stock data. Please try again.', 'error');
+      console.error('Error fetching return transfers:', error);
+      Swal.fire('Error', 'Failed to fetch return transfers. Please try again.', 'error');
       setLoading(false);
     }
   };
 
-  // Function to update Received Status
+  // Fetch return details for a specific return_id
+  const fetchReturnDetails = async (returnId) => {
+    if (returnDetailsMap[returnId]) return;
+    
+    try {
+      setLoadingDetails(prev => ({ ...prev, [returnId]: true }));
+      const response = await axios.get(`${baseURL}/api/return-to-main-stock/get-return-transfer/${returnId}`);
+      console.log(`Return Details for ${returnId}:`, response.data);
+      
+      setReturnDetailsMap(prev => ({
+        ...prev,
+        [returnId]: response.data
+      }));
+    } catch (error) {
+      console.error(`Error fetching return details for ${returnId}:`, error);
+      Swal.fire('Error', 'Failed to fetch return details', 'error');
+    } finally {
+      setLoadingDetails(prev => ({ ...prev, [returnId]: false }));
+    }
+  };
+
+  // Group returns by from_stock_point_name (now using the enriched data)
+  const groupedByStockPoint = useMemo(() => {
+    const grouped = {};
+    returnData.forEach(returnItem => {
+      const stockPoint = returnItem.from_stock_point_name || 'Unassigned';
+      if (!grouped[stockPoint]) grouped[stockPoint] = [];
+      grouped[stockPoint].push(returnItem);
+    });
+    return grouped;
+  }, [returnData]);
+
+  // Get totals for a stock point group
+  const getStockPointTotals = (returns) => {
+    return returns.reduce((acc, returnItem) => {
+      acc.totalReturns += 1;
+      acc.totalItems += parseInt(returnItem.total_items || 0);
+      acc.totalQty += parseFloat(returnItem.total_quantity || 0);
+      acc.totalGrossWt += parseFloat(returnItem.total_gross_weight || 0);
+      acc.totalNetWt += parseFloat(returnItem.total_net_weight || 0);
+      return acc;
+    }, { totalReturns: 0, totalItems: 0, totalQty: 0, totalGrossWt: 0, totalNetWt: 0 });
+  };
+
+  const toggleStockPoint = (stockPoint) => {
+    setExpandedStockPoints(prev => ({ ...prev, [stockPoint]: !prev[stockPoint] }));
+  };
+
+  const toggleReturnExpand = (returnId) => {
+    const isExpanded = !expandedReturns[returnId];
+    setExpandedReturns(prev => ({ ...prev, [returnId]: isExpanded }));
+    
+    if (isExpanded) {
+      fetchReturnDetails(returnId);
+    }
+  };
+
+  const handleViewItems = (returnData, items) => {
+    setSelectedReturn(returnData);
+    setSelectedItems(items);
+    setShowModal(true);
+  };
+
+  const handleCloseModal = () => { 
+    setShowModal(false); 
+    setSelectedReturn(null); 
+    setSelectedItems([]); 
+  };
+  
+  const handleCloseImageModal = () => { 
+    setShowImageModal(false); 
+    setSelectedImage(null); 
+    setSelectedItemName(''); 
+  };
+
+  const getStatusBadge = (status) => {
+    const statusColors = {
+      'pending': { color: '#ffc107', text: 'Pending' },
+      'in_transit': { color: '#17a2b8', text: 'In Transit' },
+      'completed': { color: '#28a745', text: 'Completed' },
+      'cancelled': { color: '#dc3545', text: 'Cancelled' }
+    };
+    const statusInfo = statusColors[status] || { color: '#6c757d', text: status };
+    return (
+      <span style={{
+        backgroundColor: statusInfo.color,
+        color: 'white',
+        padding: '2px 8px',
+        borderRadius: '4px',
+        fontSize: '10px',
+        fontWeight: 'bold',
+        display: 'inline-block',
+        minWidth: '60px',
+        textAlign: 'center'
+      }}>
+        {statusInfo.text}
+      </span>
+    );
+  };
+
+  const formatDate = (dateString) => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    return `${String(date.getDate()).padStart(2, '0')}-${String(
+      date.getMonth() + 1
+    ).padStart(2, '0')}-${date.getFullYear()}`;
+  };
+
+  // Function to update Received Status (from original code)
   const updateReceivedStatus = async (item, newStatus) => {
     try {
-      setUpdatingStatus(prev => ({ ...prev, [item.opentag_id]: true }));
+      setUpdatingStatus(prev => ({ ...prev, [item.item_id]: true }));
 
       const payload = {
         barcodes: [item.PCode_BarCode],
@@ -146,13 +266,21 @@ const ReceivedStock = () => {
       const response = await axios.put(`${baseURL}/update-received-status`, payload);
 
       if (response.status === 200) {
-        setStockData(prevData => 
-          prevData.map(dataItem => 
-            dataItem.opentag_id === item.opentag_id 
-              ? { ...dataItem, Received_Status: newStatus }
-              : dataItem
-          )
-        );
+        // Update the item in the return details map
+        const updatedMap = { ...returnDetailsMap };
+        Object.keys(updatedMap).forEach(returnId => {
+          const details = updatedMap[returnId];
+          if (details && details.return_items) {
+            details.return_items = details.return_items.map(returnItem => {
+              if (returnItem.item_id === item.item_id) {
+                return { ...returnItem, Received_Status: newStatus };
+              }
+              return returnItem;
+            });
+            updatedMap[returnId] = details;
+          }
+        });
+        setReturnDetailsMap(updatedMap);
 
         Swal.fire({
           icon: 'success',
@@ -161,9 +289,6 @@ const ReceivedStock = () => {
           timer: 2000,
           showConfirmButton: false
         });
-
-        // ✅ Updated: Don't remove item when status changes to 'received'
-        // Keep it in the list so user can see both statuses
       }
     } catch (error) {
       console.error('Error updating received status:', error);
@@ -173,65 +298,12 @@ const ReceivedStock = () => {
         text: error.response?.data?.error || 'Failed to update received status. Please try again.'
       });
     } finally {
-      setUpdatingStatus(prev => ({ ...prev, [item.opentag_id]: false }));
+      setUpdatingStatus(prev => ({ ...prev, [item.item_id]: false }));
     }
   };
-
-  // ✅ Added: Function to filter data based on selected status
-  const getFilteredData = () => {
-    if (statusFilter === 'all') {
-      return stockData;
-    }
-    return stockData.filter(item => item.Received_Status === statusFilter);
-  };
-
-  const filteredStockData = getFilteredData();
-
-  const groupedData = useMemo(() => {
-    const grouped = {};
-    filteredStockData.forEach(item => {
-      const stockPoint = item.Stock_Point || 'Unassigned';
-      if (!grouped[stockPoint]) grouped[stockPoint] = [];
-      grouped[stockPoint].push(item);
-    });
-    return grouped;
-  }, [filteredStockData]);
-
-  const getStockPointTotals = (items) => {
-    return items.reduce((acc, item) => {
-      acc.totalItems += 1;
-      acc.totalQty += parseFloat(item.pcs || 1);
-      acc.totalGrossWt += parseFloat(item.Gross_Weight || 0);
-      acc.totalStoneWt += parseFloat(item.Stones_Weight || 0);
-      acc.totalNetWt += parseFloat(item.TotalWeight_AW || 0);
-      acc.totalAmount += parseFloat(item.total_price || 0);
-      return acc;
-    }, { totalItems: 0, totalQty: 0, totalGrossWt: 0, totalStoneWt: 0, totalNetWt: 0, totalAmount: 0 });
-  };
-
-  const toggleStockPoint = (stockPoint) => {
-    setExpandedStockPoints(prev => ({ ...prev, [stockPoint]: !prev[stockPoint] }));
-  };
-
-  const handleViewItems = (stockPoint, items) => {
-    setSelectedStockPoint(stockPoint);
-    setSelectedItems(items);
-    setShowModal(true);
-  };
-
-  const handleCloseModal = () => { setShowModal(false); setSelectedStockPoint(null); setSelectedItems([]); };
-  const handleCloseImageModal = () => { setShowImageModal(false); setSelectedImage(null); setSelectedItemName(''); };
-
-  // ✅ Added: Get counts for each status
-  const pendingCount = stockData.filter(item => item.Received_Status === 'pending').length;
-  const receivedCount = stockData.filter(item => item.Received_Status === 'received').length;
 
   useEffect(() => {
-    const init = async () => {
-      await fetchTransferImages();
-      await fetchStockData();
-    };
-    init();
+    fetchReturnTransfers();
   }, []);
 
   if (loading) {
@@ -246,13 +318,13 @@ const ReceivedStock = () => {
     );
   }
 
-  if (stockData.length === 0) {
+  if (returnData.length === 0) {
     return (
       <div className="main-container">
         <div className="sales-table-container">
           <div className="text-center py-5">
-            <h4>No received items found</h4>
-            <p className="text-muted">No items with Status "Selected" and Received_Status "pending" or "received" found.</p>
+            <h4>No return transfers found</h4>
+            <p className="text-muted">No return transfers available.</p>
           </div>
         </div>
       </div>
@@ -267,29 +339,24 @@ const ReceivedStock = () => {
             <div>
               <h3>Received Stock Items</h3>
               <p className="text-muted mb-0" style={{ fontSize: '14px' }}>
-                Total Products: {stockData.length} | 
-                <Badge bg="warning" className="ms-1">Pending: {pendingCount}</Badge>
-                <Badge bg="success" className="ms-1">Received: {receivedCount}</Badge>
-                <Badge bg="info" className="ms-2">Stock Points: {Object.keys(groupedData).length}</Badge>
+                Total Returns: {returnData.length} | 
+                <Badge bg="info" className="ms-2">Stock Points: {Object.keys(groupedByStockPoint).length}</Badge>
               </p>
             </div>
-            {/* ✅ Added: Filter dropdown */}
             <div>
               <Dropdown>
                 <Dropdown.Toggle variant="outline-secondary" size="sm">
                   Filter: {statusFilter === 'all' ? 'All' : statusFilter.charAt(0).toUpperCase() + statusFilter.slice(1)}
                 </Dropdown.Toggle>
                 <Dropdown.Menu>
-                  <Dropdown.Item onClick={() => setStatusFilter('all')}>
-                    All ({stockData.length})
-                  </Dropdown.Item>
+                  <Dropdown.Item onClick={() => setStatusFilter('all')}>All</Dropdown.Item>
                   <Dropdown.Item onClick={() => setStatusFilter('pending')}>
                     <span className="status-dot pending-dot" style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#ffc107', marginRight: '8px' }}></span>
-                    Pending ({pendingCount})
+                    Pending
                   </Dropdown.Item>
                   <Dropdown.Item onClick={() => setStatusFilter('received')}>
                     <span className="status-dot received-dot" style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#28a745', marginRight: '8px' }}></span>
-                    Received ({receivedCount})
+                    Received
                   </Dropdown.Item>
                 </Dropdown.Menu>
               </Dropdown>
@@ -300,11 +367,22 @@ const ReceivedStock = () => {
         <div className="hierarchical-view">
           <style>{`
             .hierarchical-view .table { margin-bottom: 0; font-size: 13px; }
-            .hierarchical-view .table thead th { background-color: #a36e29; color: white; padding: 8px 10px; font-weight: 600; text-align: center; vertical-align: middle; white-space: nowrap; }
+            .hierarchical-view .table thead th { 
+              background-color: #a36e29; 
+              color: white; 
+              padding: 8px 10px; 
+              font-weight: 600; 
+              text-align: center; 
+              vertical-align: middle; 
+              white-space: nowrap; 
+            }
             .hierarchical-view .table tbody td { padding: 6px 8px; vertical-align: middle; text-align: center; }
             .stock-point-row { background-color: #f8f9fa !important; font-weight: 600; }
             .stock-point-row td { padding: 8px 10px !important; }
             .stock-point-row:hover { background-color: #e9ecef !important; }
+            .return-header-row { background-color: #e9ecef !important; }
+            .return-header-row td { padding: 6px 10px !important; }
+            .return-header-row:hover { background-color: #dee2e6 !important; }
             .item-row td { padding: 5px 8px !important; }
             .item-row:hover { background-color: #f1f3f5 !important; }
             .expand-btn { background: none; border: none; cursor: pointer; padding: 2px 6px; color: #a36e29; font-size: 14px; }
@@ -316,6 +394,7 @@ const ReceivedStock = () => {
             .item-details-cell .item-design { font-size: 10px; color: #666; margin-top: 1px; }
             .badge-stock-count { font-size: 11px; padding: 3px 8px; }
             .ps-3 { padding-left: 2rem !important; }
+            .ps-4 { padding-left: 3rem !important; }
             .view-btn { 
               background-color: #a36e29; 
               color: white; 
@@ -327,6 +406,8 @@ const ReceivedStock = () => {
               transition: background-color 0.2s; 
             }
             .view-btn:hover { background-color: #6b4c1c; }
+            .return-number { font-weight: 700; color: #a36e29; font-size: 13px; }
+            .return-from { font-weight: 500; color: #495057; }
             
             /* Received Status Badge Styles */
             .received-status-badge { 
@@ -364,7 +445,6 @@ const ReceivedStock = () => {
               font-size: 8px;
             }
             
-            /* Custom Dropdown Menu */
             .status-dropdown-menu {
               min-width: 140px;
               padding: 6px 0;
@@ -422,17 +502,13 @@ const ReceivedStock = () => {
             .status-dropdown-menu .dropdown-item .status-dot.received-dot {
               background-color: #28a745;
             }
-            .status-filter-dropdown .dropdown-toggle {
-              font-size: 13px;
-              padding: 4px 12px;
-            }
           `}</style>
           <div className="table-responsive">
             <table className="table table-bordered table-hover">
               <thead>
                 <tr>
                   <th style={{ width: '30px' }}></th>
-                  <th style={{ minWidth: '200px', textAlign: 'left' }}>Stock Point / Item Details</th>
+                  <th style={{ minWidth: '200px', textAlign: 'left' }}>Stock Point / Return Details</th>
                   <th style={{ width: '60px' }}>Image</th>
                   <th style={{ width: '100px' }}>PCode</th>
                   <th style={{ width: '80px' }}>Qty</th>
@@ -447,18 +523,19 @@ const ReceivedStock = () => {
                 </tr>
               </thead>
               <tbody>
-                {Object.entries(groupedData)
+                {Object.entries(groupedByStockPoint)
                   .sort(([a], [b]) => a.localeCompare(b))
-                  .map(([stockPoint, items]) => {
-                    const totals = getStockPointTotals(items);
-                    const isExpanded = expandedStockPoints[stockPoint];
+                  .map(([stockPoint, returns]) => {
+                    const totals = getStockPointTotals(returns);
+                    const isStockPointExpanded = expandedStockPoints[stockPoint];
 
                     return (
                       <React.Fragment key={stockPoint}>
+                        {/* Stock Point Header Row */}
                         <tr className="stock-point-row">
                           <td>
                             <button className="expand-btn" onClick={() => toggleStockPoint(stockPoint)}>
-                              {isExpanded ? <FaChevronDown /> : <FaChevronRight />}
+                              {isStockPointExpanded ? <FaChevronDown /> : <FaChevronRight />}
                             </button>
                           </td>
                           <td colSpan="12" style={{ textAlign: 'left' }}>
@@ -466,93 +543,144 @@ const ReceivedStock = () => {
                               <div className="d-flex align-items-center">
                                 <FaBoxOpen className="location-icon stock-icon" />
                                 <strong>{stockPoint}</strong>
-                                <Badge bg="warning" className="ms-2 badge-stock-count">{items.length} Item(s)</Badge>
+                                <Badge bg="warning" className="ms-2 badge-stock-count">
+                                  {totals.totalReturns} Return(s)
+                                </Badge>
                               </div>
                               <div className="d-flex align-items-center" style={{ fontSize: '12px', gap: '15px' }}>
+                                <span><strong>Items:</strong> {totals.totalItems}</span>
                                 <span><strong>Qty:</strong> {totals.totalQty.toFixed(3)}</span>
                                 <span><strong>Gross:</strong> {totals.totalGrossWt.toFixed(3)}</span>
                                 <span><strong>Net:</strong> {totals.totalNetWt.toFixed(3)}</span>
-                                <span><strong>Total:</strong> ₹{totals.totalAmount.toFixed(2)}</span>
                               </div>
                             </div>
                           </td>
                         </tr>
 
-                        {isExpanded && items.map((item, index) => {
-                          const imagePath = transferImageMap[item.PCode_BarCode] || item.image || null;
-                          const isUpdating = updatingStatus[item.opentag_id];
-                          const currentStatus = item.Received_Status || 'pending';
+                        {/* Returns under this Stock Point */}
+                        {isStockPointExpanded && returns.map((returnItem) => {
+                          const isReturnExpanded = expandedReturns[returnItem.return_id];
+                          const details = returnDetailsMap[returnItem.return_id];
+                          const items = details?.return_items || [];
+                          const isLoading = loadingDetails[returnItem.return_id];
 
                           return (
-                            <tr key={item.opentag_id || index} className="item-row">
-                              <td className="ps-3"></td>
-                              <td className="item-details-cell">
-                                <div className="item-code">#{item.PCode_BarCode || 'N/A'}</div>
-                                <div className="item-design">{item.design_master || item.sub_category || 'No Design'}</div>
-                                <div style={{ fontSize: '10px', color: '#888' }}>{item.sub_category} - {item.category}</div>
-                              </td>
-                              <td>{renderImageThumbnail(imagePath, item.design_master || item.sub_category, '38px')}</td>
-                              <td>{item.PCode_BarCode || 'N/A'}</td>
-                              <td>{item.pcs || 1}</td>
-                              <td>{parseFloat(item.Gross_Weight || 0).toFixed(3)}</td>
-                              <td>{parseFloat(item.Stones_Weight || 0).toFixed(3)}</td>
-                              <td>{parseFloat(item.TotalWeight_AW || 0).toFixed(3)}</td>
-                              <td>{parseFloat(item.rate || 0).toFixed(2)}</td>
-                              <td><strong>₹{parseFloat(item.total_price || 0).toFixed(2)}</strong></td>
-                              <td>
-                                <span style={{
-                                  backgroundColor: item.Status === 'Selected' ? '#ffc107' : '#6c757d',
-                                  color: item.Status === 'Selected' ? '#000' : '#fff',
-                                  padding: '2px 8px', borderRadius: '4px', fontSize: '10px',
-                                  fontWeight: 'bold', display: 'inline-block', minWidth: '60px', textAlign: 'center'
-                                }}>
-                                  {item.Status || 'N/A'}
-                                </span>
-                              </td>
-                              <td>
-                                {isUpdating ? (
-                                  <Spinner animation="border" size="sm" variant="warning" />
-                                ) : (
-                                  <Dropdown>
-                                    <Dropdown.Toggle 
-                                      variant="link" 
-                                      className="p-0 text-decoration-none"
-                                      id={`dropdown-${item.opentag_id}`}
-                                    >
-                                      <span className={`received-status-badge ${currentStatus}`}>
-                                        {currentStatus.charAt(0).toUpperCase() + currentStatus.slice(1)}
-                                        <span className="dropdown-arrow">▼</span>
+                            <React.Fragment key={returnItem.return_id}>
+                              {/* Return Header Row */}
+                              <tr className="return-header-row">
+                                <td className="ps-3">
+                                  <button className="expand-btn" onClick={() => toggleReturnExpand(returnItem.return_id)}>
+                                    {isReturnExpanded ? <FaChevronDown /> : <FaChevronRight />}
+                                  </button>
+                                </td>
+                                <td colSpan="12" style={{ textAlign: 'left' }}>
+                                  <div className="d-flex align-items-center justify-content-between">
+                                    <div className="d-flex align-items-center">
+                                      <span className="return-number">{returnItem.return_number}</span>
+                                      <span className="return-from ms-3" style={{ fontSize: '12px' }}>
+                                        Date: {formatDate(returnItem.return_date)}
                                       </span>
-                                    </Dropdown.Toggle>
+                                      <Badge bg="secondary" className="ms-2" style={{ fontSize: '10px' }}>
+                                        {returnItem.total_items} Items
+                                      </Badge>
+                                    </div>
+                                    <div className="d-flex align-items-center" style={{ fontSize: '12px', gap: '12px' }}>
+                                      <span><strong>Qty:</strong> {returnItem.total_quantity}</span>
+                                      <span><strong>Gross:</strong> {returnItem.total_gross_weight}</span>
+                                      <span><strong>Net:</strong> {returnItem.total_net_weight}</span>
+                                      <span>{getStatusBadge(returnItem.status)}</span>
+                                    </div>
+                                  </div>
+                                </td>
+                              </tr>
 
-                                    <Dropdown.Menu className="status-dropdown-menu">
-                                      <Dropdown.Item 
-                                        className={`dropdown-item pending-option ${currentStatus === 'pending' ? 'active' : ''}`}
-                                        onClick={() => updateReceivedStatus(item, 'pending')}
-                                      >
-                                        <span className="status-dot pending-dot"></span>
-                                        Pending
-                                        {currentStatus === 'pending' && <FaCheck className="check-icon" />}
-                                      </Dropdown.Item>
-                                      <Dropdown.Divider />
-                                      <Dropdown.Item 
-                                        className={`dropdown-item received-option ${currentStatus === 'received' ? 'active' : ''}`}
-                                        onClick={() => updateReceivedStatus(item, 'received')}
-                                      >
-                                        <span className="status-dot received-dot"></span>
-                                        Received
-                                        {currentStatus === 'received' && <FaCheck className="check-icon" />}
-                                      </Dropdown.Item>
-                                    </Dropdown.Menu>
-                                  </Dropdown>
-                                )}
-                              </td>
-                              <td>
-                                <button className="view-btn" onClick={() => handleViewItems(stockPoint, [item])}>
-                                  <FaEye size={12} /> View
-                                </button>
-                              </td>
-                            </tr>
+                              {/* Items under this Return */}
+                              {isReturnExpanded && (
+                                isLoading ? (
+                                  <tr>
+                                    <td colSpan="13" className="text-center py-3">
+                                      <Spinner animation="border" size="sm" variant="warning" />
+                                      <span className="ms-2">Loading items...</span>
+                                    </td>
+                                  </tr>
+                                ) : items.length > 0 ? (
+                                  items.map((item, index) => {
+                                    const imagePath = item.image || null;
+                                    const isUpdating = updatingStatus[item.item_id];
+                                    const currentStatus = item.Received_Status || 'pending';
+
+                                    return (
+                                      <tr key={item.item_id || index} className="item-row">
+                                        <td className="ps-4"></td>
+                                        <td className="item-details-cell">
+                                          <div className="item-code">#{item.PCode_BarCode || 'N/A'}</div>
+                                          <div className="item-design">{item.design_name || item.sub_category || 'No Design'}</div>
+                                          <div style={{ fontSize: '10px', color: '#888' }}>{item.sub_category} - {item.category}</div>
+                                        </td>
+                                        <td>{renderImageThumbnail(imagePath, item.design_name || item.sub_category, '38px')}</td>
+                                        <td>{item.PCode_BarCode || 'N/A'}</td>
+                                        <td>{item.qty || 1}</td>
+                                        <td>{parseFloat(item.gross_weight || 0).toFixed(3)}</td>
+                                        <td>{parseFloat(item.stone_weight || 0).toFixed(3)}</td>
+                                        <td>{parseFloat(item.net_weight || 0).toFixed(3)}</td>
+                                        <td>{parseFloat(item.rate || 0).toFixed(2)}</td>
+                                        <td><strong>₹{parseFloat(item.total_price || 0).toFixed(2)}</strong></td>
+                                        <td>{getStatusBadge(returnItem.status)}</td>
+                                        <td>
+                                          {isUpdating ? (
+                                            <Spinner animation="border" size="sm" variant="warning" />
+                                          ) : (
+                                            <Dropdown>
+                                              <Dropdown.Toggle 
+                                                variant="link" 
+                                                className="p-0 text-decoration-none"
+                                                id={`dropdown-${item.item_id}`}
+                                              >
+                                                <span className={`received-status-badge ${currentStatus}`}>
+                                                  {currentStatus.charAt(0).toUpperCase() + currentStatus.slice(1)}
+                                                  <span className="dropdown-arrow">▼</span>
+                                                </span>
+                                              </Dropdown.Toggle>
+
+                                              <Dropdown.Menu className="status-dropdown-menu">
+                                                <Dropdown.Item 
+                                                  className={`dropdown-item pending-option ${currentStatus === 'pending' ? 'active' : ''}`}
+                                                  onClick={() => updateReceivedStatus(item, 'pending')}
+                                                >
+                                                  <span className="status-dot pending-dot"></span>
+                                                  Pending
+                                                  {currentStatus === 'pending' && <FaCheck className="check-icon" />}
+                                                </Dropdown.Item>
+                                                <Dropdown.Divider />
+                                                <Dropdown.Item 
+                                                  className={`dropdown-item received-option ${currentStatus === 'received' ? 'active' : ''}`}
+                                                  onClick={() => updateReceivedStatus(item, 'received')}
+                                                >
+                                                  <span className="status-dot received-dot"></span>
+                                                  Received
+                                                  {currentStatus === 'received' && <FaCheck className="check-icon" />}
+                                                </Dropdown.Item>
+                                              </Dropdown.Menu>
+                                            </Dropdown>
+                                          )}
+                                        </td>
+                                        <td>
+                                          <button className="view-btn" onClick={() => handleViewItems(returnItem, [item])}>
+                                            <FaEye size={12} /> View
+                                          </button>
+                                        </td>
+                                      </tr>
+                                    );
+                                  })
+                                ) : (
+                                  <tr>
+                                    <td colSpan="13" className="text-center py-2 text-muted">
+                                      No items found for this return
+                                    </td>
+                                  </tr>
+                                )
+                              )}
+                            </React.Fragment>
                           );
                         })}
                       </React.Fragment>
@@ -567,7 +695,12 @@ const ReceivedStock = () => {
       {/* Modal for Item Details */}
       <Modal show={showModal} onHide={handleCloseModal} size="xl" className="m-auto">
         <Modal.Header closeButton>
-          <Modal.Title>Received Stock Items - {selectedStockPoint}</Modal.Title>
+          <Modal.Title>
+            Return Items - {selectedReturn?.return_number || 'Details'}
+            <span className="ms-3" style={{ fontSize: '14px', fontWeight: 'normal', color: '#6c757d' }}>
+              From: {selectedReturn?.from_stock_point_name || 'N/A'}
+            </span>
+          </Modal.Title>
         </Modal.Header>
         <Modal.Body style={{ fontSize: '13px' }}>
           {selectedItems.length > 0 && (
@@ -575,32 +708,44 @@ const ReceivedStock = () => {
               <Table bordered size="sm">
                 <thead style={{ whiteSpace: 'nowrap', fontSize: '12px', backgroundColor: '#f8f9fa' }}>
                   <tr>
-                    <th>SI</th><th>Image</th><th>PCode</th><th>Product Name</th>
-                    <th>Category</th><th>Sub Category</th><th>Metal</th><th>Purity</th>
-                    <th>Qty</th><th>Gross Wt</th><th>Stone Wt</th><th>Net Wt</th>
-                    <th>Rate</th><th>MC</th><th>Total Price</th><th>Received Status</th>
+                    <th>SI</th>
+                    <th>Image</th>
+                    <th>PCode</th>
+                    <th>Product Name</th>
+                    <th>Category</th>
+                    <th>Sub Category</th>
+                    <th>Metal</th>
+                    <th>Purity</th>
+                    <th>Qty</th>
+                    <th>Gross Wt</th>
+                    <th>Stone Wt</th>
+                    <th>Net Wt</th>
+                    <th>Rate</th>
+                    <th>MC</th>
+                    <th>Total Price</th>
+                    <th>Received Status</th>
                   </tr>
                 </thead>
                 <tbody style={{ fontSize: '12px' }}>
                   {selectedItems.map((item, index) => {
-                    const imagePath = transferImageMap[item.PCode_BarCode] || item.image || null;
+                    const imagePath = item.image || null;
                     const currentStatus = item.Received_Status || 'pending';
                     return (
-                      <tr key={item.opentag_id || index}>
+                      <tr key={item.item_id || index}>
                         <td>{index + 1}</td>
-                        <td>{renderImageThumbnail(imagePath, item.design_master || item.sub_category, '36px')}</td>
+                        <td>{renderImageThumbnail(imagePath, item.design_name || item.sub_category, '36px')}</td>
                         <td><strong>{item.PCode_BarCode || 'N/A'}</strong></td>
-                        <td>{item.design_master || item.sub_category || 'N/A'}</td>
+                        <td>{item.design_name || item.product_name || item.sub_category || 'N/A'}</td>
                         <td>{item.category || 'N/A'}</td>
                         <td>{item.sub_category || 'N/A'}</td>
                         <td>{item.metal_type || 'N/A'}</td>
-                        <td>{item.Purity || 'N/A'}</td>
-                        <td>{item.pcs || 1}</td>
-                        <td>{parseFloat(item.Gross_Weight || 0).toFixed(3)}</td>
-                        <td>{parseFloat(item.Stones_Weight || 0).toFixed(3)}</td>
-                        <td>{parseFloat(item.TotalWeight_AW || 0).toFixed(3)}</td>
+                        <td>{item.purity || 'N/A'}</td>
+                        <td>{item.qty || 1}</td>
+                        <td>{parseFloat(item.gross_weight || 0).toFixed(3)}</td>
+                        <td>{parseFloat(item.stone_weight || 0).toFixed(3)}</td>
+                        <td>{parseFloat(item.net_weight || 0).toFixed(3)}</td>
                         <td>{parseFloat(item.rate || 0).toFixed(2)}</td>
-                        <td>{parseFloat(item.Making_Charges || 0).toFixed(2)}</td>
+                        <td>{parseFloat(item.making_charges || 0).toFixed(2)}</td>
                         <td><strong>₹{parseFloat(item.total_price || 0).toFixed(2)}</strong></td>
                         <td>
                           <span className={`received-status-badge ${currentStatus}`}>
@@ -612,11 +757,11 @@ const ReceivedStock = () => {
                   })}
                   <tr style={{ fontWeight: 'bold', backgroundColor: '#f8f9fa' }}>
                     <td colSpan="8" className="text-end"><strong>Totals:</strong></td>
-                    <td><strong>{selectedItems.reduce((s, i) => s + parseFloat(i.pcs || 0), 0).toFixed(3)}</strong></td>
-                    <td><strong>{selectedItems.reduce((s, i) => s + parseFloat(i.Gross_Weight || 0), 0).toFixed(3)}</strong></td>
-                    <td><strong>{selectedItems.reduce((s, i) => s + parseFloat(i.Stones_Weight || 0), 0).toFixed(3)}</strong></td>
-                    <td><strong>{selectedItems.reduce((s, i) => s + parseFloat(i.TotalWeight_AW || 0), 0).toFixed(3)}</strong></td>
-                    <td colSpan="3"></td>
+                    <td><strong>{selectedItems.reduce((s, i) => s + parseFloat(i.qty || 0), 0).toFixed(3)}</strong></td>
+                    <td><strong>{selectedItems.reduce((s, i) => s + parseFloat(i.gross_weight || 0), 0).toFixed(3)}</strong></td>
+                    <td><strong>{selectedItems.reduce((s, i) => s + parseFloat(i.stone_weight || 0), 0).toFixed(3)}</strong></td>
+                    <td><strong>{selectedItems.reduce((s, i) => s + parseFloat(i.net_weight || 0), 0).toFixed(3)}</strong></td>
+                    <td colSpan="2"></td>
                     <td><strong>₹{selectedItems.reduce((s, i) => s + parseFloat(i.total_price || 0), 0).toFixed(2)}</strong></td>
                     <td></td>
                   </tr>

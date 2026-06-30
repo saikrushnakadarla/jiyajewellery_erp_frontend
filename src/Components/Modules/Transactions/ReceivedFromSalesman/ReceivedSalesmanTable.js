@@ -82,6 +82,14 @@ const ReceivedSalesmanTable = () => {
     );
   };
 
+  // Helper function to get full image URL
+  const getImageUrl = (imagePath) => {
+    if (!imagePath) return null;
+    // Remove leading slash if present and construct full URL
+    const cleanPath = imagePath.startsWith('/') ? imagePath.substring(1) : imagePath;
+    return `${baseURL}/${cleanPath}`;
+  };
+
   const columns = React.useMemo(
     () => [
       {
@@ -132,6 +140,37 @@ const ReceivedSalesmanTable = () => {
         Header: 'Status',
         accessor: 'status',
         Cell: ({ value }) => getStatusBadge(value),
+      },
+      {
+        Header: 'Capture Image',
+        accessor: 'capture_image',
+        Cell: ({ value }) => {
+          if (!value) return <span style={{ color: '#999' }}>No image</span>;
+          const imageUrl = getImageUrl(value);
+          return (
+            <div style={{ textAlign: 'center' }}>
+              <img 
+                src={imageUrl} 
+                alt="Capture" 
+                style={{ 
+                  width: '50px', 
+                  height: '50px', 
+                  objectFit: 'cover',
+                  borderRadius: '4px',
+                  cursor: 'pointer'
+                }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  window.open(imageUrl, '_blank');
+                }}
+                onError={(e) => {
+                  e.target.style.display = 'none';
+                  e.target.parentNode.innerHTML = '<span style="color:#999">Invalid image</span>';
+                }}
+              />
+            </div>
+          );
+        }
       },
       {
         Header: 'Actions',
@@ -218,15 +257,12 @@ const ReceivedSalesmanTable = () => {
   const fetchReceivedTransfers = async () => {
     try {
       setLoading(true);
-      // Use the RECEIVED SALESMAN API endpoint
       const response = await axios.get(`${baseURL}/api/received-salesman/get-received-transfers`);
       console.log("Received Transfers Response: ", response.data);
       
-      // Get logged-in user ID from localStorage
       const loggedInUserId = getLoggedInUserId();
       console.log("Logged in User ID from localStorage:", loggedInUserId);
       
-      // Filter data where BOTH to_stock_point_id AND to_user_id match the logged-in user
       let filteredTransfers = response.data;
       if (loggedInUserId) {
         filteredTransfers = response.data.filter(
@@ -247,11 +283,9 @@ const ReceivedSalesmanTable = () => {
 
   const handleViewDetails = async (receivedId) => {
     try {
-      // Use the RECEIVED SALESMAN API endpoint
       const response = await axios.get(`${baseURL}/api/received-salesman/get-received-transfer/${receivedId}`);
       console.log("Fetched received details: ", response.data);
       
-      // Verify that the user has access to view this transfer
       const loggedInUserId = getLoggedInUserId();
       if (loggedInUserId) {
         const transfer = response.data.transfer_details;
@@ -339,6 +373,30 @@ const ReceivedSalesmanTable = () => {
                     <td>{transferDetails.transfer_details.remarks || 'N/A'}</td>
                   </tr>
                   <tr>
+                    <td><strong>Capture Image</strong></td>
+                    <td>
+                      {transferDetails.transfer_details.capture_image ? (
+                        <img 
+                          src={getImageUrl(transferDetails.transfer_details.capture_image)} 
+                          alt="Capture" 
+                          style={{ 
+                            maxWidth: '200px', 
+                            maxHeight: '200px', 
+                            objectFit: 'contain',
+                            borderRadius: '4px'
+                          }}
+                          onClick={() => window.open(getImageUrl(transferDetails.transfer_details.capture_image), '_blank')}
+                          onError={(e) => {
+                            e.target.style.display = 'none';
+                            e.target.parentNode.innerHTML = '<span style="color:#999">Invalid image</span>';
+                          }}
+                        />
+                      ) : (
+                        <span style={{ color: '#999' }}>No image available</span>
+                      )}
+                    </td>
+                  </tr>
+                  <tr>
                     <td><strong>Created By</strong></td>
                     <td>{transferDetails.transfer_details.created_by || 'System'}</td>
                   </tr>
@@ -355,6 +413,7 @@ const ReceivedSalesmanTable = () => {
                   <thead style={{ whiteSpace: 'nowrap', fontSize: '13px' }}>
                     <tr>
                       <th>SI</th>
+                      <th>Image</th>
                       <th>Product Name</th>
                       <th>PCode/Barcode</th>
                       <th>Metal Type</th>
@@ -377,6 +436,28 @@ const ReceivedSalesmanTable = () => {
                       transferDetails.transfer_items.map((item, index) => (
                         <tr key={index}>
                           <td>{index + 1}</td>
+                          <td>
+                            {item.image ? (
+                              <img 
+                                src={getImageUrl(item.image)} 
+                                alt={item.product_name || 'Product'} 
+                                style={{ 
+                                  width: '50px', 
+                                  height: '50px', 
+                                  objectFit: 'cover',
+                                  borderRadius: '4px',
+                                  cursor: 'pointer'
+                                }}
+                                onClick={() => window.open(getImageUrl(item.image), '_blank')}
+                                onError={(e) => {
+                                  e.target.style.display = 'none';
+                                  e.target.parentNode.innerHTML = '<span style="color:#999">No img</span>';
+                                }}
+                              />
+                            ) : (
+                              <span style={{ color: '#999' }}>No img</span>
+                            )}
+                          </td>
                           <td>{item.product_name || 'N/A'}</td>
                           <td>{item.PCode_BarCode || 'N/A'}</td>
                           <td>{item.metal_type || 'N/A'}</td>
@@ -396,12 +477,12 @@ const ReceivedSalesmanTable = () => {
                       ))
                     ) : (
                       <tr>
-                        <td colSpan="16" className="text-center">No items found</td>
+                        <td colSpan="17" className="text-center">No items found</td>
                       </tr>
                     )}
                     {transferDetails.transfer_items && transferDetails.transfer_items.length > 0 && (
                       <tr style={{ fontWeight: 'bold', backgroundColor: '#f8f9fa' }}>
-                        <td colSpan="8" className="text-end"><strong>Totals:</strong></td>
+                        <td colSpan="9" className="text-end"><strong>Totals:</strong></td>
                         <td><strong>{transferDetails.transfer_items.reduce((sum, item) => sum + parseFloat(item.qty || 0), 0).toFixed(3)}</strong></td>
                         <td><strong>{transferDetails.transfer_items.reduce((sum, item) => sum + parseFloat(item.gross_weight || 0), 0).toFixed(3)}</strong></td>
                         <td><strong>{transferDetails.transfer_items.reduce((sum, item) => sum + parseFloat(item.stone_weight || 0), 0).toFixed(3)}</strong></td>

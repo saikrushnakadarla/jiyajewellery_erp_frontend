@@ -16,6 +16,7 @@ const ReturnMainStockTable = () => {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [transferDetails, setTransferDetails] = useState(null);
+  const [stockPoints, setStockPoints] = useState([]);
   const { authToken, userId, userName, role } = useContext(AuthContext);
   const { mobile } = location.state || {};
   const initialSearchValue = location.state?.mobile || '';
@@ -76,6 +77,30 @@ const ReturnMainStockTable = () => {
     );
   };
 
+  // Helper function to get full image URL
+  const getImageUrl = (imagePath) => {
+    if (!imagePath) return null;
+    // Remove leading slash if present and construct full URL
+    const cleanPath = imagePath.startsWith('/') ? imagePath.substring(1) : imagePath;
+    return `${baseURL}/${cleanPath}`;
+  };
+
+  // Function to get stock point name based on from_user_id
+  const getStockPointName = (fromUserId) => {
+    if (!stockPoints.length) return 'N/A';
+    
+    // Find stock point where user_id matches fromUserId
+    const stockPoint = stockPoints.find(sp => sp.user_id === fromUserId);
+    
+    if (stockPoint) {
+      return stockPoint.stock_point_name;
+    }
+    
+    // If no match found, check if it's MAIN STOCK ROOM (user_id is null)
+    const mainStock = stockPoints.find(sp => sp.user_id === null && sp.default_status === 'applied');
+    return mainStock ? mainStock.stock_point_name : 'N/A';
+  };
+
   const columns = React.useMemo(
     () => [
       {
@@ -93,14 +118,9 @@ const ReturnMainStockTable = () => {
       },
       {
         Header: 'From Stock Point',
-        accessor: 'from_stock_point_name',
-        Cell: ({ value }) => value || 'N/A',
+        accessor: 'from_user_id',
+        Cell: ({ value }) => getStockPointName(value),
       },
-      // {
-      //   Header: 'From User',
-      //   accessor: 'from_user_name',
-      //   Cell: ({ value }) => value || 'N/A',
-      // },
       {
         Header: 'Total Items',
         accessor: 'total_items',
@@ -121,6 +141,37 @@ const ReturnMainStockTable = () => {
         Header: 'Status',
         accessor: 'status',
         Cell: ({ value }) => getStatusBadge(value),
+      },
+      {
+        Header: 'Capture Image',
+        accessor: 'capture_image',
+        Cell: ({ value }) => {
+          if (!value) return <span style={{ color: '#999' }}>No image</span>;
+          const imageUrl = getImageUrl(value);
+          return (
+            <div style={{ textAlign: 'center' }}>
+              <img 
+                src={imageUrl} 
+                alt="Capture" 
+                style={{ 
+                  width: '50px', 
+                  height: '50px', 
+                  objectFit: 'cover',
+                  borderRadius: '4px',
+                  cursor: 'pointer'
+                }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  window.open(imageUrl, '_blank');
+                }}
+                onError={(e) => {
+                  e.target.style.display = 'none';
+                  e.target.parentNode.innerHTML = '<span style="color:#999">Invalid image</span>';
+                }}
+              />
+            </div>
+          );
+        }
       },
       {
         Header: 'Actions',
@@ -160,7 +211,7 @@ const ReturnMainStockTable = () => {
         },
       },
     ],
-    [userName]
+    [userName, stockPoints]
   );
 
   const handleEdit = (transfer) => {
@@ -204,9 +255,23 @@ const ReturnMainStockTable = () => {
     navigate("/add-return-to-main-stock", { state: { tabId } });
   };
 
+  // Fetch stock points data
+  const fetchStockPoints = async () => {
+    try {
+      const response = await axios.get(`${baseURL}/api/stockpoints`);
+      console.log("Stock Points Response: ", response.data);
+      setStockPoints(response.data);
+    } catch (error) {
+      console.error('Error fetching stock points:', error);
+    }
+  };
+
   const fetchReturnTransfers = async () => {
     try {
       setLoading(true);
+      // Fetch stock points first
+      await fetchStockPoints();
+      
       // Use the RETURN TO MAIN STOCK API endpoint
       const response = await axios.get(`${baseURL}/api/return-to-main-stock/get-return-transfers`);
       console.log("Return Transfers Response: ", response.data);
@@ -308,7 +373,7 @@ const ReturnMainStockTable = () => {
                   </tr>
                   <tr>
                     <td><strong>From Stock Point</strong></td>
-                    <td>{transferDetails.return_details.from_stock_point_name || 'N/A'}</td>
+                    <td>{getStockPointName(transferDetails.return_details.from_user_id)}</td>
                   </tr>
                   <tr>
                     <td><strong>From User</strong></td>
@@ -327,6 +392,31 @@ const ReturnMainStockTable = () => {
                     <td>{transferDetails.return_details.remarks || 'N/A'}</td>
                   </tr>
                   <tr>
+                    <td><strong>Capture Image</strong></td>
+                    <td>
+                      {transferDetails.return_details.capture_image ? (
+                        <img 
+                          src={getImageUrl(transferDetails.return_details.capture_image)} 
+                          alt="Capture" 
+                          style={{ 
+                            maxWidth: '200px', 
+                            maxHeight: '200px', 
+                            objectFit: 'contain',
+                            borderRadius: '4px',
+                            cursor: 'pointer'
+                          }}
+                          onClick={() => window.open(getImageUrl(transferDetails.return_details.capture_image), '_blank')}
+                          onError={(e) => {
+                            e.target.style.display = 'none';
+                            e.target.parentNode.innerHTML = '<span style="color:#999">Invalid image</span>';
+                          }}
+                        />
+                      ) : (
+                        <span style={{ color: '#999' }}>No image available</span>
+                      )}
+                    </td>
+                  </tr>
+                  <tr>
                     <td><strong>Created By</strong></td>
                     <td>{transferDetails.return_details.created_by || 'System'}</td>
                   </tr>
@@ -343,6 +433,7 @@ const ReturnMainStockTable = () => {
                   <thead style={{ whiteSpace: 'nowrap', fontSize: '13px' }}>
                     <tr>
                       <th>SI</th>
+                      <th>Image</th>
                       <th>Product Name</th>
                       <th>PCode/Barcode</th>
                       <th>Metal Type</th>
@@ -365,6 +456,28 @@ const ReturnMainStockTable = () => {
                       transferDetails.return_items.map((item, index) => (
                         <tr key={index}>
                           <td>{index + 1}</td>
+                          <td>
+                            {item.image ? (
+                              <img 
+                                src={getImageUrl(item.image)} 
+                                alt={item.product_name || 'Product'} 
+                                style={{ 
+                                  width: '50px', 
+                                  height: '50px', 
+                                  objectFit: 'cover',
+                                  borderRadius: '4px',
+                                  cursor: 'pointer'
+                                }}
+                                onClick={() => window.open(getImageUrl(item.image), '_blank')}
+                                onError={(e) => {
+                                  e.target.style.display = 'none';
+                                  e.target.parentNode.innerHTML = '<span style="color:#999">No img</span>';
+                                }}
+                              />
+                            ) : (
+                              <span style={{ color: '#999' }}>No img</span>
+                            )}
+                          </td>
                           <td>{item.product_name || 'N/A'}</td>
                           <td>{item.PCode_BarCode || 'N/A'}</td>
                           <td>{item.metal_type || 'N/A'}</td>
@@ -384,12 +497,12 @@ const ReturnMainStockTable = () => {
                       ))
                     ) : (
                       <tr>
-                        <td colSpan="16" className="text-center">No items found</td>
+                        <td colSpan="17" className="text-center">No items found</td>
                       </tr>
                     )}
                     {transferDetails.return_items && transferDetails.return_items.length > 0 && (
                       <tr style={{ fontWeight: 'bold', backgroundColor: '#f8f9fa' }}>
-                        <td colSpan="8" className="text-end"><strong>Totals:</strong></td>
+                        <td colSpan="9" className="text-end"><strong>Totals:</strong></td>
                         <td><strong>{transferDetails.return_items.reduce((sum, item) => sum + parseFloat(item.qty || 0), 0).toFixed(3)}</strong></td>
                         <td><strong>{transferDetails.return_items.reduce((sum, item) => sum + parseFloat(item.gross_weight || 0), 0).toFixed(3)}</strong></td>
                         <td><strong>{transferDetails.return_items.reduce((sum, item) => sum + parseFloat(item.stone_weight || 0), 0).toFixed(3)}</strong></td>
