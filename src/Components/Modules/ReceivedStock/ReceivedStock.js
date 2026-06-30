@@ -1,7 +1,7 @@
 // src/Components/Pages/ReceivedStock/ReceivedStock.jsx
 import React, { useEffect, useState, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { FaChevronRight, FaChevronDown, FaImage, FaEye, FaBoxOpen, FaCheck, FaBarcode } from 'react-icons/fa';
+import { FaChevronRight, FaChevronDown, FaImage, FaEye, FaBoxOpen, FaCheck } from 'react-icons/fa';
 import { Button, Row, Col, Modal, Table, Badge, Spinner, Dropdown } from 'react-bootstrap';
 import axios from 'axios';
 import baseURL from '../../../Url/NodeBaseURL';
@@ -27,17 +27,12 @@ const ReceivedStock = () => {
   
   // For stock point grouping
   const [expandedStockPoints, setExpandedStockPoints] = useState({});
+  // For packet barcode grouping under stock point
+  const [expandedPackets, setExpandedPackets] = useState({});
   
   // For Received Status functionality (from original code)
   const [updatingStatus, setUpdatingStatus] = useState({});
   const [statusFilter, setStatusFilter] = useState('all');
-
-  // ===== Packet Barcode dropdown state (NEW) =====
-  const [loadingPackets, setLoadingPackets] = useState({}); // { [stockPoint]: boolean }
-  const [showPacketProductsModal, setShowPacketProductsModal] = useState(false);
-  const [selectedPacketBarcode, setSelectedPacketBarcode] = useState('');
-  const [selectedPacketProducts, setSelectedPacketProducts] = useState([]);
-  // =================================================
 
   const userName = localStorage.getItem('userName');
 
@@ -122,7 +117,6 @@ const ReceivedStock = () => {
       console.log("Return Transfers Response: ", response.data);
       
       // Enrich data with proper stock point names using the mapping function
-      // Use the stockPointsData directly instead of relying on state
       const enrichedData = response.data.map(returnItem => {
         // Find stock point where user_id matches fromUserId
         const stockPoint = stockPointsData.find(sp => sp.user_id === returnItem.from_user_id);
@@ -154,7 +148,7 @@ const ReceivedStock = () => {
 
   // Fetch return details for a specific return_id
   const fetchReturnDetails = async (returnId) => {
-    if (returnDetailsMap[returnId]) return returnDetailsMap[returnId];
+    if (returnDetailsMap[returnId]) return;
     
     try {
       setLoadingDetails(prev => ({ ...prev, [returnId]: true }));
@@ -165,11 +159,9 @@ const ReceivedStock = () => {
         ...prev,
         [returnId]: response.data
       }));
-      return response.data;
     } catch (error) {
       console.error(`Error fetching return details for ${returnId}:`, error);
       Swal.fire('Error', 'Failed to fetch return details', 'error');
-      return null;
     } finally {
       setLoadingDetails(prev => ({ ...prev, [returnId]: false }));
     }
@@ -198,66 +190,74 @@ const ReceivedStock = () => {
     }, { totalReturns: 0, totalItems: 0, totalQty: 0, totalGrossWt: 0, totalNetWt: 0 });
   };
 
-  // Helper to read the packet barcode off an item, regardless of which field name the API used
-  const getItemPacketBarcode = (item) => {
-    return (
-      item?.Packet_BarCode ||
-      item?.packet_barcode ||
-      item?.PacketBarCode ||
-      item?.packet_no ||
-      item?.PacketNo ||
-      null
-    );
-  };
-
-  // ===== Packet Barcode helpers (NEW) =====
-
-  // Collect unique packet barcodes -> list of products, for ALL returns under a stock point.
-  // Relies on returnDetailsMap already being populated for those returns.
-  const getPacketGroupsForStockPoint = (returns) => {
-    const packetMap = {}; // { packetBarcode: [items...] }
-    returns.forEach((returnItem) => {
+  // Get unique packet barcodes for a stock point
+  const getStockPointPacketBarcodes = (returns) => {
+    const packetSet = new Set();
+    returns.forEach(returnItem => {
       const details = returnDetailsMap[returnItem.return_id];
-      const items = details?.return_items || [];
-      items.forEach((item) => {
-        const packetCode = getItemPacketBarcode(item) || 'No Packet';
-        if (!packetMap[packetCode]) packetMap[packetCode] = [];
-        packetMap[packetCode].push({ ...item, return_number: returnItem.return_number });
-      });
+      if (details && details.return_items) {
+        details.return_items.forEach(item => {
+          if (item.packet_barcode) {
+            packetSet.add(item.packet_barcode);
+          }
+        });
+      }
     });
-    return packetMap; // object keyed by packet barcode
+    return Array.from(packetSet);
   };
 
-  // Ensure details for every return under a stock point are loaded (used right before opening the dropdown)
-  const ensureStockPointDetailsLoaded = async (stockPoint, returns) => {
-    const missing = returns.filter(r => !returnDetailsMap[r.return_id]);
-    if (missing.length === 0) return;
+  // Group returns by packet barcode for a stock point
+  const getReturnsByPacket = (returns) => {
+    const packetMap = {};
+    returns.forEach(returnItem => {
+      const details = returnDetailsMap[returnItem.return_id];
+      if (details && details.return_items) {
+        // Get unique packet barcodes for this return
+        const packetSet = new Set();
+        details.return_items.forEach(item => {
+          if (item.packet_barcode) {
+            packetSet.add(item.packet_barcode);
+          }
+        });
+        
+        // If no packet barcode, assign to 'Unassigned'
+        const packetBarcodes = Array.from(packetSet);
+        if (packetBarcodes.length === 0) {
+          if (!packetMap['Unassigned']) packetMap['Unassigned'] = [];
+          packetMap['Unassigned'].push(returnItem);
+        } else {
+          packetBarcodes.forEach(packet => {
+            if (!packetMap[packet]) packetMap[packet] = [];
+            packetMap[packet].push(returnItem);
+          });
+        }
+      } else {
+        // If details not loaded yet, put in 'Loading' group
+        if (!packetMap['Loading...']) packetMap['Loading...'] = [];
+        packetMap['Loading...'].push(returnItem);
+      }
+    });
+    return packetMap;
+  };
 
-    setLoadingPackets(prev => ({ ...prev, [stockPoint]: true }));
-    try {
-      await Promise.all(missing.map(r => fetchReturnDetails(r.return_id)));
-    } finally {
-      setLoadingPackets(prev => ({ ...prev, [stockPoint]: false }));
+  const toggleStockPoint = (stockPoint) => {
+    const isExpanding = !expandedStockPoints[stockPoint];
+    setExpandedStockPoints(prev => ({ ...prev, [stockPoint]: isExpanding }));
+    
+    // If expanding, fetch details for all returns under this stock point
+    if (isExpanding) {
+      const returns = groupedByStockPoint[stockPoint] || [];
+      returns.forEach(returnItem => {
+        if (!returnDetailsMap[returnItem.return_id]) {
+          fetchReturnDetails(returnItem.return_id);
+        }
+      });
     }
   };
 
-  const handlePacketBarcodeSelect = (packetCode, returns) => {
-    const packetMap = getPacketGroupsForStockPoint(returns);
-    setSelectedPacketBarcode(packetCode);
-    setSelectedPacketProducts(packetMap[packetCode] || []);
-    setShowPacketProductsModal(true);
-  };
-
-  const handleClosePacketProductsModal = () => {
-    setShowPacketProductsModal(false);
-    setSelectedPacketBarcode('');
-    setSelectedPacketProducts([]);
-  };
-
-  // ==========================================
-
-  const toggleStockPoint = (stockPoint) => {
-    setExpandedStockPoints(prev => ({ ...prev, [stockPoint]: !prev[stockPoint] }));
+  const togglePacketExpand = (stockPoint, packetBarcode) => {
+    const key = `${stockPoint}-${packetBarcode}`;
+    setExpandedPackets(prev => ({ ...prev, [key]: !prev[key] }));
   };
 
   const toggleReturnExpand = (returnId) => {
@@ -447,6 +447,9 @@ const ReceivedStock = () => {
             .stock-point-row { background-color: #f8f9fa !important; font-weight: 600; }
             .stock-point-row td { padding: 8px 10px !important; }
             .stock-point-row:hover { background-color: #e9ecef !important; }
+            .packet-header-row { background-color: #e3f2fd !important; font-weight: 500; }
+            .packet-header-row td { padding: 6px 10px !important; }
+            .packet-header-row:hover { background-color: #bbdefb !important; }
             .return-header-row { background-color: #e9ecef !important; }
             .return-header-row td { padding: 6px 10px !important; }
             .return-header-row:hover { background-color: #dee2e6 !important; }
@@ -456,13 +459,15 @@ const ReceivedStock = () => {
             .expand-btn:hover { color: #6b4c1c; }
             .location-icon { font-size: 16px; margin-right: 6px; }
             .stock-icon { color: #a36e29; }
+            .packet-icon { color: #0d6efd; }
             .item-details-cell { text-align: left !important; }
             .item-details-cell .item-code { font-weight: 600; color: #a36e29; font-size: 12px; }
             .item-details-cell .item-design { font-size: 10px; color: #666; margin-top: 1px; }
-            .item-details-cell .item-packet { font-size: 10px; color: #2e7d32; margin-top: 1px; display: flex; align-items: center; gap: 4px; }
+            .item-details-cell .item-packet { font-size: 10px; color: #0d6efd; margin-top: 1px; font-weight: 500; }
             .badge-stock-count { font-size: 11px; padding: 3px 8px; }
             .ps-3 { padding-left: 2rem !important; }
             .ps-4 { padding-left: 3rem !important; }
+            .ps-5 { padding-left: 4rem !important; }
             .view-btn { 
               background-color: #a36e29; 
               color: white; 
@@ -476,48 +481,15 @@ const ReceivedStock = () => {
             .view-btn:hover { background-color: #6b4c1c; }
             .return-number { font-weight: 700; color: #a36e29; font-size: 13px; }
             .return-from { font-weight: 500; color: #495057; }
-
-            /* Packet Barcode dropdown (NEW) */
-            .packet-barcode-toggle {
-              background-color: #e8f5e9 !important;
-              color: #2e7d32 !important;
-              border: 1px solid #a5d6a7 !important;
-              font-size: 11px !important;
-              font-weight: 600 !important;
-              padding: 3px 10px !important;
-              border-radius: 12px !important;
-              display: inline-flex;
-              align-items: center;
-              gap: 6px;
-            }
-            .packet-barcode-toggle:hover,
-            .packet-barcode-toggle:focus {
-              background-color: #d4edda !important;
-              color: #1b5e20 !important;
-              border-color: #81c784 !important;
-              box-shadow: none !important;
-            }
-            .packet-barcode-toggle::after { display: none !important; }
-            .packet-barcode-menu {
-              min-width: 180px;
-              max-height: 260px;
-              overflow-y: auto;
-              border-radius: 8px;
-              box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-              border: 1px solid #e0e0e0;
-              padding: 6px 0;
-            }
-            .packet-barcode-menu .dropdown-item {
+            .packet-barcode-display { 
+              font-weight: 600; 
+              color: #0d6efd; 
+              background: #e3f2fd; 
+              padding: 2px 10px; 
+              border-radius: 12px; 
               font-size: 12px;
-              padding: 7px 14px;
-              display: flex;
-              align-items: center;
-              gap: 8px;
-              color: #2e7d32;
-              font-weight: 500;
-            }
-            .packet-barcode-menu .dropdown-item:hover {
-              background-color: #e8f5e9;
+              display: inline-block;
+              margin-left: 10px;
             }
             
             /* Received Status Badge Styles */
@@ -619,9 +591,10 @@ const ReceivedStock = () => {
               <thead>
                 <tr>
                   <th style={{ width: '30px' }}></th>
-                  <th style={{ minWidth: '200px', textAlign: 'left' }}>Stock Point / Return Details</th>
+                  <th style={{ minWidth: '200px', textAlign: 'left' }}>Stock Point / Packet / Return Details</th>
                   <th style={{ width: '60px' }}>Image</th>
                   <th style={{ width: '100px' }}>PCode</th>
+                  <th style={{ width: '120px' }}>Packet Barcode</th>
                   <th style={{ width: '80px' }}>Qty</th>
                   <th style={{ width: '90px' }}>Gross Wt</th>
                   <th style={{ width: '90px' }}>Stone Wt</th>
@@ -639,9 +612,8 @@ const ReceivedStock = () => {
                   .map(([stockPoint, returns]) => {
                     const totals = getStockPointTotals(returns);
                     const isStockPointExpanded = expandedStockPoints[stockPoint];
-                    const isLoadingPackets = loadingPackets[stockPoint];
-                    const packetMapForStockPoint = getPacketGroupsForStockPoint(returns);
-                    const packetCodes = Object.keys(packetMapForStockPoint);
+                    const packetBarcodes = getStockPointPacketBarcodes(returns);
+                    const packetMap = getReturnsByPacket(returns);
 
                     return (
                       <React.Fragment key={stockPoint}>
@@ -652,59 +624,16 @@ const ReceivedStock = () => {
                               {isStockPointExpanded ? <FaChevronDown /> : <FaChevronRight />}
                             </button>
                           </td>
-                          <td colSpan="12" style={{ textAlign: 'left' }}>
+                          <td colSpan="13" style={{ textAlign: 'left' }}>
                             <div className="d-flex align-items-center justify-content-between">
                               <div className="d-flex align-items-center">
                                 <FaBoxOpen className="location-icon stock-icon" />
                                 <strong>{stockPoint}</strong>
-
-                                {/* ===== Packet Barcode Dropdown (NEW) ===== */}
-                                <Dropdown
-                                  className="ms-2"
-                                  onClick={(e) => e.stopPropagation()}
-                                  onToggle={(nextOpen) => {
-                                    if (nextOpen) ensureStockPointDetailsLoaded(stockPoint, returns);
-                                  }}
-                                >
-                                  <Dropdown.Toggle as="span" className="packet-barcode-toggle" role="button">
-                                    <FaBarcode size={11} />
-                                    {isLoadingPackets ? (
-                                      <Spinner animation="border" size="sm" style={{ width: '10px', height: '10px' }} />
-                                    ) : packetCodes.length === 1 ? (
-                                      packetCodes[0]
-                                    ) : packetCodes.length > 1 ? (
-                                      `${packetCodes.length} Packets`
-                                    ) : (
-                                      'Packet Barcode'
-                                    )}
-                                  </Dropdown.Toggle>
-                                  <Dropdown.Menu className="packet-barcode-menu">
-                                    {isLoadingPackets ? (
-                                      <div className="text-center py-2">
-                                        <Spinner animation="border" size="sm" variant="secondary" />
-                                      </div>
-                                    ) : packetCodes.length > 0 ? (
-                                      packetCodes.map((packetCode) => (
-                                        <Dropdown.Item
-                                          key={packetCode}
-                                          onClick={() => handlePacketBarcodeSelect(packetCode, returns)}
-                                        >
-                                          <FaBarcode size={10} />
-                                          {packetCode}
-                                          <Badge bg="success" className="ms-auto" style={{ fontSize: '9px' }}>
-                                            {packetMapForStockPoint[packetCode].length}
-                                          </Badge>
-                                        </Dropdown.Item>
-                                      ))
-                                    ) : (
-                                      <div className="text-center text-muted py-2" style={{ fontSize: '11px' }}>
-                                        No packets found
-                                      </div>
-                                    )}
-                                  </Dropdown.Menu>
-                                </Dropdown>
-                                {/* ===== End Packet Barcode Dropdown ===== */}
-
+                                {packetBarcodes.length > 0 && (
+                                  <span className="packet-barcode-display">
+                                    📦 {packetBarcodes.join(', ')}
+                                  </span>
+                                )}
                                 <Badge bg="warning" className="ms-2 badge-stock-count">
                                   {totals.totalReturns} Return(s)
                                 </Badge>
@@ -719,139 +648,299 @@ const ReceivedStock = () => {
                           </td>
                         </tr>
 
-                        {/* Returns under this Stock Point */}
-                        {isStockPointExpanded && returns.map((returnItem) => {
-                          const isReturnExpanded = expandedReturns[returnItem.return_id];
-                          const details = returnDetailsMap[returnItem.return_id];
-                          const items = details?.return_items || [];
-                          const isLoading = loadingDetails[returnItem.return_id];
+                        {/* Packet Barcodes under this Stock Point */}
+                        {isStockPointExpanded && Object.entries(packetMap)
+                          .sort(([a], [b]) => a.localeCompare(b))
+                          .map(([packetBarcode, packetReturns]) => {
+                            const packetKey = `${stockPoint}-${packetBarcode}`;
+                            const isPacketExpanded = expandedPackets[packetKey];
+                            const packetTotals = getStockPointTotals(packetReturns);
 
-                          return (
-                            <React.Fragment key={returnItem.return_id}>
-                              {/* Return Header Row */}
-                              <tr className="return-header-row">
-                                <td className="ps-3">
-                                  <button className="expand-btn" onClick={() => toggleReturnExpand(returnItem.return_id)}>
-                                    {isReturnExpanded ? <FaChevronDown /> : <FaChevronRight />}
-                                  </button>
-                                </td>
-                                <td colSpan="12" style={{ textAlign: 'left' }}>
-                                  <div className="d-flex align-items-center justify-content-between">
-                                    <div className="d-flex align-items-center">
-                                      <span className="return-number">{returnItem.return_number}</span>
-                                      <span className="return-from ms-3" style={{ fontSize: '12px' }}>
-                                        Date: {formatDate(returnItem.return_date)}
-                                      </span>
-                                      <Badge bg="secondary" className="ms-2" style={{ fontSize: '10px' }}>
-                                        {returnItem.total_items} Items
-                                      </Badge>
-                                    </div>
-                                    <div className="d-flex align-items-center" style={{ fontSize: '12px', gap: '12px' }}>
-                                      <span><strong>Qty:</strong> {returnItem.total_quantity}</span>
-                                      <span><strong>Gross:</strong> {returnItem.total_gross_weight}</span>
-                                      <span><strong>Net:</strong> {returnItem.total_net_weight}</span>
-                                      <span>{getStatusBadge(returnItem.status)}</span>
-                                    </div>
-                                  </div>
-                                </td>
-                              </tr>
+                            // Skip if packetBarcode is 'Loading...' or 'Unassigned'
+                            if (packetBarcode === 'Loading...' || packetBarcode === 'Unassigned') {
+                              return packetReturns.map((returnItem) => {
+                                const isReturnExpanded = expandedReturns[returnItem.return_id];
+                                const details = returnDetailsMap[returnItem.return_id];
+                                const items = details?.return_items || [];
+                                const isLoading = loadingDetails[returnItem.return_id];
 
-                              {/* Items under this Return */}
-                              {isReturnExpanded && (
-                                isLoading ? (
-                                  <tr>
-                                    <td colSpan="13" className="text-center py-3">
-                                      <Spinner animation="border" size="sm" variant="warning" />
-                                      <span className="ms-2">Loading items...</span>
-                                    </td>
-                                  </tr>
-                                ) : items.length > 0 ? (
-                                  items.map((item, index) => {
-                                    const imagePath = item.image || null;
-                                    const isUpdating = updatingStatus[item.item_id];
-                                    const currentStatus = item.Received_Status || 'pending';
-                                    const itemPacketCode = getItemPacketBarcode(item);
-
-                                    return (
-                                      <tr key={item.item_id || index} className="item-row">
-                                        <td className="ps-4"></td>
-                                        <td className="item-details-cell">
-                                          <div className="item-code">#{item.PCode_BarCode || 'N/A'}</div>
-                                          <div className="item-design">{item.design_name || item.sub_category || 'No Design'}</div>
-                                          {itemPacketCode && (
-                                            <div className="item-packet">
-                                              <FaBarcode size={9} />
-                                              Packet: {itemPacketCode}
-                                            </div>
+                                return (
+                                  <React.Fragment key={returnItem.return_id}>
+                                    <tr className="packet-header-row">
+                                      <td className="ps-3">
+                                        <button className="expand-btn" onClick={() => toggleReturnExpand(returnItem.return_id)}>
+                                          {isReturnExpanded ? <FaChevronDown /> : <FaChevronRight />}
+                                        </button>
+                                      </td>
+                                      <td colSpan="13" style={{ textAlign: 'left' }}>
+                                        <div className="d-flex align-items-center">
+                                          <span className="return-number">{returnItem.return_number}</span>
+                                          <span className="return-from ms-3" style={{ fontSize: '12px' }}>
+                                            Date: {formatDate(returnItem.return_date)}
+                                          </span>
+                                          <Badge bg="secondary" className="ms-2" style={{ fontSize: '10px' }}>
+                                            {returnItem.total_items} Items
+                                          </Badge>
+                                          {packetBarcode === 'Loading...' && (
+                                            <Spinner animation="border" size="sm" className="ms-2" variant="info" />
                                           )}
-                                          <div style={{ fontSize: '10px', color: '#888' }}>{item.sub_category} - {item.category}</div>
-                                        </td>
-                                        <td>{renderImageThumbnail(imagePath, item.design_name || item.sub_category, '38px')}</td>
-                                        <td>{item.PCode_BarCode || 'N/A'}</td>
-                                        <td>{item.qty || 1}</td>
-                                        <td>{parseFloat(item.gross_weight || 0).toFixed(3)}</td>
-                                        <td>{parseFloat(item.stone_weight || 0).toFixed(3)}</td>
-                                        <td>{parseFloat(item.net_weight || 0).toFixed(3)}</td>
-                                        <td>{parseFloat(item.rate || 0).toFixed(2)}</td>
-                                        <td><strong>₹{parseFloat(item.total_price || 0).toFixed(2)}</strong></td>
-                                        <td>{getStatusBadge(returnItem.status)}</td>
-                                        <td>
-                                          {isUpdating ? (
+                                        </div>
+                                      </td>
+                                    </tr>
+                                    {isReturnExpanded && (
+                                      isLoading ? (
+                                        <tr>
+                                          <td colSpan="14" className="text-center py-3">
                                             <Spinner animation="border" size="sm" variant="warning" />
-                                          ) : (
-                                            <Dropdown>
-                                              <Dropdown.Toggle 
-                                                variant="link" 
-                                                className="p-0 text-decoration-none"
-                                                id={`dropdown-${item.item_id}`}
-                                              >
-                                                <span className={`received-status-badge ${currentStatus}`}>
-                                                  {currentStatus.charAt(0).toUpperCase() + currentStatus.slice(1)}
-                                                  <span className="dropdown-arrow">▼</span>
-                                                </span>
-                                              </Dropdown.Toggle>
+                                            <span className="ms-2">Loading items...</span>
+                                          </td>
+                                        </tr>
+                                      ) : items.length > 0 ? (
+                                        items.map((item, index) => {
+                                          const imagePath = item.image || null;
+                                          const isUpdating = updatingStatus[item.item_id];
+                                          const currentStatus = item.Received_Status || 'pending';
 
-                                              <Dropdown.Menu className="status-dropdown-menu">
-                                                <Dropdown.Item 
-                                                  className={`dropdown-item pending-option ${currentStatus === 'pending' ? 'active' : ''}`}
-                                                  onClick={() => updateReceivedStatus(item, 'pending')}
-                                                >
-                                                  <span className="status-dot pending-dot"></span>
-                                                  Pending
-                                                  {currentStatus === 'pending' && <FaCheck className="check-icon" />}
-                                                </Dropdown.Item>
-                                                <Dropdown.Divider />
-                                                <Dropdown.Item 
-                                                  className={`dropdown-item received-option ${currentStatus === 'received' ? 'active' : ''}`}
-                                                  onClick={() => updateReceivedStatus(item, 'received')}
-                                                >
-                                                  <span className="status-dot received-dot"></span>
-                                                  Received
-                                                  {currentStatus === 'received' && <FaCheck className="check-icon" />}
-                                                </Dropdown.Item>
-                                              </Dropdown.Menu>
-                                            </Dropdown>
-                                          )}
-                                        </td>
-                                        <td>
-                                          <button className="view-btn" onClick={() => handleViewItems(returnItem, [item])}>
-                                            <FaEye size={12} /> View
+                                          return (
+                                            <tr key={item.item_id || index} className="item-row">
+                                              <td className="ps-4"></td>
+                                              <td className="item-details-cell">
+                                                <div className="item-code">#{item.PCode_BarCode || 'N/A'}</div>
+                                                <div className="item-design">{item.design_name || item.sub_category || 'No Design'}</div>
+                                                {item.packet_barcode && (
+                                                  <div className="item-packet">📦 Packet: {item.packet_barcode}</div>
+                                                )}
+                                                <div style={{ fontSize: '10px', color: '#888' }}>{item.sub_category} - {item.category}</div>
+                                              </td>
+                                              <td>{renderImageThumbnail(imagePath, item.design_name || item.sub_category, '38px')}</td>
+                                              <td>{item.PCode_BarCode || 'N/A'}</td>
+                                              <td>{item.packet_barcode || 'N/A'}</td>
+                                              <td>{item.qty || 1}</td>
+                                              <td>{parseFloat(item.gross_weight || 0).toFixed(3)}</td>
+                                              <td>{parseFloat(item.stone_weight || 0).toFixed(3)}</td>
+                                              <td>{parseFloat(item.net_weight || 0).toFixed(3)}</td>
+                                              <td>{parseFloat(item.rate || 0).toFixed(2)}</td>
+                                              <td><strong>₹{parseFloat(item.total_price || 0).toFixed(2)}</strong></td>
+                                              <td>{getStatusBadge(returnItem.status)}</td>
+                                              <td>
+                                                {isUpdating ? (
+                                                  <Spinner animation="border" size="sm" variant="warning" />
+                                                ) : (
+                                                  <Dropdown>
+                                                    <Dropdown.Toggle 
+                                                      variant="link" 
+                                                      className="p-0 text-decoration-none"
+                                                      id={`dropdown-${item.item_id}`}
+                                                    >
+                                                      <span className={`received-status-badge ${currentStatus}`}>
+                                                        {currentStatus.charAt(0).toUpperCase() + currentStatus.slice(1)}
+                                                        <span className="dropdown-arrow">▼</span>
+                                                      </span>
+                                                    </Dropdown.Toggle>
+
+                                                    <Dropdown.Menu className="status-dropdown-menu">
+                                                      <Dropdown.Item 
+                                                        className={`dropdown-item pending-option ${currentStatus === 'pending' ? 'active' : ''}`}
+                                                        onClick={() => updateReceivedStatus(item, 'pending')}
+                                                      >
+                                                        <span className="status-dot pending-dot"></span>
+                                                        Pending
+                                                        {currentStatus === 'pending' && <FaCheck className="check-icon" />}
+                                                      </Dropdown.Item>
+                                                      <Dropdown.Divider />
+                                                      <Dropdown.Item 
+                                                        className={`dropdown-item received-option ${currentStatus === 'received' ? 'active' : ''}`}
+                                                        onClick={() => updateReceivedStatus(item, 'received')}
+                                                      >
+                                                        <span className="status-dot received-dot"></span>
+                                                        Received
+                                                        {currentStatus === 'received' && <FaCheck className="check-icon" />}
+                                                      </Dropdown.Item>
+                                                    </Dropdown.Menu>
+                                                  </Dropdown>
+                                                )}
+                                              </td>
+                                              <td>
+                                                <button className="view-btn" onClick={() => handleViewItems(returnItem, [item])}>
+                                                  <FaEye size={12} /> View
+                                                </button>
+                                              </td>
+                                            </tr>
+                                          );
+                                        })
+                                      ) : (
+                                        <tr>
+                                          <td colSpan="14" className="text-center py-2 text-muted">
+                                            No items found for this return
+                                          </td>
+                                        </tr>
+                                      )
+                                    )}
+                                  </React.Fragment>
+                                );
+                              });
+                            }
+
+                            return (
+                              <React.Fragment key={packetKey}>
+                                {/* Packet Header Row */}
+                                <tr className="packet-header-row">
+                                  <td className="ps-3">
+                                    <button className="expand-btn" onClick={() => togglePacketExpand(stockPoint, packetBarcode)}>
+                                      {isPacketExpanded ? <FaChevronDown /> : <FaChevronRight />}
+                                    </button>
+                                  </td>
+                                  <td colSpan="13" style={{ textAlign: 'left' }}>
+                                    <div className="d-flex align-items-center justify-content-between">
+                                      <div className="d-flex align-items-center">
+                                        <span className="packet-icon">📦</span>
+                                        <strong style={{ color: '#0d6efd' }}>{packetBarcode}</strong>
+                                        <Badge bg="info" className="ms-2" style={{ fontSize: '10px' }}>
+                                          {packetTotals.totalReturns} Return(s)
+                                        </Badge>
+                                        <Badge bg="secondary" className="ms-2" style={{ fontSize: '10px' }}>
+                                          {packetTotals.totalItems} Items
+                                        </Badge>
+                                      </div>
+                                      <div className="d-flex align-items-center" style={{ fontSize: '12px', gap: '12px' }}>
+                                        <span><strong>Qty:</strong> {packetTotals.totalQty.toFixed(3)}</span>
+                                        <span><strong>Gross:</strong> {packetTotals.totalGrossWt.toFixed(3)}</span>
+                                        <span><strong>Net:</strong> {packetTotals.totalNetWt.toFixed(3)}</span>
+                                      </div>
+                                    </div>
+                                  </td>
+                                </tr>
+
+                                {/* Returns under this Packet */}
+                                {isPacketExpanded && packetReturns.map((returnItem) => {
+                                  const isReturnExpanded = expandedReturns[returnItem.return_id];
+                                  const details = returnDetailsMap[returnItem.return_id];
+                                  const items = details?.return_items || [];
+                                  const isLoading = loadingDetails[returnItem.return_id];
+
+                                  return (
+                                    <React.Fragment key={returnItem.return_id}>
+                                      {/* Return Header Row */}
+                                      <tr className="return-header-row">
+                                        <td className="ps-4">
+                                          <button className="expand-btn" onClick={() => toggleReturnExpand(returnItem.return_id)}>
+                                            {isReturnExpanded ? <FaChevronDown /> : <FaChevronRight />}
                                           </button>
                                         </td>
+                                        <td colSpan="13" style={{ textAlign: 'left' }}>
+                                          <div className="d-flex align-items-center justify-content-between">
+                                            <div className="d-flex align-items-center">
+                                              <span className="return-number">{returnItem.return_number}</span>
+                                              <span className="return-from ms-3" style={{ fontSize: '12px' }}>
+                                                Date: {formatDate(returnItem.return_date)}
+                                              </span>
+                                              <Badge bg="secondary" className="ms-2" style={{ fontSize: '10px' }}>
+                                                {returnItem.total_items} Items
+                                              </Badge>
+                                            </div>
+                                            <div className="d-flex align-items-center" style={{ fontSize: '12px', gap: '12px' }}>
+                                              <span><strong>Qty:</strong> {returnItem.total_quantity}</span>
+                                              <span><strong>Gross:</strong> {returnItem.total_gross_weight}</span>
+                                              <span><strong>Net:</strong> {returnItem.total_net_weight}</span>
+                                              <span>{getStatusBadge(returnItem.status)}</span>
+                                            </div>
+                                          </div>
+                                        </td>
                                       </tr>
-                                    );
-                                  })
-                                ) : (
-                                  <tr>
-                                    <td colSpan="13" className="text-center py-2 text-muted">
-                                      No items found for this return
-                                    </td>
-                                  </tr>
-                                )
-                              )}
-                            </React.Fragment>
-                          );
-                        })}
+
+                                      {/* Items under this Return */}
+                                      {isReturnExpanded && (
+                                        isLoading ? (
+                                          <tr>
+                                            <td colSpan="14" className="text-center py-3">
+                                              <Spinner animation="border" size="sm" variant="warning" />
+                                              <span className="ms-2">Loading items...</span>
+                                            </td>
+                                          </tr>
+                                        ) : items.length > 0 ? (
+                                          items.filter(item => item.packet_barcode === packetBarcode).map((item, index) => {
+                                            const imagePath = item.image || null;
+                                            const isUpdating = updatingStatus[item.item_id];
+                                            const currentStatus = item.Received_Status || 'pending';
+
+                                            return (
+                                              <tr key={item.item_id || index} className="item-row">
+                                                <td className="ps-5"></td>
+                                                <td className="item-details-cell">
+                                                  <div className="item-code">#{item.PCode_BarCode || 'N/A'}</div>
+                                                  <div className="item-design">{item.design_name || item.sub_category || 'No Design'}</div>
+                                                  <div style={{ fontSize: '10px', color: '#888' }}>{item.sub_category} - {item.category}</div>
+                                                </td>
+                                                <td>{renderImageThumbnail(imagePath, item.design_name || item.sub_category, '38px')}</td>
+                                                <td>{item.PCode_BarCode || 'N/A'}</td>
+                                                <td>{item.packet_barcode || 'N/A'}</td>
+                                                <td>{item.qty || 1}</td>
+                                                <td>{parseFloat(item.gross_weight || 0).toFixed(3)}</td>
+                                                <td>{parseFloat(item.stone_weight || 0).toFixed(3)}</td>
+                                                <td>{parseFloat(item.net_weight || 0).toFixed(3)}</td>
+                                                <td>{parseFloat(item.rate || 0).toFixed(2)}</td>
+                                                <td><strong>₹{parseFloat(item.total_price || 0).toFixed(2)}</strong></td>
+                                                <td>{getStatusBadge(returnItem.status)}</td>
+                                                <td>
+                                                  {isUpdating ? (
+                                                    <Spinner animation="border" size="sm" variant="warning" />
+                                                  ) : (
+                                                    <Dropdown>
+                                                      <Dropdown.Toggle 
+                                                        variant="link" 
+                                                        className="p-0 text-decoration-none"
+                                                        id={`dropdown-${item.item_id}`}
+                                                      >
+                                                        <span className={`received-status-badge ${currentStatus}`}>
+                                                          {currentStatus.charAt(0).toUpperCase() + currentStatus.slice(1)}
+                                                          <span className="dropdown-arrow">▼</span>
+                                                        </span>
+                                                      </Dropdown.Toggle>
+
+                                                      <Dropdown.Menu className="status-dropdown-menu">
+                                                        <Dropdown.Item 
+                                                          className={`dropdown-item pending-option ${currentStatus === 'pending' ? 'active' : ''}`}
+                                                          onClick={() => updateReceivedStatus(item, 'pending')}
+                                                        >
+                                                          <span className="status-dot pending-dot"></span>
+                                                          Pending
+                                                          {currentStatus === 'pending' && <FaCheck className="check-icon" />}
+                                                        </Dropdown.Item>
+                                                        <Dropdown.Divider />
+                                                        <Dropdown.Item 
+                                                          className={`dropdown-item received-option ${currentStatus === 'received' ? 'active' : ''}`}
+                                                          onClick={() => updateReceivedStatus(item, 'received')}
+                                                        >
+                                                          <span className="status-dot received-dot"></span>
+                                                          Received
+                                                          {currentStatus === 'received' && <FaCheck className="check-icon" />}
+                                                        </Dropdown.Item>
+                                                      </Dropdown.Menu>
+                                                    </Dropdown>
+                                                  )}
+                                                </td>
+                                                <td>
+                                                  <button className="view-btn" onClick={() => handleViewItems(returnItem, [item])}>
+                                                    <FaEye size={12} /> View
+                                                  </button>
+                                                </td>
+                                              </tr>
+                                            );
+                                          })
+                                        ) : (
+                                          <tr>
+                                            <td colSpan="14" className="text-center py-2 text-muted">
+                                              No items found for this return
+                                            </td>
+                                          </tr>
+                                        )
+                                      )}
+                                    </React.Fragment>
+                                  );
+                                })}
+                              </React.Fragment>
+                            );
+                          })}
                       </React.Fragment>
                     );
                   })}
@@ -880,6 +969,7 @@ const ReceivedStock = () => {
                     <th>SI</th>
                     <th>Image</th>
                     <th>PCode</th>
+                    <th>Packet Barcode</th>
                     <th>Product Name</th>
                     <th>Category</th>
                     <th>Sub Category</th>
@@ -904,6 +994,7 @@ const ReceivedStock = () => {
                         <td>{index + 1}</td>
                         <td>{renderImageThumbnail(imagePath, item.design_name || item.sub_category, '36px')}</td>
                         <td><strong>{item.PCode_BarCode || 'N/A'}</strong></td>
+                        <td>{item.packet_barcode || 'N/A'}</td>
                         <td>{item.design_name || item.product_name || item.sub_category || 'N/A'}</td>
                         <td>{item.category || 'N/A'}</td>
                         <td>{item.sub_category || 'N/A'}</td>
@@ -925,7 +1016,7 @@ const ReceivedStock = () => {
                     );
                   })}
                   <tr style={{ fontWeight: 'bold', backgroundColor: '#f8f9fa' }}>
-                    <td colSpan="8" className="text-end"><strong>Totals:</strong></td>
+                    <td colSpan="9" className="text-end"><strong>Totals:</strong></td>
                     <td><strong>{selectedItems.reduce((s, i) => s + parseFloat(i.qty || 0), 0).toFixed(3)}</strong></td>
                     <td><strong>{selectedItems.reduce((s, i) => s + parseFloat(i.gross_weight || 0), 0).toFixed(3)}</strong></td>
                     <td><strong>{selectedItems.reduce((s, i) => s + parseFloat(i.stone_weight || 0), 0).toFixed(3)}</strong></td>
@@ -943,69 +1034,6 @@ const ReceivedStock = () => {
           <Button variant="secondary" onClick={handleCloseModal}>Close</Button>
         </Modal.Footer>
       </Modal>
-
-      {/* ===== Packet Products Modal (NEW) ===== */}
-      <Modal show={showPacketProductsModal} onHide={handleClosePacketProductsModal} size="lg" centered>
-        <Modal.Header closeButton>
-          <Modal.Title>
-            <FaBarcode className="me-2" style={{ color: '#2e7d32' }} />
-            Packet: {selectedPacketBarcode}
-            <Badge bg="success" className="ms-2" style={{ fontSize: '11px' }}>
-              {selectedPacketProducts.length} Product(s)
-            </Badge>
-          </Modal.Title>
-        </Modal.Header>
-        <Modal.Body style={{ fontSize: '13px' }}>
-          {selectedPacketProducts.length > 0 ? (
-            <div className="table-responsive">
-              <Table bordered size="sm">
-                <thead style={{ whiteSpace: 'nowrap', fontSize: '12px', backgroundColor: '#f8f9fa' }}>
-                  <tr>
-                    <th>SI</th>
-                    <th>Image</th>
-                    <th>PCode</th>
-                    <th>Product Name</th>
-                    <th>Return No.</th>
-                    <th>Qty</th>
-                    <th>Gross Wt</th>
-                    <th>Net Wt</th>
-                    <th>Status</th>
-                  </tr>
-                </thead>
-                <tbody style={{ fontSize: '12px' }}>
-                  {selectedPacketProducts.map((item, index) => {
-                    const imagePath = item.image || null;
-                    const currentStatus = item.Received_Status || 'pending';
-                    return (
-                      <tr key={item.item_id || index}>
-                        <td>{index + 1}</td>
-                        <td>{renderImageThumbnail(imagePath, item.design_name || item.sub_category, '34px')}</td>
-                        <td><strong>{item.PCode_BarCode || 'N/A'}</strong></td>
-                        <td>{item.design_name || item.product_name || item.sub_category || 'N/A'}</td>
-                        <td>{item.return_number || 'N/A'}</td>
-                        <td>{item.qty || 1}</td>
-                        <td>{parseFloat(item.gross_weight || 0).toFixed(3)}</td>
-                        <td>{parseFloat(item.net_weight || 0).toFixed(3)}</td>
-                        <td>
-                          <span className={`received-status-badge ${currentStatus}`}>
-                            {currentStatus.charAt(0).toUpperCase() + currentStatus.slice(1)}
-                          </span>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </Table>
-            </div>
-          ) : (
-            <div className="text-center text-muted py-3">No products found for this packet.</div>
-          )}
-        </Modal.Body>
-        <Modal.Footer>
-          <Button variant="secondary" onClick={handleClosePacketProductsModal}>Close</Button>
-        </Modal.Footer>
-      </Modal>
-      {/* ===== End Packet Products Modal ===== */}
 
       {/* Image Preview Modal */}
       <Modal show={showImageModal} onHide={handleCloseImageModal} centered size="lg">
