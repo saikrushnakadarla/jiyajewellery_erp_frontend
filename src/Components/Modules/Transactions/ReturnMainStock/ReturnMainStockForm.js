@@ -2789,6 +2789,7 @@ const handleSave = async () => {
         assigned_id: item.assigned_id || null,
         product_id: item.product_id || null,
         PCode_BarCode: item.code,
+        packet_barcode: item.packet_barcode || null,  // <-- Ensure this is included
         product_name: item.product_name || null,
         metal_type: item.metal_type || null,
         purity: item.purity || item.selling_purity || null,

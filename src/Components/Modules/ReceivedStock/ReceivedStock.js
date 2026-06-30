@@ -1,7 +1,7 @@
 // src/Components/Pages/ReceivedStock/ReceivedStock.jsx
 import React, { useEffect, useState, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { FaChevronRight, FaChevronDown, FaImage, FaEye, FaBoxOpen, FaCheck } from 'react-icons/fa';
+import { FaChevronRight, FaChevronDown, FaImage, FaEye, FaBoxOpen, FaCheck, FaBarcode } from 'react-icons/fa';
 import { Button, Row, Col, Modal, Table, Badge, Spinner, Dropdown } from 'react-bootstrap';
 import axios from 'axios';
 import baseURL from '../../../Url/NodeBaseURL';
@@ -31,6 +31,13 @@ const ReceivedStock = () => {
   // For Received Status functionality (from original code)
   const [updatingStatus, setUpdatingStatus] = useState({});
   const [statusFilter, setStatusFilter] = useState('all');
+
+  // ===== Packet Barcode dropdown state (NEW) =====
+  const [loadingPackets, setLoadingPackets] = useState({}); // { [stockPoint]: boolean }
+  const [showPacketProductsModal, setShowPacketProductsModal] = useState(false);
+  const [selectedPacketBarcode, setSelectedPacketBarcode] = useState('');
+  const [selectedPacketProducts, setSelectedPacketProducts] = useState([]);
+  // =================================================
 
   const userName = localStorage.getItem('userName');
 
@@ -147,7 +154,7 @@ const ReceivedStock = () => {
 
   // Fetch return details for a specific return_id
   const fetchReturnDetails = async (returnId) => {
-    if (returnDetailsMap[returnId]) return;
+    if (returnDetailsMap[returnId]) return returnDetailsMap[returnId];
     
     try {
       setLoadingDetails(prev => ({ ...prev, [returnId]: true }));
@@ -158,9 +165,11 @@ const ReceivedStock = () => {
         ...prev,
         [returnId]: response.data
       }));
+      return response.data;
     } catch (error) {
       console.error(`Error fetching return details for ${returnId}:`, error);
       Swal.fire('Error', 'Failed to fetch return details', 'error');
+      return null;
     } finally {
       setLoadingDetails(prev => ({ ...prev, [returnId]: false }));
     }
@@ -188,6 +197,64 @@ const ReceivedStock = () => {
       return acc;
     }, { totalReturns: 0, totalItems: 0, totalQty: 0, totalGrossWt: 0, totalNetWt: 0 });
   };
+
+  // Helper to read the packet barcode off an item, regardless of which field name the API used
+  const getItemPacketBarcode = (item) => {
+    return (
+      item?.Packet_BarCode ||
+      item?.packet_barcode ||
+      item?.PacketBarCode ||
+      item?.packet_no ||
+      item?.PacketNo ||
+      null
+    );
+  };
+
+  // ===== Packet Barcode helpers (NEW) =====
+
+  // Collect unique packet barcodes -> list of products, for ALL returns under a stock point.
+  // Relies on returnDetailsMap already being populated for those returns.
+  const getPacketGroupsForStockPoint = (returns) => {
+    const packetMap = {}; // { packetBarcode: [items...] }
+    returns.forEach((returnItem) => {
+      const details = returnDetailsMap[returnItem.return_id];
+      const items = details?.return_items || [];
+      items.forEach((item) => {
+        const packetCode = getItemPacketBarcode(item) || 'No Packet';
+        if (!packetMap[packetCode]) packetMap[packetCode] = [];
+        packetMap[packetCode].push({ ...item, return_number: returnItem.return_number });
+      });
+    });
+    return packetMap; // object keyed by packet barcode
+  };
+
+  // Ensure details for every return under a stock point are loaded (used right before opening the dropdown)
+  const ensureStockPointDetailsLoaded = async (stockPoint, returns) => {
+    const missing = returns.filter(r => !returnDetailsMap[r.return_id]);
+    if (missing.length === 0) return;
+
+    setLoadingPackets(prev => ({ ...prev, [stockPoint]: true }));
+    try {
+      await Promise.all(missing.map(r => fetchReturnDetails(r.return_id)));
+    } finally {
+      setLoadingPackets(prev => ({ ...prev, [stockPoint]: false }));
+    }
+  };
+
+  const handlePacketBarcodeSelect = (packetCode, returns) => {
+    const packetMap = getPacketGroupsForStockPoint(returns);
+    setSelectedPacketBarcode(packetCode);
+    setSelectedPacketProducts(packetMap[packetCode] || []);
+    setShowPacketProductsModal(true);
+  };
+
+  const handleClosePacketProductsModal = () => {
+    setShowPacketProductsModal(false);
+    setSelectedPacketBarcode('');
+    setSelectedPacketProducts([]);
+  };
+
+  // ==========================================
 
   const toggleStockPoint = (stockPoint) => {
     setExpandedStockPoints(prev => ({ ...prev, [stockPoint]: !prev[stockPoint] }));
@@ -392,6 +459,7 @@ const ReceivedStock = () => {
             .item-details-cell { text-align: left !important; }
             .item-details-cell .item-code { font-weight: 600; color: #a36e29; font-size: 12px; }
             .item-details-cell .item-design { font-size: 10px; color: #666; margin-top: 1px; }
+            .item-details-cell .item-packet { font-size: 10px; color: #2e7d32; margin-top: 1px; display: flex; align-items: center; gap: 4px; }
             .badge-stock-count { font-size: 11px; padding: 3px 8px; }
             .ps-3 { padding-left: 2rem !important; }
             .ps-4 { padding-left: 3rem !important; }
@@ -408,6 +476,49 @@ const ReceivedStock = () => {
             .view-btn:hover { background-color: #6b4c1c; }
             .return-number { font-weight: 700; color: #a36e29; font-size: 13px; }
             .return-from { font-weight: 500; color: #495057; }
+
+            /* Packet Barcode dropdown (NEW) */
+            .packet-barcode-toggle {
+              background-color: #e8f5e9 !important;
+              color: #2e7d32 !important;
+              border: 1px solid #a5d6a7 !important;
+              font-size: 11px !important;
+              font-weight: 600 !important;
+              padding: 3px 10px !important;
+              border-radius: 12px !important;
+              display: inline-flex;
+              align-items: center;
+              gap: 6px;
+            }
+            .packet-barcode-toggle:hover,
+            .packet-barcode-toggle:focus {
+              background-color: #d4edda !important;
+              color: #1b5e20 !important;
+              border-color: #81c784 !important;
+              box-shadow: none !important;
+            }
+            .packet-barcode-toggle::after { display: none !important; }
+            .packet-barcode-menu {
+              min-width: 180px;
+              max-height: 260px;
+              overflow-y: auto;
+              border-radius: 8px;
+              box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+              border: 1px solid #e0e0e0;
+              padding: 6px 0;
+            }
+            .packet-barcode-menu .dropdown-item {
+              font-size: 12px;
+              padding: 7px 14px;
+              display: flex;
+              align-items: center;
+              gap: 8px;
+              color: #2e7d32;
+              font-weight: 500;
+            }
+            .packet-barcode-menu .dropdown-item:hover {
+              background-color: #e8f5e9;
+            }
             
             /* Received Status Badge Styles */
             .received-status-badge { 
@@ -528,6 +639,9 @@ const ReceivedStock = () => {
                   .map(([stockPoint, returns]) => {
                     const totals = getStockPointTotals(returns);
                     const isStockPointExpanded = expandedStockPoints[stockPoint];
+                    const isLoadingPackets = loadingPackets[stockPoint];
+                    const packetMapForStockPoint = getPacketGroupsForStockPoint(returns);
+                    const packetCodes = Object.keys(packetMapForStockPoint);
 
                     return (
                       <React.Fragment key={stockPoint}>
@@ -543,6 +657,54 @@ const ReceivedStock = () => {
                               <div className="d-flex align-items-center">
                                 <FaBoxOpen className="location-icon stock-icon" />
                                 <strong>{stockPoint}</strong>
+
+                                {/* ===== Packet Barcode Dropdown (NEW) ===== */}
+                                <Dropdown
+                                  className="ms-2"
+                                  onClick={(e) => e.stopPropagation()}
+                                  onToggle={(nextOpen) => {
+                                    if (nextOpen) ensureStockPointDetailsLoaded(stockPoint, returns);
+                                  }}
+                                >
+                                  <Dropdown.Toggle as="span" className="packet-barcode-toggle" role="button">
+                                    <FaBarcode size={11} />
+                                    {isLoadingPackets ? (
+                                      <Spinner animation="border" size="sm" style={{ width: '10px', height: '10px' }} />
+                                    ) : packetCodes.length === 1 ? (
+                                      packetCodes[0]
+                                    ) : packetCodes.length > 1 ? (
+                                      `${packetCodes.length} Packets`
+                                    ) : (
+                                      'Packet Barcode'
+                                    )}
+                                  </Dropdown.Toggle>
+                                  <Dropdown.Menu className="packet-barcode-menu">
+                                    {isLoadingPackets ? (
+                                      <div className="text-center py-2">
+                                        <Spinner animation="border" size="sm" variant="secondary" />
+                                      </div>
+                                    ) : packetCodes.length > 0 ? (
+                                      packetCodes.map((packetCode) => (
+                                        <Dropdown.Item
+                                          key={packetCode}
+                                          onClick={() => handlePacketBarcodeSelect(packetCode, returns)}
+                                        >
+                                          <FaBarcode size={10} />
+                                          {packetCode}
+                                          <Badge bg="success" className="ms-auto" style={{ fontSize: '9px' }}>
+                                            {packetMapForStockPoint[packetCode].length}
+                                          </Badge>
+                                        </Dropdown.Item>
+                                      ))
+                                    ) : (
+                                      <div className="text-center text-muted py-2" style={{ fontSize: '11px' }}>
+                                        No packets found
+                                      </div>
+                                    )}
+                                  </Dropdown.Menu>
+                                </Dropdown>
+                                {/* ===== End Packet Barcode Dropdown ===== */}
+
                                 <Badge bg="warning" className="ms-2 badge-stock-count">
                                   {totals.totalReturns} Return(s)
                                 </Badge>
@@ -608,6 +770,7 @@ const ReceivedStock = () => {
                                     const imagePath = item.image || null;
                                     const isUpdating = updatingStatus[item.item_id];
                                     const currentStatus = item.Received_Status || 'pending';
+                                    const itemPacketCode = getItemPacketBarcode(item);
 
                                     return (
                                       <tr key={item.item_id || index} className="item-row">
@@ -615,6 +778,12 @@ const ReceivedStock = () => {
                                         <td className="item-details-cell">
                                           <div className="item-code">#{item.PCode_BarCode || 'N/A'}</div>
                                           <div className="item-design">{item.design_name || item.sub_category || 'No Design'}</div>
+                                          {itemPacketCode && (
+                                            <div className="item-packet">
+                                              <FaBarcode size={9} />
+                                              Packet: {itemPacketCode}
+                                            </div>
+                                          )}
                                           <div style={{ fontSize: '10px', color: '#888' }}>{item.sub_category} - {item.category}</div>
                                         </td>
                                         <td>{renderImageThumbnail(imagePath, item.design_name || item.sub_category, '38px')}</td>
@@ -774,6 +943,69 @@ const ReceivedStock = () => {
           <Button variant="secondary" onClick={handleCloseModal}>Close</Button>
         </Modal.Footer>
       </Modal>
+
+      {/* ===== Packet Products Modal (NEW) ===== */}
+      <Modal show={showPacketProductsModal} onHide={handleClosePacketProductsModal} size="lg" centered>
+        <Modal.Header closeButton>
+          <Modal.Title>
+            <FaBarcode className="me-2" style={{ color: '#2e7d32' }} />
+            Packet: {selectedPacketBarcode}
+            <Badge bg="success" className="ms-2" style={{ fontSize: '11px' }}>
+              {selectedPacketProducts.length} Product(s)
+            </Badge>
+          </Modal.Title>
+        </Modal.Header>
+        <Modal.Body style={{ fontSize: '13px' }}>
+          {selectedPacketProducts.length > 0 ? (
+            <div className="table-responsive">
+              <Table bordered size="sm">
+                <thead style={{ whiteSpace: 'nowrap', fontSize: '12px', backgroundColor: '#f8f9fa' }}>
+                  <tr>
+                    <th>SI</th>
+                    <th>Image</th>
+                    <th>PCode</th>
+                    <th>Product Name</th>
+                    <th>Return No.</th>
+                    <th>Qty</th>
+                    <th>Gross Wt</th>
+                    <th>Net Wt</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody style={{ fontSize: '12px' }}>
+                  {selectedPacketProducts.map((item, index) => {
+                    const imagePath = item.image || null;
+                    const currentStatus = item.Received_Status || 'pending';
+                    return (
+                      <tr key={item.item_id || index}>
+                        <td>{index + 1}</td>
+                        <td>{renderImageThumbnail(imagePath, item.design_name || item.sub_category, '34px')}</td>
+                        <td><strong>{item.PCode_BarCode || 'N/A'}</strong></td>
+                        <td>{item.design_name || item.product_name || item.sub_category || 'N/A'}</td>
+                        <td>{item.return_number || 'N/A'}</td>
+                        <td>{item.qty || 1}</td>
+                        <td>{parseFloat(item.gross_weight || 0).toFixed(3)}</td>
+                        <td>{parseFloat(item.net_weight || 0).toFixed(3)}</td>
+                        <td>
+                          <span className={`received-status-badge ${currentStatus}`}>
+                            {currentStatus.charAt(0).toUpperCase() + currentStatus.slice(1)}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </Table>
+            </div>
+          ) : (
+            <div className="text-center text-muted py-3">No products found for this packet.</div>
+          )}
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={handleClosePacketProductsModal}>Close</Button>
+        </Modal.Footer>
+      </Modal>
+      {/* ===== End Packet Products Modal ===== */}
 
       {/* Image Preview Modal */}
       <Modal show={showImageModal} onHide={handleCloseImageModal} centered size="lg">

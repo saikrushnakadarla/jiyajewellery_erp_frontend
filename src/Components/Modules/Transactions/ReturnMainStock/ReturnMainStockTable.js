@@ -143,6 +143,18 @@ const ReturnMainStockTable = () => {
         Cell: ({ value }) => getStatusBadge(value),
       },
       {
+        Header: 'Packet Barcode',
+        accessor: 'packet_barcode',
+        Cell: ({ row }) => {
+          // Get packet_barcode from the first item if available
+          const items = row.original.items || [];
+          if (items.length > 0 && items[0].packet_barcode) {
+            return <span>{items[0].packet_barcode}</span>;
+          }
+          return <span style={{ color: '#999' }}>N/A</span>;
+        },
+      },
+      {
         Header: 'Capture Image',
         accessor: 'capture_image',
         Cell: ({ value }) => {
@@ -289,8 +301,27 @@ const ReturnMainStockTable = () => {
         console.log("Filtered Transfers (from_user_id match):", filteredTransfers);
       }
       
-      setData(filteredTransfers);
-      setFilteredData(filteredTransfers);
+      // Fetch details for each transfer to get packet_barcode
+      const transfersWithItems = await Promise.all(
+        filteredTransfers.map(async (transfer) => {
+          try {
+            const detailResponse = await axios.get(`${baseURL}/api/return-to-main-stock/get-return-transfer/${transfer.return_id}`);
+            return {
+              ...transfer,
+              items: detailResponse.data.return_items || []
+            };
+          } catch (error) {
+            console.error(`Error fetching details for return ${transfer.return_id}:`, error);
+            return {
+              ...transfer,
+              items: []
+            };
+          }
+        })
+      );
+      
+      setData(transfersWithItems);
+      setFilteredData(transfersWithItems);
       setLoading(false);
     } catch (error) {
       console.error('Error fetching return transfers:', error);
@@ -436,6 +467,7 @@ const ReturnMainStockTable = () => {
                       <th>Image</th>
                       <th>Product Name</th>
                       <th>PCode/Barcode</th>
+                      <th>Packet Barcode</th>
                       <th>Metal Type</th>
                       <th>Purity</th>
                       <th>Category</th>
@@ -480,6 +512,7 @@ const ReturnMainStockTable = () => {
                           </td>
                           <td>{item.product_name || 'N/A'}</td>
                           <td>{item.PCode_BarCode || 'N/A'}</td>
+                          <td>{item.packet_barcode || 'N/A'}</td>
                           <td>{item.metal_type || 'N/A'}</td>
                           <td>{item.purity || 'N/A'}</td>
                           <td>{item.category || 'N/A'}</td>
@@ -497,12 +530,12 @@ const ReturnMainStockTable = () => {
                       ))
                     ) : (
                       <tr>
-                        <td colSpan="17" className="text-center">No items found</td>
+                        <td colSpan="18" className="text-center">No items found</td>
                       </tr>
                     )}
                     {transferDetails.return_items && transferDetails.return_items.length > 0 && (
                       <tr style={{ fontWeight: 'bold', backgroundColor: '#f8f9fa' }}>
-                        <td colSpan="9" className="text-end"><strong>Totals:</strong></td>
+                        <td colSpan="10" className="text-end"><strong>Totals:</strong></td>
                         <td><strong>{transferDetails.return_items.reduce((sum, item) => sum + parseFloat(item.qty || 0), 0).toFixed(3)}</strong></td>
                         <td><strong>{transferDetails.return_items.reduce((sum, item) => sum + parseFloat(item.gross_weight || 0), 0).toFixed(3)}</strong></td>
                         <td><strong>{transferDetails.return_items.reduce((sum, item) => sum + parseFloat(item.stone_weight || 0), 0).toFixed(3)}</strong></td>

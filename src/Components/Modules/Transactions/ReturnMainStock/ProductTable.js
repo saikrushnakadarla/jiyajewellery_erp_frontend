@@ -52,8 +52,10 @@ const ProductTable = ({ repairDetails, onDelete, onEdit }) => {
         <tbody>
           {repairDetails.length > 0 ? (
             repairDetails.map((detail, index) => {
-              // Check if this product has a packet barcode from estimate
+              // Check if this product has a packet barcode
               const hasPacketBarcode = detail.packet_barcode && detail.packet_barcode !== '';
+              const displayPacketBarcode = detail.packet_barcode || 
+                                          (detail.is_packet_selection ? 'Packet Selection' : null);
               
               // Get image URL from detail - check both image and imagePreview
               let imageUrl = null;
@@ -75,15 +77,15 @@ const ProductTable = ({ repairDetails, onDelete, onEdit }) => {
                     )}
                   </td>
                   <td>
-                    {hasPacketBarcode ? (
-                      <span style={{ color: "#a36e29", fontWeight: "bold" }}>
-                        {detail.packet_barcode}
+                    {displayPacketBarcode ? (
+                      <span style={{ color: "#a36e29", fontWeight: "bold", fontSize: "12px" }}>
+                        {displayPacketBarcode}
                       </span>
                     ) : (
                       <span style={{ color: "#999", fontSize: "12px" }}>—</span>
                     )}
                   </td>
-                  <td>{detail.product_name}</td>
+                  <td>{detail.product_name || detail.sub_category}</td>
                   <td>{detail.metal_type}</td>
                   <td>
                     {detail.pricing === 'By Weight'
@@ -119,13 +121,6 @@ const ProductTable = ({ repairDetails, onDelete, onEdit }) => {
                         onClick={() => handleView(detail)}
                         style={{ cursor: 'pointer', marginLeft: '10px', color: 'green' }}
                       />
-                      {/* <FaEdit
-                        onClick={() => {
-                          onEdit(index);
-                          setTimeout(() => onEdit(index), 1);
-                        }}
-                        style={{ cursor: "pointer", marginLeft: "10px", color: "blue" }}
-                      /> */}
                       <FaTrash
                         style={{ cursor: "pointer", marginLeft: "10px", color: "red" }}
                         onClick={() => onDelete(index)}
@@ -163,6 +158,7 @@ const ProductTable = ({ repairDetails, onDelete, onEdit }) => {
           </tfoot>
         )}
       </Table>
+      
       <Modal show={showModal} onHide={() => setShowModal(false)} size="xl">
         <Modal.Header closeButton>
           <Modal.Title>Product Details</Modal.Title>
