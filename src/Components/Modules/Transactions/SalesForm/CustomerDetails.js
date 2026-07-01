@@ -5,6 +5,7 @@ import { AiOutlinePlus } from "react-icons/ai";
 import { useLocation, useNavigate } from "react-router-dom";
 import axios from "axios";
 import baseURL from './../../../../Url/NodeBaseURL';
+import baseURL2 from './../../../../Url/NodeBaseURL2';
 import Swal from 'sweetalert2';
 
 const CustomerDetails = ({
@@ -236,7 +237,7 @@ const CustomerDetails = ({
     setLoadingPackets(true);
     try {
       console.log("📡 Fetching all estimates from API...");
-      const response = await axios.get(`http://localhost:5000/get/estimates`);
+      const response = await axios.get(`${baseURL2}/get/estimates`);
       const allEstimates = Array.isArray(response.data) ? response.data : [];
       
       console.log("✅ Total estimates fetched:", allEstimates.length);
@@ -279,7 +280,7 @@ const fetchProductsForPacket = async (packetBarcode) => {
   setLoadingProducts(true);
   try {
     // Step 1: Get all estimates to find code for this packet
-    const estimatesResponse = await axios.get(`http://localhost:5000/get/estimates`);
+    const estimatesResponse = await axios.get(`${baseURL2}/get/estimates`);
     const allEstimates = Array.isArray(estimatesResponse.data) ? estimatesResponse.data : [];
     
     // Find estimates with this packet_barcode
