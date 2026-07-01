@@ -9,7 +9,6 @@ import { FaTrash, FaCamera, FaUpload } from "react-icons/fa";
 import Webcam from "react-webcam";
 import './SalesForm.css'
 
-
 const ProductDetails = ({
   handleAdd,
   handleUpdate,
@@ -69,36 +68,29 @@ const ProductDetails = ({
     : "";
 
   // Generate options list for barcode selection
-  // Generate options list for barcode selection
-const barcodeOptions = [
-  // Product barcodes from products table
-  ...products
-    .filter((product) => (formData.category ? product.product_name === formData.category : true))
-    .map((product) => ({
-      value: product.rbarcode,
-      label: product.rbarcode,
-      type: 'product'
-    })),
-  
-  // Tag barcodes from opening_tags_entry - ONLY show Available and in MAIN STOCK ROOM
-  ...data
-    .filter((tag) => {
-      // Filter by category if selected
-      if (formData.category && tag.category !== formData.category) return false;
-      // Only show Available products
-      if (tag.Status !== 'Available') return false;
-      // Only show products in MAIN STOCK ROOM
-      if (tag.Stock_Point !== 'MAIN STOCK ROOM') return false;
-      return true;
-    })
-    .map((tag) => ({
-      value: tag.PCode_BarCode,
-      label: tag.PCode_BarCode,
-      type: 'tag',
-      tagData: tag  // Store full tag data for reference
-    })),
-];
-
+  const barcodeOptions = [
+    ...products
+      .filter((product) => (formData.category ? product.product_name === formData.category : true))
+      .map((product) => ({
+        value: product.rbarcode,
+        label: product.rbarcode,
+        type: 'product'
+      })),
+    
+    ...data
+      .filter((tag) => {
+        if (formData.category && tag.category !== formData.category) return false;
+        if (tag.Status !== 'Available') return false;
+        if (tag.Stock_Point !== 'MAIN STOCK ROOM') return false;
+        return true;
+      })
+      .map((tag) => ({
+        value: tag.PCode_BarCode,
+        label: tag.PCode_BarCode,
+        type: 'tag',
+        tagData: tag
+      })),
+  ];
 
   // Ensure default barcode is included in options
   if (defaultBarcode && !barcodeOptions.some((option) => option.value === defaultBarcode)) {
@@ -111,6 +103,66 @@ const barcodeOptions = [
       handleBarcodeChange(defaultBarcode);
     }
   }, [formData.category, defaultBarcode]);
+
+  // ============ ADD THIS FUNCTION HERE ============
+  const handleProductsFromPacket = (products) => {
+    console.log("📦 Products received from packet in ProductDetails:", products);
+    
+    if (!products || products.length === 0) {
+      return;
+    }
+
+    // Process each product and add to form
+    products.forEach((product, index) => {
+      // Set form data with product details
+      setFormData({
+        ...formData,
+        code: product.code || "",
+        product_id: product.product_id || "",
+        product_name: product.product_name || "",
+        metal_type: product.metal_type || "",
+        design_name: product.design_name || "",
+        purity: product.purity || "",
+        category: product.category || "",
+        sub_category: product.sub_category || "",
+        gross_weight: product.gross_weight || "",
+        stone_weight: product.stone_weight || "",
+        stone_price: product.stone_price || "",
+        weight_bw: product.weight_bw || "",
+        va_on: product.va_on || "Gross Weight",
+        va_percent: product.va_percent || "",
+        wastage_weight: product.wastage_weight || "",
+        total_weight_av: product.total_weight_av || "",
+        mc_on: product.mc_on || "MC %",
+        mc_per_gram: product.mc_per_gram || "",
+        making_charges: product.making_charges || "",
+        rate: product.rate || "",
+        rate_amt: product.rate_amt || "",
+        tax_percent: product.tax_percent || "03% GST",
+        tax_amt: product.tax_amt || "",
+        total_price: product.total_price || "",
+        pricing: product.pricing || "By Weight",
+        qty: product.qty || 1,
+        hm_charges: product.hm_charges || "60.00",
+        opentag_id: product.opentag_id || "",
+        imagePreview: product.imagePreview || null,
+      });
+
+      // Add the product to the table
+      handleAdd();
+    });
+  };
+  // ================================================
+
+  // Check if products are passed from parent
+  useEffect(() => {
+    // You can use window.packetProducts or a prop to receive products
+    // For now, this is a placeholder
+    if (window.packetProducts && window.packetProducts.length > 0) {
+      handleProductsFromPacket(window.packetProducts);
+      window.packetProducts = []; // Clear after processing
+    }
+  }, []);
 
   const handleClear = () => {
     setFormData(prevFormData => ({
@@ -139,7 +191,6 @@ const barcodeOptions = [
       mc_per_gram: "",
       making_charges: "",
       rate: "",
-      // rate_24k: "",
       pieace_cost: "",
       mrp_price: "",
       rate_amt: "",
@@ -277,6 +328,14 @@ const barcodeOptions = [
     formData.pieace_cost,
     formData.pricing,
   ]);
+
+  useEffect(() => {
+  // Check if products are passed from parent
+  if (window.packetProducts && window.packetProducts.length > 0) {
+    handleProductsFromPacket(window.packetProducts);
+    window.packetProducts = []; // Clear after processing
+  }
+}, []);
 
   useEffect(() => {
     if (!offers || offers.length === 0) return;

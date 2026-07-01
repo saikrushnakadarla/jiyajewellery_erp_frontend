@@ -17,6 +17,7 @@ import { PDFDownloadLink } from "@react-pdf/renderer";
 import PDFLayout from "./TaxInvoiceA4";
 import { useLocation } from "react-router-dom";
 import { saveAs } from "file-saver";
+import Swal from 'sweetalert2';
 
 const SalesForm = () => {
   const navigate = useNavigate();
@@ -153,7 +154,244 @@ const SalesForm = () => {
 
   const [returnData, setReturnData] = useState({
     invoice_number: "",
+  }); 
+
+
+const handleProductsFetched = (products) => {
+  console.log("📦 Products fetched from packet:", products);
+  console.log("📦 Number of products fetched:", products.length);
+  
+  if (!products || products.length === 0) {
+    Swal.fire({
+      icon: 'warning',
+      title: 'No Products',
+      text: 'No products found to add'
+    });
+    return;
+  }
+
+  // Get current repair details from localStorage
+  const currentRepairDetails = JSON.parse(localStorage.getItem(`repairDetails_${tabId}`)) || [];
+  console.log("📋 Current repair details count:", currentRepairDetails.length);
+
+  // Process products with calculations
+  const productsToAdd = products.map((product) => {
+    const grossWeight = parseFloat(product.gross_weight) || 0;
+    const stoneWeight = parseFloat(product.stone_weight) || 0;
+    const stonePrice = parseFloat(product.stone_price) || 0;
+    const rate = parseFloat(product.rate) || 0;
+    const vaPercent = parseFloat(product.va_percent) || 0;
+    const vaOn = product.va_on || "Gross Weight";
+    const mcPerGram = parseFloat(product.mc_per_gram) || 0;
+    const mcOn = product.mc_on || "MC %";
+    const hmCharges = parseFloat(product.hm_charges) || 60.00;
+    const taxPercent = parseFloat(product.tax_percent) || 0;
+    const pricing = product.pricing || "By Weight";
+    const qty = parseFloat(product.qty) || 1;
+
+    const netWeight = grossWeight - stoneWeight;
+    let wastageWeight = 0;
+    let totalWeight = netWeight;
+
+    if (vaOn === "Gross Weight") {
+      wastageWeight = (grossWeight * vaPercent) / 100;
+      totalWeight = netWeight + wastageWeight;
+    } else if (vaOn === "Weight BW") {
+      wastageWeight = (netWeight * vaPercent) / 100;
+      totalWeight = netWeight + wastageWeight;
+    }
+
+    let rateAmt = 0;
+    if (pricing === "By Weight") {
+      rateAmt = rate * totalWeight;
+    } else if (pricing === "By fixed") {
+      rateAmt = rate * qty;
+    }
+
+    let makingCharges = 0;
+    if (mcOn === "MC / Gram") {
+      makingCharges = mcPerGram * totalWeight;
+    } else if (mcOn === "MC %") {
+      makingCharges = (mcPerGram * rateAmt) / 100;
+    } else if (mcOn === "MC / Piece") {
+      makingCharges = mcPerGram * qty;
+    }
+
+    const totalBeforeTax = rateAmt + stonePrice + makingCharges + hmCharges;
+    const taxAmt = (totalBeforeTax * taxPercent) / 100;
+    const totalPrice = totalBeforeTax + taxAmt;
+
+    return {
+      date: formData.date || new Date().toISOString().split('T')[0],
+      invoice_number: formData.invoice_number || "",
+      customer_id: formData.customer_id || "",
+      account_name: formData.account_name || "",
+      mobile: formData.mobile || "",
+      email: formData.email || "",
+      address1: formData.address1 || "",
+      address2: formData.address2 || "",
+      city: formData.city || "",
+      pincode: formData.pincode || "",
+      state: formData.state || "",
+      state_code: formData.state_code || "",
+      aadhar_card: formData.aadhar_card || "",
+      gst_in: formData.gst_in || "",
+      pan_card: formData.pan_card || "",
+      
+      code: product.code || "",
+      product_id: product.product_id || "",
+      product_name: product.product_name || product.sub_category || "",
+      metal_type: product.metal_type || "",
+      design_name: product.design_name || "",
+      purity: product.purity || "",
+      category: product.category || "",
+      sub_category: product.sub_category || "",
+      
+      gross_weight: grossWeight.toFixed(3),
+      stone_weight: stoneWeight.toFixed(3),
+      stone_price: stonePrice.toFixed(2),
+      weight_bw: netWeight.toFixed(3),
+      
+      va_on: vaOn,
+      va_percent: vaPercent.toFixed(2),
+      wastage_weight: wastageWeight.toFixed(3),
+      total_weight_av: totalWeight.toFixed(3),
+      
+      mc_on: mcOn,
+      mc_per_gram: mcPerGram.toFixed(2),
+      making_charges: makingCharges.toFixed(2),
+      
+      rate: rate.toFixed(2),
+      rate_amt: rateAmt.toFixed(2),
+      
+      tax_percent: `${taxPercent}% GST`,
+      tax_amt: taxAmt.toFixed(2),
+      total_price: totalPrice.toFixed(2),
+      hm_charges: hmCharges.toFixed(2),
+      
+      pricing: pricing,
+      qty: qty,
+      
+      total_amount: rateAmt.toFixed(2),
+      taxable_amount: (rateAmt + stonePrice + makingCharges + hmCharges).toFixed(2),
+      tax_amount: taxAmt.toFixed(2),
+      net_amount: totalPrice.toFixed(2),
+      
+      opentag_id: product.opentag_id || "",
+      transaction_status: "Sales",
+      sale_status: "Delivered",
+      remarks: product.remarks || "",
+      imagePreview: product.imagePreview || null,
+      
+      disscount_percentage: "0",
+      disscount: "0",
+      festival_discount: "0",
+      festival_discount_percentage: "0",
+      festival_discount_on_rate: "0",
+      
+      original_total_price: totalPrice.toFixed(2),
+      original_piece_taxable_amt: "0",
+      piece_taxable_amt: "0",
+      pieace_cost: "0",
+      mrp_price: "0",
+      
+      source: "packet",
+    };
   });
+
+  // Check for duplicate products
+  const existingCodes = new Set(currentRepairDetails.map(item => item.code));
+  const newProducts = productsToAdd.filter(product => !existingCodes.has(product.code));
+
+  if (newProducts.length === 0) {
+    Swal.fire({
+      icon: 'info',
+      title: 'No New Products',
+      text: 'All products from this packet are already added!',
+      confirmButtonText: 'OK'
+    });
+    return;
+  }
+
+  // Update repair details
+  const updatedRepairDetails = [...currentRepairDetails, ...newProducts];
+  setRepairDetails(updatedRepairDetails);
+  localStorage.setItem(`repairDetails_${tabId}`, JSON.stringify(updatedRepairDetails));
+
+  // Show success message
+  const totalAmount = newProducts.reduce((sum, p) => sum + parseFloat(p.total_price || 0), 0);
+  Swal.fire({
+    icon: 'success',
+    title: `${newProducts.length} Product(s) Added!`,
+    html: `
+      <div style="text-align: left;">
+        <p><strong>Added Products:</strong></p>
+        <ul style="padding-left: 20px; max-height: 200px; overflow-y: auto;">
+          ${newProducts.map(p => `<li>${p.product_name} (${p.code})</li>`).join('')}
+        </ul>
+        <p class="mt-2"><strong>Total Amount:</strong> ₹${totalAmount.toFixed(2)}</p>
+      </div>
+    `,
+    confirmButtonText: 'OK'
+  });
+
+  // Refresh product table calculations
+  setTimeout(() => {
+    // Force re-render and calculations
+    const updated = JSON.parse(localStorage.getItem(`repairDetails_${tabId}`)) || [];
+    setRepairDetails(updated);
+  }, 100);
+};
+
+// Add this function inside ProductDetails component
+// Add this function inside ProductDetails component (before the useEffect)
+const handleProductsFromPacket = (products) => {
+  console.log("📦 Products received from packet in ProductDetails:", products);
+  
+  if (!products || products.length === 0) {
+    return;
+  }
+
+  // Process each product and add to form
+  products.forEach((product, index) => {
+    // Set form data with product details
+    setFormData({
+      ...formData,
+      code: product.code || "",
+      product_id: product.product_id || "",
+      product_name: product.product_name || "",
+      metal_type: product.metal_type || "",
+      design_name: product.design_name || "",
+      purity: product.purity || "",
+      category: product.category || "",
+      sub_category: product.sub_category || "",
+      gross_weight: product.gross_weight || "",
+      stone_weight: product.stone_weight || "",
+      stone_price: product.stone_price || "",
+      weight_bw: product.weight_bw || "",
+      va_on: product.va_on || "Gross Weight",
+      va_percent: product.va_percent || "",
+      wastage_weight: product.wastage_weight || "",
+      total_weight_av: product.total_weight_av || "",
+      mc_on: product.mc_on || "MC %",
+      mc_per_gram: product.mc_per_gram || "",
+      making_charges: product.making_charges || "",
+      rate: product.rate || "",
+      rate_amt: product.rate_amt || "",
+      tax_percent: product.tax_percent || "03% GST",
+      tax_amt: product.tax_amt || "",
+      total_price: product.total_price || "",
+      pricing: product.pricing || "By Weight",
+      qty: product.qty || 1,
+      hm_charges: product.hm_charges || "60.00",
+      opentag_id: product.opentag_id || "",
+      imagePreview: product.imagePreview || null,
+    });
+
+    // Add the product to the table
+    handleAdd();
+  });
+};
 
   useEffect(() => {
     // Set the default date value to the current date in dd-mm-yyyy format if not already set
@@ -2597,6 +2835,7 @@ const handleSave = async () => {
                 setSelectedMobile={setSelectedMobile} // Pass the setSelectedMobile function here
                 mobileRef={mobileRef}
                 tabId={tabId}
+                 onProductsFetched={handleProductsFetched}
               />
             </div>
             <div className="sales-form-right">
