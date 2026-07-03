@@ -9,7 +9,9 @@ import "./CustomerDetails.css"
 const CustomerDetails = ({
   formData,
   setFormData,
-  tabId
+  tabId,
+  selectedSalesmanProducts = [], // Add this prop
+  estimatesData = [] // Add this prop
 }) => {
   const [stockPoints, setStockPoints] = useState([]);
   const [salesmen, setSalesmen] = useState([]);
@@ -22,11 +24,141 @@ const CustomerDetails = ({
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const fileInputRef = useRef(null);
+
+  // New states for StockOutWard
+  const [stockOutWardOptions, setStockOutWardOptions] = useState([]);
+  const [selectedStockOutWard, setSelectedStockOutWard] = useState("");
+  const [stockOutWardGrossWt, setStockOutWardGrossWt] = useState("");
   
   // Get username from localStorage
   const userName = localStorage.getItem('userName');
   console.log("Retrieved from localStorage - Key: 'userName', Value:", userName);
+
+  // Build StockOutWard options from selectedSalesmanProducts and estimates
+  useEffect(() => {
+    const buildStockOutWardOptions = () => {
+      const options = [];
+      const seenBarcodes = new Set();
+
+      // 1. Add Packet Barcodes from estimates (if product has estimate)
+      if (estimatesData && estimatesData.length > 0) {
+        // Group estimates by packet_barcode
+        const packetMap = {};
+        estimatesData.forEach(est => {
+          if (est.packet_barcode && est.code) {
+            // Check if this product is assigned to salesman
+            const isAssigned = selectedSalesmanProducts.some(
+              p => p.PCode_BarCode === est.code
+            );
+            if (isAssigned) {
+              if (!packetMap[est.packet_barcode]) {
+                packetMap[est.packet_barcode] = [];
+              }
+              packetMap[est.packet_barcode].push(est);
+            }
+          }
+        });
+
+        // Add packet barcodes to options
+        Object.keys(packetMap).forEach(packetBarcode => {
+          if (!seenBarcodes.has(packetBarcode)) {
+            seenBarcodes.add(packetBarcode);
+            const productsInPacket = packetMap[packetBarcode];
+            // Calculate total gross weight of all products in packet
+            let totalGrossWt = 0;
+            productsInPacket.forEach(est => {
+              totalGrossWt += parseFloat(est.gross_weight) || 0;
+            });
+            options.push({
+              value: packetBarcode,
+              label: `${packetBarcode} (Packet - ${productsInPacket.length} products)`,
+              type: "packet",
+              grossWeight: totalGrossWt.toFixed(3),
+              packetBarcode: packetBarcode,
+              products: productsInPacket
+            });
+          }
+        });
+      }
+
+      // 2. Add Normal Barcodes (products without packet barcode or not estimated)
+      selectedSalesmanProducts.forEach(product => {
+        // Check if this product has an estimate with packet barcode
+        const hasEstimate = estimatesData.some(est => 
+          est.code === product.PCode_BarCode && est.packet_barcode
+        );
+        
+        // Only add if not already added as packet or if no estimate
+        if (!hasEstimate && !seenBarcodes.has(product.PCode_BarCode)) {
+          seenBarcodes.add(product.PCode_BarCode);
+          options.push({
+            value: product.PCode_BarCode,
+            label: `${product.PCode_BarCode} - ${product.product_name || product.sub_category || 'Product'}`,
+            type: "barcode",
+            grossWeight: parseFloat(product.gross_weight) || 0,
+            packetBarcode: null,
+            product: product
+          });
+        }
+      });
+
+      setStockOutWardOptions(options);
+      console.log("StockOutWard Options built:", options);
+    };
+
+    buildStockOutWardOptions();
+  }, [selectedSalesmanProducts, estimatesData]);
+
+  // Handle StockOutWard selection
+  // In CustomerDetails.js, update the handleStockOutWardChange function:
+
+const handleStockOutWardChange = (e) => {
+  const selectedValue = e.target.value;
+  console.log("StockOutWard selected:", selectedValue);
+  setSelectedStockOutWard(selectedValue);
   
+  // Find the selected option
+  const selectedOption = stockOutWardOptions.find(opt => opt.value === selectedValue);
+  
+  if (selectedOption) {
+    const grossWt = parseFloat(selectedOption.grossWeight) || 0;
+    setStockOutWardGrossWt(grossWt.toFixed(3));
+    
+    // Update formData with the selection - use the correct field names
+    setFormData(prev => ({
+      ...prev,
+      stock_outward_barcode: selectedValue,
+      stock_outward_gross_wt: grossWt.toFixed(3),
+      stock_outward_type: selectedOption.type || null,
+      stock_outward_packet_barcode: selectedOption.packetBarcode || null
+    }));
+    
+    console.log("Updated formData with stock_outward_barcode:", selectedValue);
+  } else {
+    setStockOutWardGrossWt("");
+    setFormData(prev => ({
+      ...prev,
+      stock_outward_barcode: null,
+      stock_outward_gross_wt: null,
+      stock_outward_type: null,
+      stock_outward_packet_barcode: null
+    }));
+  }
+};
+
+  // Reset StockOutWard fields when salesman or stock point changes
+  useEffect(() => {
+    setSelectedStockOutWard("");
+    setStockOutWardGrossWt("");
+    setFormData(prev => ({
+      ...prev,
+      stock_outward_barcode: "",
+      stock_outward_gross_wt: "",
+      stock_outward_type: "",
+      stock_outward_packet_barcode: null
+    }));
+  }, [formData.salesman_id, formData.active_stock_point_id]);
+
   useEffect(() => {
     fetchStockPoints();
     fetchSalesmen();
@@ -245,12 +377,22 @@ const CustomerDetails = ({
     }))
   ];
 
+  // Prepare StockOutWard options for dropdown
+  const stockOutWardOptionsList = [
+    { value: "", label: "Select Barcode/Packet" },
+    ...stockOutWardOptions.map(opt => ({
+      value: opt.value,
+      label: opt.label
+    }))
+  ];
+
   if (isLoading) {
     return <div>Loading...</div>;
   }
 
   return (
     <Col className="sales-form-section">
+      {/* Row 1: Salesman, Active Stock Point, Capture Image */}
       <Row className="align-items-end">
         <Col xs={12} md={4}>
           <InputField
@@ -363,6 +505,36 @@ const CustomerDetails = ({
               </div>
             )}
           </div>
+        </Col>
+      </Row>
+
+      {/* Row 2: StockOutWardBarcodes and StockOutWardGrossWT */}
+      <Row className="align-items-end" style={{ marginTop: '10px' }}>
+        <Col xs={12} md={4}>
+          <InputField
+            label="StockOutWard Barcodes *"
+            name="stock_outward_barcode"
+            type="select"
+            value={selectedStockOutWard || ""}
+            onChange={handleStockOutWardChange}
+            options={stockOutWardOptionsList}
+            required
+          />
+        </Col>
+
+        <Col xs={12} md={4}>
+          <InputField
+            label="StockOutWard Gross WT"
+            name="stock_outward_gross_wt"
+            type="text"
+            value={stockOutWardGrossWt}
+            readOnly
+            style={{ backgroundColor: '#f5f5f5', cursor: 'not-allowed' }}
+          />
+        </Col>
+
+        <Col xs={12} md={4}>
+          {/* Empty column for alignment */}
         </Col>
       </Row>
 

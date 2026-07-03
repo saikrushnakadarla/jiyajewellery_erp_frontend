@@ -2655,6 +2655,8 @@ const resetForm = () => {
   // };
 
 
+// In ReceivedSalesmanForm.js, update the handleSave function:
+
 const handleSave = async () => {
   try {
     const activeStockPointDetails = formData.active_stock_point_details;
@@ -2694,13 +2696,23 @@ const handleSave = async () => {
     console.log("Saving with Received Number:", nextReceivedNumber);
     console.log("Logged in User ID (to_user_id):", loggedInUserId);
 
-    // Get the capture image from formData (from Customer Details)
+    // Get the capture image from formData
     const captureImage = formData.capture_image || null;
     console.log("📷 Capture Image present:", !!captureImage);
 
+    // ===== GET STOCK OUTWARD FIELDS FROM FORMDATA =====
+    const stockOutwardBarcode = formData.stock_outward_barcode || null;
+    const stockOutwardGrossWt = formData.stock_outward_gross_wt || null;
+    const stockOutwardType = formData.stock_outward_type || null;
+    const stockOutwardPacketBarcode = formData.stock_outward_packet_barcode || null;
+    
+    console.log("📦 StockOutWard Barcode from formData:", stockOutwardBarcode);
+    console.log("📦 StockOutWard Gross WT from formData:", stockOutwardGrossWt);
+    console.log("📦 StockOutWard Type from formData:", stockOutwardType);
+    console.log("📦 StockOutWard Packet Barcode from formData:", stockOutwardPacketBarcode);
+
     // Check if any product was selected via packet barcode
     const hasPacketSelection = repairDetails.some(item => item.is_packet_selection === true || item.packet_barcode !== null);
-
     console.log("Has packet selection:", hasPacketSelection);
 
     // Prepare transfer data with proper fields for received salesman
@@ -2726,7 +2738,6 @@ const handleSave = async () => {
       PCode_BarCode: item.code,
       is_packet_selection: item.is_packet_selection || false,
       packet_barcode: item.packet_barcode || null,
-      // Preserve image from assigned product
       image: item.image || null
     }));
 
@@ -2742,10 +2753,15 @@ const handleSave = async () => {
       from_user_id: selectedSalesman.salesman_id ? parseInt(selectedSalesman.salesman_id) : null,
       to_user_id: loggedInUserId,
       is_packet_selection: hasPacketSelection,
-      capture_image: captureImage  // <-- NEW: Add capture image from Customer Details
+      capture_image: captureImage,
+      // ===== ADD STOCK OUTWARD FIELDS TO PAYLOAD =====
+      stock_outward_barcode: stockOutwardBarcode,
+      stock_outward_gross_wt: stockOutwardGrossWt,
+      stock_outward_type: stockOutwardType,
+      stock_outward_packet_barcode: stockOutwardPacketBarcode
     };
 
-    console.log("📦 Sending Received Salesman Payload with capture_image:", !!payload.capture_image);
+    console.log("📦 Full Payload being sent:", JSON.stringify(payload, null, 2));
 
     // Call the RECEIVED SALESMAN API
     const response = await axios.post(`${baseURL}/api/received-salesman/save-received-salesman`, payload);
@@ -2779,8 +2795,13 @@ const handleSave = async () => {
         active_stock_point_details: null,
         received_number: "",
         transfer_number: "",
-        capture_image: null,  // Clear capture image
-        capture_image_file: null
+        capture_image: null,
+        capture_image_file: null,
+        // ===== RESET STOCK OUTWARD FIELDS =====
+        stock_outward_barcode: null,
+        stock_outward_gross_wt: null,
+        stock_outward_type: null,
+        stock_outward_packet_barcode: null
       });
       
       navigate("/receive-from-salesman");
@@ -2849,6 +2870,8 @@ const handleSave = async () => {
                 setSelectedMobile={setSelectedMobile} // Pass the setSelectedMobile function here
                 mobileRef={mobileRef}
                 tabId={tabId}
+                selectedSalesmanProducts={selectedSalesmanProducts}  
+                estimatesData={estimatesData}                        
               />
             </div>
             <div className="sales-form-right">
