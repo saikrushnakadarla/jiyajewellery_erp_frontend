@@ -172,23 +172,26 @@ useEffect(() => {
   // );
 
 
- const fetchAssignedProductsBySalesman = async (salesmanId) => {
+const fetchAssignedProductsBySalesman = async (salesmanId, stockPointId) => {
   if (!salesmanId) {
     setAssignedProducts([]);
     setSelectedSalesmanProducts([]);
     return;
   }
-  
+
   try {
-    console.log("Fetching assigned products for salesman ID:", salesmanId);
+    const params = { salesman_id: salesmanId };
+    if (stockPointId) {
+      params.from_stock_point_id = stockPointId; // ✅ key fix
+    }
+
+    console.log("Fetching assigned products for salesman:", salesmanId, "stock point:", stockPointId);
     const response = await axios.get(`${baseURL}/api/received-salesman/get-assigned-products-by-salesman`, {
-      params: { salesman_id: salesmanId }
+      params
     });
-    
-    console.log("Assigned products fetched:", response.data);
+
     setAssignedProducts(response.data);
-    
-    // Extract unique PCode_BarCode values with image
+
     const uniqueBarcodes = [...new Map(response.data.map(item => 
       [item.PCode_BarCode, { 
         PCode_BarCode: item.PCode_BarCode, 
@@ -209,10 +212,10 @@ useEffect(() => {
         total_price: item.total_price,
         assigned_id: item.assigned_id,
         item_id: item.item_id,
-        image: item.image || null // Make sure image is included
+        image: item.image || null
       }
     ])).values()];
-    
+
     setSelectedSalesmanProducts(uniqueBarcodes);
     return response.data;
   } catch (error) {
@@ -268,13 +271,13 @@ useEffect(() => {
 
 // Add useEffect to watch for salesman selection and fetch products
 useEffect(() => {
-  if (formData.salesman_id) {
-    fetchAssignedProductsBySalesman(formData.salesman_id);
+  if (formData.salesman_id && formData.active_stock_point_id) {
+    fetchAssignedProductsBySalesman(formData.salesman_id, formData.active_stock_point_id);
   } else {
     setAssignedProducts([]);
     setSelectedSalesmanProducts([]);
   }
-}, [formData.salesman_id]);
+}, [formData.salesman_id, formData.active_stock_point_id]);
 
 
 

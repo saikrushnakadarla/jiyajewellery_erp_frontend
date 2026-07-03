@@ -62,8 +62,6 @@ const ProductDetails = ({
   selectedOrder,
   orderData,
   selectedSalesmanProducts = [],
-  stock = [],
-  activeStockPointDetails = null,
 }) => {
 
   const [showModal, setShowModal] = useState(false);
@@ -92,23 +90,23 @@ const ProductDetails = ({
   }, []);
 
   // ─── KEY FIX: filter selectedSalesmanProducts by active stock point ───────
-  const salesmanProductsForCurrentStock = React.useMemo(() => {
-    if (!activeStockPointDetails || !stock || stock.length === 0) {
-      return selectedSalesmanProducts;
-    }
+  // const salesmanProductsForCurrentStock = React.useMemo(() => {
+  //   if (!activeStockPointDetails || !stock || stock.length === 0) {
+  //     return selectedSalesmanProducts;
+  //   }
 
-    const activeStockPointName = activeStockPointDetails.stock_point_name;
+  //   const activeStockPointName = activeStockPointDetails.stock_point_name;
 
-    const barcodesInActiveStock = new Set(
-      stock
-        .filter(s => s.Stock_Point === activeStockPointName)
-        .map(s => s.PCode_BarCode)
-    );
+  //   const barcodesInActiveStock = new Set(
+  //     stock
+  //       .filter(s => s.Stock_Point === activeStockPointName)
+  //       .map(s => s.PCode_BarCode)
+  //   );
 
-    return selectedSalesmanProducts.filter(p =>
-      barcodesInActiveStock.has(p.PCode_BarCode)
-    );
-  }, [selectedSalesmanProducts, stock, activeStockPointDetails]);
+  //   return selectedSalesmanProducts.filter(p =>
+  //     barcodesInActiveStock.has(p.PCode_BarCode)
+  //   );
+  // }, [selectedSalesmanProducts, stock, activeStockPointDetails]);
 
   // Initialize scanner when modal opens
   useEffect(() => {
@@ -405,7 +403,7 @@ const ProductDetails = ({
           }
           
           const productsWithImages = newProducts.map(product => {
-            const assignedProduct = salesmanProductsForCurrentStock?.find(
+            const assignedProduct = selectedSalesmanProducts?.find(
               p => p.PCode_BarCode === product.code
             );
             
@@ -568,9 +566,9 @@ const ProductDetails = ({
         const grouped = {};
         response.data.forEach(est => {
           if (est.code && est.packet_barcode) {
-            const isAssignedToSalesman = salesmanProductsForCurrentStock.some(
-              assigned => assigned.PCode_BarCode === est.code
-            );
+            const isAssignedToSalesman = selectedSalesmanProducts.some(
+                assigned => assigned.PCode_BarCode === est.code
+              );
             
             if (isAssignedToSalesman) {
               if (!grouped[est.packet_barcode]) {
@@ -630,7 +628,7 @@ const ProductDetails = ({
       }
     };
     fetchEstimates();
-  }, [salesmanProductsForCurrentStock]);
+  }, [selectedSalesmanProducts]);
 
   const getPacketBarcode = (productCode) => {
     if (!estimatesData || !productCode) return null;
@@ -670,7 +668,7 @@ const ProductDetails = ({
     }
   });
 
-  salesmanProductsForCurrentStock.forEach((product) => {
+  selectedSalesmanProducts.forEach((product) => {
     const packetBarcode = getPacketBarcode(product.PCode_BarCode);
     const isEstimated = hasEstimate(product.PCode_BarCode);
     
@@ -729,10 +727,10 @@ const ProductDetails = ({
           return;
         }
         
-        const productsWithImages = newProducts.map(product => {
-          const assignedProduct = salesmanProductsForCurrentStock?.find(
-            p => p.PCode_BarCode === product.code
-          );
+       const productsWithImages = newProducts.map(product => {
+  const assignedProduct = selectedSalesmanProducts?.find(
+    p => p.PCode_BarCode === product.code
+  );
           
           let imagePath = assignedProduct?.image || null;
           let imagePreview = null;
