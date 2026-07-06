@@ -10,8 +10,8 @@ const CustomerDetails = ({
   formData,
   setFormData,
   tabId,
-  selectedSalesmanProducts = [], // Add this prop
-  estimatesData = [] // Add this prop
+  selectedSalesmanProducts = [],
+  estimatesData = []
 }) => {
   const [stockPoints, setStockPoints] = useState([]);
   const [salesmen, setSalesmen] = useState([]);
@@ -34,6 +34,20 @@ const CustomerDetails = ({
   const userName = localStorage.getItem('userName');
   console.log("Retrieved from localStorage - Key: 'userName', Value:", userName);
 
+  // ===== NEW FUNCTION: Calculate total gross weight of all products =====
+  const calculateTotalGrossWeight = () => {
+    if (!selectedSalesmanProducts || selectedSalesmanProducts.length === 0) {
+      return 0;
+    }
+    
+    let totalGrossWt = 0;
+    selectedSalesmanProducts.forEach(product => {
+      totalGrossWt += parseFloat(product.gross_weight) || 0;
+    });
+    
+    return totalGrossWt;
+  };
+
   // Build StockOutWard options from selectedSalesmanProducts and estimates
   useEffect(() => {
     const buildStockOutWardOptions = () => {
@@ -42,11 +56,9 @@ const CustomerDetails = ({
 
       // 1. Add Packet Barcodes from estimates (if product has estimate)
       if (estimatesData && estimatesData.length > 0) {
-        // Group estimates by packet_barcode
         const packetMap = {};
         estimatesData.forEach(est => {
           if (est.packet_barcode && est.code) {
-            // Check if this product is assigned to salesman
             const isAssigned = selectedSalesmanProducts.some(
               p => p.PCode_BarCode === est.code
             );
@@ -59,12 +71,10 @@ const CustomerDetails = ({
           }
         });
 
-        // Add packet barcodes to options
         Object.keys(packetMap).forEach(packetBarcode => {
           if (!seenBarcodes.has(packetBarcode)) {
             seenBarcodes.add(packetBarcode);
             const productsInPacket = packetMap[packetBarcode];
-            // Calculate total gross weight of all products in packet
             let totalGrossWt = 0;
             productsInPacket.forEach(est => {
               totalGrossWt += parseFloat(est.gross_weight) || 0;
@@ -83,12 +93,10 @@ const CustomerDetails = ({
 
       // 2. Add Normal Barcodes (products without packet barcode or not estimated)
       selectedSalesmanProducts.forEach(product => {
-        // Check if this product has an estimate with packet barcode
         const hasEstimate = estimatesData.some(est => 
           est.code === product.PCode_BarCode && est.packet_barcode
         );
         
-        // Only add if not already added as packet or if no estimate
         if (!hasEstimate && !seenBarcodes.has(product.PCode_BarCode)) {
           seenBarcodes.add(product.PCode_BarCode);
           options.push({
@@ -109,54 +117,76 @@ const CustomerDetails = ({
     buildStockOutWardOptions();
   }, [selectedSalesmanProducts, estimatesData]);
 
-  // Handle StockOutWard selection
-  // In CustomerDetails.js, update the handleStockOutWardChange function:
+  // ===== UPDATED: Handle StockOutWard selection =====
+  const handleStockOutWardChange = (e) => {
+    const selectedValue = e.target.value;
+    console.log("StockOutWard selected:", selectedValue);
+    setSelectedStockOutWard(selectedValue);
+    
+    // Find the selected option
+    const selectedOption = stockOutWardOptions.find(opt => opt.value === selectedValue);
+    
+    if (selectedOption) {
+      // If a specific packet/barcode is selected, show its gross weight
+      const grossWt = parseFloat(selectedOption.grossWeight) || 0;
+      setStockOutWardGrossWt(grossWt.toFixed(3));
+      
+      // Update formData with the selection
+      setFormData(prev => ({
+        ...prev,
+        stock_outward_barcode: selectedValue,
+        stock_outward_gross_wt: grossWt.toFixed(3),
+        stock_outward_type: selectedOption.type || null,
+        stock_outward_packet_barcode: selectedOption.packetBarcode || null
+      }));
+      
+      console.log("Updated formData with stock_outward_barcode:", selectedValue);
+    } else {
+      // If "Select Barcode/Packet" is chosen, show total gross weight
+      const totalGrossWt = calculateTotalGrossWeight();
+      setStockOutWardGrossWt(totalGrossWt.toFixed(3));
+      
+      setFormData(prev => ({
+        ...prev,
+        stock_outward_barcode: null,
+        stock_outward_gross_wt: totalGrossWt.toFixed(3),
+        stock_outward_type: null,
+        stock_outward_packet_barcode: null
+      }));
+    }
+  };
 
-const handleStockOutWardChange = (e) => {
-  const selectedValue = e.target.value;
-  console.log("StockOutWard selected:", selectedValue);
-  setSelectedStockOutWard(selectedValue);
-  
-  // Find the selected option
-  const selectedOption = stockOutWardOptions.find(opt => opt.value === selectedValue);
-  
-  if (selectedOption) {
-    const grossWt = parseFloat(selectedOption.grossWeight) || 0;
-    setStockOutWardGrossWt(grossWt.toFixed(3));
-    
-    // Update formData with the selection - use the correct field names
-    setFormData(prev => ({
-      ...prev,
-      stock_outward_barcode: selectedValue,
-      stock_outward_gross_wt: grossWt.toFixed(3),
-      stock_outward_type: selectedOption.type || null,
-      stock_outward_packet_barcode: selectedOption.packetBarcode || null
-    }));
-    
-    console.log("Updated formData with stock_outward_barcode:", selectedValue);
-  } else {
-    setStockOutWardGrossWt("");
-    setFormData(prev => ({
-      ...prev,
-      stock_outward_barcode: null,
-      stock_outward_gross_wt: null,
-      stock_outward_type: null,
-      stock_outward_packet_barcode: null
-    }));
-  }
-};
+  // ===== NEW: Update StockOutWardGrossWt whenever salesman changes =====
+  useEffect(() => {
+    if (formData.salesman_id && selectedSalesmanProducts.length > 0) {
+      // When salesman is selected, calculate and display total gross weight of all products
+      const totalGrossWt = calculateTotalGrossWeight();
+      setStockOutWardGrossWt(totalGrossWt.toFixed(3));
+      
+      // Also update formData with the total gross weight
+      setFormData(prev => ({
+        ...prev,
+        stock_outward_gross_wt: totalGrossWt.toFixed(3)
+      }));
+      
+      // Reset selected dropdown to default
+      setSelectedStockOutWard("");
+      
+      console.log("Total Gross Weight for Salesman:", totalGrossWt.toFixed(3));
+    } else {
+      // If no salesman selected, clear the field
+      setStockOutWardGrossWt("");
+      setFormData(prev => ({
+        ...prev,
+        stock_outward_gross_wt: null
+      }));
+    }
+  }, [formData.salesman_id, selectedSalesmanProducts]);
 
   // Reset StockOutWard fields when salesman or stock point changes
   useEffect(() => {
     setSelectedStockOutWard("");
-    setStockOutWardGrossWt("");
-    setFormData(prev => ({
-      ...prev,
-      stock_outward_barcode: "",
-      stock_outward_gross_wt: "",
-      stock_outward_type: "",
-      stock_outward_packet_barcode: null
-    }));
+    // Don't clear gross weight here, it will be updated by the above useEffect
   }, [formData.salesman_id, formData.active_stock_point_id]);
 
   useEffect(() => {
@@ -328,10 +358,9 @@ const handleStockOutWardChange = (e) => {
       };
       setCapturedImage(imageData);
       
-      // Store the image preview in formData for later use
       setFormData((prev) => ({
         ...prev,
-        capture_image: reader.result, // Store base64 image
+        capture_image: reader.result,
         capture_image_file: file
       }));
     };
@@ -418,7 +447,7 @@ const handleStockOutWardChange = (e) => {
           />
         </Col>
 
-        {/* Capture Image Button + Image Preview - takes 4 columns */}
+        {/* Capture Image Button + Image Preview */}
         <Col xs={12} md={4}>
           <div style={{ 
             display: 'flex', 
@@ -426,7 +455,6 @@ const handleStockOutWardChange = (e) => {
             gap: '10px',
             paddingBottom: '4px'
           }}>
-            {/* Capture Image Button */}
             <Button 
               onClick={startCamera} 
               variant="outline-primary" 
@@ -445,7 +473,7 @@ const handleStockOutWardChange = (e) => {
                 backgroundColor: 'transparent',
                 marginBottom:"5px"
               }}
-               className="capture-image-btn"
+              className="capture-image-btn"
             >
               <FaCamera /> Capture Image
             </Button>
@@ -457,7 +485,6 @@ const handleStockOutWardChange = (e) => {
               style={{ display: 'none' }}
             />
 
-            {/* Image Preview - shown when image is captured */}
             {capturedImage && (
               <div style={{ 
                 position: 'relative', 
