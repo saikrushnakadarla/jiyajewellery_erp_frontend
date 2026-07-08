@@ -97,6 +97,7 @@ import WarehouseStockItems from './Components/Modules/Transactions/WarehouseStoc
 import WarehouseRespectiveStock from "./Components/Modules/WarehouseRespectiveStock/WarehouseRespectiveStock";
 import Footer from "./Footer/Footer"
 import ReceivedStock from './Components/Modules/ReceivedStock/ReceivedStock';
+import Warehousedaybook from "./Components/Modules/Warehousedaybook/Warehousedaybook";
 
 
 
@@ -237,7 +238,7 @@ function App() {
           <Route path="/qrcodeprinting" exact element={<QRCodePrinting />} />
 
           <Route path="/stock-inward" element={<StockInward />} /> 
-          <Route path="/selections" element={<Selections />} />
+          <Route path="/selections" element={<Selections />} /> 
           <Route path="/visit-logs-warehouse-schedule" element={<VisitLogsWarehouseSchedule />} />
 
           
@@ -247,7 +248,9 @@ function App() {
 
            <Route path="/warehouse-stock-respective-items" element={<WarehouseRespectiveStock />} />
 
-          <Route path="/received-stock" element={<ReceivedStock />} />
+          <Route path="/received-stock" element={<ReceivedStock />} /> 
+
+          <Route path="/day-book" element={<Warehousedaybook />} /> 
 
         </Routes>
                 {!isAuthPage && isStockModule &&   <Footer />}

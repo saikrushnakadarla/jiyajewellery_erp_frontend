@@ -260,6 +260,23 @@ function StockNavbar() {
               </div>
             </div>
           )}
+        </div> 
+
+
+                {/* Day Book Link */}
+        <div>
+          <Link
+            to="/day-book"
+            onClick={handleItemClick}
+            className={isActive("/day-book")}
+            style={{
+              color: location.pathname === "/day-book" ? "#a36e29" : "black",
+              backgroundColor: "transparent",
+              textDecoration: "none",
+            }}
+          >
+            DAY BOOK
+          </Link>
         </div>
 
         {/* Removed separate ASSIGN and RECEIVE links since they're now nested */}
