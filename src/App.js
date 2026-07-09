@@ -116,7 +116,8 @@ function App() {
     location.pathname === "/add-return-to-main-stock" ||
     location.pathname === "/stock-inward" ||
      location.pathname === "/visit-logs-salesman-schedule" ||
-     location.pathname === "/warehouse-stock-respective-items" 
+     location.pathname === "/warehouse-stock-respective-items" ||
+       location.pathname === "/day-book" 
 
 
   const isERPModule = location.pathname === "/qrcodeprinting";

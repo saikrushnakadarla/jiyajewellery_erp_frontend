@@ -55,7 +55,7 @@ const ProductDetails = ({
   taxableAmount,
   tabId,
   setIsTotalPriceCleared,
-  isManualTotalPriceChange, 
+  isManualTotalPriceChange,
   setIsManualTotalPriceChange,
   offers,
   handleOrderChange,
@@ -88,25 +88,6 @@ const ProductDetails = ({
       setLoggedInUserId(parseInt(userId));
     }
   }, []);
-
-  // ─── KEY FIX: filter selectedSalesmanProducts by active stock point ───────
-  // const salesmanProductsForCurrentStock = React.useMemo(() => {
-  //   if (!activeStockPointDetails || !stock || stock.length === 0) {
-  //     return selectedSalesmanProducts;
-  //   }
-
-  //   const activeStockPointName = activeStockPointDetails.stock_point_name;
-
-  //   const barcodesInActiveStock = new Set(
-  //     stock
-  //       .filter(s => s.Stock_Point === activeStockPointName)
-  //       .map(s => s.PCode_BarCode)
-  //   );
-
-  //   return selectedSalesmanProducts.filter(p =>
-  //     barcodesInActiveStock.has(p.PCode_BarCode)
-  //   );
-  // }, [selectedSalesmanProducts, stock, activeStockPointDetails]);
 
   // Initialize scanner when modal opens
   useEffect(() => {
@@ -350,7 +331,7 @@ const ProductDetails = ({
       });
 
       let packetBarcode = decodedText;
-      
+
       // Try to parse as JSON first
       try {
         const parsedData = JSON.parse(decodedText);
@@ -373,7 +354,7 @@ const ProductDetails = ({
 
       if (packetBarcode) {
         let packetProducts = groupedPacketProducts[packetBarcode];
-        
+
         if (!packetProducts || packetProducts.length === 0) {
           const matchingPacketKey = Object.keys(groupedPacketProducts).find(
             key => key === packetBarcode || key.includes(packetBarcode)
@@ -383,14 +364,14 @@ const ProductDetails = ({
             console.log("Found packet by matching key:", matchingPacketKey);
           }
         }
-        
+
         if (packetProducts && packetProducts.length > 0) {
           Swal.close();
-          
+
           const storedRepairDetails = JSON.parse(localStorage.getItem(`repairDetails_${tabId}`)) || [];
           const existingCodes = new Set(storedRepairDetails.map(item => item.code));
           const newProducts = packetProducts.filter(product => !existingCodes.has(product.code));
-          
+
           if (newProducts.length === 0) {
             Swal.fire({
               icon: 'info',
@@ -401,15 +382,15 @@ const ProductDetails = ({
             });
             return;
           }
-          
+
           const productsWithImages = newProducts.map(product => {
             const assignedProduct = selectedSalesmanProducts?.find(
               p => p.PCode_BarCode === product.code
             );
-            
+
             let imagePath = assignedProduct?.image || null;
             let imagePreview = null;
-            
+
             if (imagePath) {
               if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
                 imagePreview = imagePath;
@@ -419,7 +400,7 @@ const ProductDetails = ({
                 imagePreview = `${baseURL}/${imagePath}`;
               }
             }
-            
+
             return {
               ...product,
               code: product.code,
@@ -465,13 +446,13 @@ const ProductDetails = ({
               item_id: assignedProduct?.item_id || null
             };
           });
-          
+
           const updatedRepairDetails = [...storedRepairDetails, ...productsWithImages];
           setRepairDetails(updatedRepairDetails);
           localStorage.setItem(`repairDetails_${tabId}`, JSON.stringify(updatedRepairDetails));
-          
+
           setIsPacketAdded(true);
-          
+
           setFormData(prev => ({
             ...prev,
             code: packetBarcode,
@@ -515,7 +496,7 @@ const ProductDetails = ({
             festival_discount: '',
             custom_purity: ''
           }));
-          
+
           Swal.fire({
             icon: 'success',
             title: 'Packet Added!',
@@ -523,13 +504,13 @@ const ProductDetails = ({
             timer: 2000,
             showConfirmButton: false
           });
-          
+
         } else {
           Swal.close();
           const availablePackets = Object.keys(groupedPacketProducts);
           console.log("Available packets:", availablePackets);
           console.log("Scanned packet barcode:", packetBarcode);
-          
+
           Swal.fire({
             icon: 'warning',
             title: 'Packet Not Found',
@@ -557,20 +538,29 @@ const ProductDetails = ({
     }
   };
 
+  // ================================================================
+  // FIXED: Fetch estimates and filter by Status = "Assigned"
+  // ================================================================
   useEffect(() => {
     const fetchEstimates = async () => {
       try {
         const response = await axios.get(`${baseURL2}/get/estimates`);
         setEstimatesData(response.data);
-        
+
         const grouped = {};
         response.data.forEach(est => {
           if (est.code && est.packet_barcode) {
+            // Check if this product is assigned to the salesman
             const isAssignedToSalesman = selectedSalesmanProducts.some(
-                assigned => assigned.PCode_BarCode === est.code
-              );
-            
-            if (isAssignedToSalesman) {
+              assigned => assigned.PCode_BarCode === est.code
+            );
+
+            // Check status from opening_tags_entry (data prop)
+            const tag = data.find(t => t.PCode_BarCode === est.code);
+            const isStatusAssigned = tag && tag.Status === "Assigned";
+
+            // Only include products that are assigned AND have status "Assigned"
+            if (isAssignedToSalesman && isStatusAssigned) {
               if (!grouped[est.packet_barcode]) {
                 grouped[est.packet_barcode] = [];
               }
@@ -622,13 +612,13 @@ const ProductDetails = ({
           }
         });
         setGroupedPacketProducts(grouped);
-        console.log("Grouped packet products for current stock point:", grouped);
+        console.log("Grouped packet products with Status=Assigned:", grouped);
       } catch (error) {
         console.error("Error fetching estimates:", error);
       }
     };
     fetchEstimates();
-  }, [selectedSalesmanProducts]);
+  }, [selectedSalesmanProducts, data]); // Added 'data' as dependency
 
   const getPacketBarcode = (productCode) => {
     if (!estimatesData || !productCode) return null;
@@ -648,9 +638,20 @@ const ProductDetails = ({
     ? products.find((product) => product.product_name === formData.category)?.rbarcode || ""
     : "";
 
+  // ================================================================
+  // FIXED: Barcode options - filter by Status = "Assigned"
+  // ================================================================
+  // Get all assigned products with status "Assigned" from opening_tags_entry
+  const assignedProducts = (selectedSalesmanProducts || []).filter(product => {
+    const tag = data.find(t => t.PCode_BarCode === product.PCode_BarCode);
+    return tag && tag.Status === "Assigned";
+  });
+
   const barcodeOptions = [];
   const seenPacketBarcodes = new Set();
+  const seenProductCodes = new Set();
 
+  // 1. Add packet barcodes (from groupedPacketProducts, already filtered by status)
   Object.keys(groupedPacketProducts).forEach(packetBarcode => {
     if (!seenPacketBarcodes.has(packetBarcode)) {
       seenPacketBarcodes.add(packetBarcode);
@@ -664,27 +665,32 @@ const ProductDetails = ({
           isEstimated: true,
           products: productsInPacket
         });
+        // Mark products in this packet as seen so they don't appear individually (optional)
+        productsInPacket.forEach(p => seenProductCodes.add(p.code));
       }
     }
   });
 
-  selectedSalesmanProducts.forEach((product) => {
-    const packetBarcode = getPacketBarcode(product.PCode_BarCode);
-    const isEstimated = hasEstimate(product.PCode_BarCode);
-    
-    if (!isEstimated || !packetBarcode) {
+  // 2. Add ALL assigned products as individual options (regardless of estimate status)
+  assignedProducts.forEach((product) => {
+    const productCode = product.PCode_BarCode;
+    if (!seenProductCodes.has(productCode)) {
+      seenProductCodes.add(productCode);
+      const packetBarcode = getPacketBarcode(productCode);
+      const isEstimated = hasEstimate(productCode);
       barcodeOptions.push({
-        value: product.PCode_BarCode,
-        label: `${product.PCode_BarCode} - ${product.product_name || product.sub_category || ''}`,
+        value: productCode,
+        label: `${productCode} - ${product.product_name || product.sub_category || ''}`,
         type: "assigned",
         productData: product,
-        packetBarcode: null,
-        isEstimated: false,
+        packetBarcode: packetBarcode || null,
+        isEstimated: isEstimated,
         products: [product]
       });
     }
   });
 
+  // Remove duplicates (just in case)
   const uniqueBarcodeOptions = [];
   const seenValues = new Set();
   for (const option of barcodeOptions) {
@@ -694,6 +700,7 @@ const ProductDetails = ({
     }
   }
 
+  // Add default barcode if any
   if (defaultBarcode && !uniqueBarcodeOptions.some((option) => option.value === defaultBarcode)) {
     uniqueBarcodeOptions.unshift({ value: defaultBarcode, label: defaultBarcode });
   }
@@ -706,15 +713,15 @@ const ProductDetails = ({
 
   const handleBarcodeSelect = (selectedValue) => {
     const selectedOption = uniqueBarcodeOptions.find(opt => opt.value === selectedValue);
-    
+
     if (selectedOption) {
       if (selectedOption.type === "packet" && selectedOption.products && selectedOption.products.length > 0) {
         console.log("Packet selected with products:", selectedOption.products);
-        
+
         const storedRepairDetails = JSON.parse(localStorage.getItem(`repairDetails_${tabId}`)) || [];
         const existingCodes = new Set(storedRepairDetails.map(item => item.code));
         const newProducts = selectedOption.products.filter(product => !existingCodes.has(product.code));
-        
+
         if (newProducts.length === 0) {
           alert("All products in this packet are already added");
           setFormData(prev => ({
@@ -726,15 +733,15 @@ const ProductDetails = ({
           }));
           return;
         }
-        
-       const productsWithImages = newProducts.map(product => {
-  const assignedProduct = selectedSalesmanProducts?.find(
-    p => p.PCode_BarCode === product.code
-  );
-          
+
+        const productsWithImages = newProducts.map(product => {
+          const assignedProduct = selectedSalesmanProducts?.find(
+            p => p.PCode_BarCode === product.code
+          );
+
           let imagePath = assignedProduct?.image || null;
           let imagePreview = null;
-          
+
           if (imagePath) {
             if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
               imagePreview = imagePath;
@@ -744,7 +751,7 @@ const ProductDetails = ({
               imagePreview = `${baseURL}/${imagePath}`;
             }
           }
-          
+
           return {
             ...product,
             code: product.code,
@@ -790,13 +797,13 @@ const ProductDetails = ({
             item_id: assignedProduct?.item_id || null
           };
         });
-        
+
         const updatedRepairDetails = [...storedRepairDetails, ...productsWithImages];
         setRepairDetails(updatedRepairDetails);
         localStorage.setItem(`repairDetails_${tabId}`, JSON.stringify(updatedRepairDetails));
-        
+
         setIsPacketAdded(true);
-        
+
         setFormData(prev => ({
           ...prev,
           code: selectedValue,
@@ -840,9 +847,9 @@ const ProductDetails = ({
           festival_discount: '',
           custom_purity: ''
         }));
-        
+
         alert(`Added ${productsWithImages.length} product(s) from packet ${selectedOption.packetBarcode}`);
-        
+
       } else {
         setIsPacketAdded(false);
         if (selectedOption.packetBarcode) {
@@ -1041,7 +1048,7 @@ const ProductDetails = ({
               variant="primary"
               size="sm"
               onClick={startScanner}
-              style={{ 
+              style={{
                 backgroundColor: '#007bff',
                 borderColor: '#007bff',
                 whiteSpace: 'nowrap',
@@ -1063,7 +1070,7 @@ const ProductDetails = ({
               variant="success"
               size="sm"
               onClick={startPacketScanner}
-              style={{ 
+              style={{
                 backgroundColor: '#28a745',
                 borderColor: '#28a745',
                 whiteSpace: 'nowrap',
@@ -1160,9 +1167,9 @@ const ProductDetails = ({
               <InputField label="Qty" name="qty" value={formData.qty} onChange={handleChange} readOnly={!isQtyEditable} disabled={isPacketAdded} />
             </Col>
             <Col xs={12} md={5}>
-              <div style={{ 
-                display: 'flex', 
-                alignItems: 'center', 
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
                 gap: '6px',
                 flexWrap: 'nowrap',
                 overflow: 'visible'
@@ -1276,81 +1283,10 @@ const ProductDetails = ({
           </>
         ) : (
           <>
-            {/* ================================================ */}
-            {/* COMMENTED OUT: All fields from Selling Purity to Total MC */}
-            {/* ================================================ */}
-            {/* 
-            <Col xs={12} md={2}>
-              <InputField
-                label="Selling Purity"
-                name="selling_purity"
-                type="select"
-                value={formData.selling_purity}
-                onChange={handleChange}
-                options={[
-                  ...(formData.product_name ? [{
-                    label: subcategoryOptions.find(option => option.value === formData.product_name)?.selling_purity || "Default Purity",
-                    value: subcategoryOptions.find(option => option.value === formData.product_name)?.selling_purity || ""
-                  }] : []),
-                  { label: "Manual", value: "Manual" }
-                ]}
-                disabled={isPacketAdded}
-              />
-            </Col>
-
-            {formData.selling_purity === "Manual" && (
-              <Col xs={12} md={2}>
-                <InputField label="Custom Purity %" name="custom_purity" value={formData.custom_purity || ""} onChange={handleChange} disabled={isPacketAdded} />
-              </Col>
-            )}
-
-            <Col xs={12} md={1}><InputField label="Gross Wt" name="gross_weight" type='number' value={formData.gross_weight || ""} onChange={handleChange} disabled={isPacketAdded} /></Col>
-            <Col xs={12} md={1}><InputField label="Stone Wt" name="stone_weight" type='number' value={formData.stone_weight || ""} onChange={handleChange} disabled={isPacketAdded} /></Col>
-            <Col xs={12} md={1}><InputField label="Weight BW" name="weight_bw" value={formData.weight_bw || ""} onChange={handleChange} readOnly disabled={isPacketAdded} /></Col>
-
-            <Col xs={12} md={2}>
-              <InputField
-                label="Wastage On"
-                name="va_on"
-                type="select"
-                value={formData.va_on || ""}
-                onChange={handleChange}
-                options={[
-                  { value: "Gross Weight", label: "Gross Weight" },
-                  { value: "Weight BW", label: "Weight BW" },
-                  ...(formData.va_on && !["Gross Weight", "Weight BW"].includes(formData.va_on) ? [{ value: formData.va_on, label: formData.va_on }] : []),
-                ]}
-                disabled={isPacketAdded}
-              />
-            </Col>
-            <Col xs={12} md={1}><InputField label="Wastage%" name="va_percent" type='number' value={formData.va_percent || "0"} onChange={handleChange} disabled={isPacketAdded} /></Col>
-            <Col xs={12} md={1}><InputField label="W.Wt" name="wastage_weight" value={formData.wastage_weight || "0.00"} onChange={handleChange} readOnly disabled={isPacketAdded} /></Col>
-            <Col xs={12} md={2}><InputField label="Total Weight AW" name="total_weight_av" value={formData.total_weight_av || ""} onChange={handleChange} readOnly disabled={isPacketAdded} /></Col>
-
-            <Col xs={12} md={2}>
-              <InputField
-                label="MC On"
-                name="mc_on"
-                type="select"
-                value={formData.mc_on || ""}
-                onChange={handleChange}
-                options={[
-                  { value: "MC / Gram", label: "MC / Gram" },
-                  { value: "MC / Piece", label: "MC / Piece" },
-                  { value: "MC %", label: "MC %" },
-                  ...(formData.mc_on && !["MC / Gram", "MC / Piece", "MC %"].includes(formData.mc_on) ? [{ value: formData.mc_on, label: formData.mc_on }] : []),
-                ]}
-                disabled={isPacketAdded}
-              />
-            </Col>
-            <Col xs={12} md={1}><InputField label={formData.mc_on === "MC %" ? "MC %" : "MC/Gm"} name="mc_per_gram" type='number' value={formData.mc_per_gram || ""} onChange={handleChange} readOnly={formData.mc_on === "MC / Piece"} disabled={isPacketAdded} /></Col>
-            <Col xs={12} md={1}><InputField label="Total MC" name="making_charges" type='number' value={formData.making_charges || ""} onChange={handleChange} disabled={formData.mc_on === "MC / Gram" || isPacketAdded} /></Col>
-            */}
-
             <Col xs={12} md={5}>
-              <div style={{ 
-                display: 'flex', 
-                alignItems: 'center', 
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
                 gap: '6px',
                 flexWrap: 'nowrap',
                 overflow: 'visible'
@@ -1473,7 +1409,7 @@ const ProductDetails = ({
         <Modal.Body style={{ textAlign: 'center', padding: '20px' }}>
           <div id="barcode-reader" style={{ width: '100%', minHeight: '300px' }}></div>
           <p className="mt-3">Point your camera at the product barcode to scan and automatically load product details</p>
-          <p className="text-info mt-2">⚠️ Only products assigned to you and with status "Available" can be scanned</p>
+          <p className="text-info mt-2">⚠️ Only products assigned to you and with status "Assigned" can be scanned</p>
         </Modal.Body>
         <Modal.Footer>
           <Button variant="secondary" onClick={stopScanner}>Cancel Scan</Button>
@@ -1488,7 +1424,7 @@ const ProductDetails = ({
         <Modal.Body style={{ textAlign: 'center', padding: '20px' }}>
           <div id="packet-barcode-reader" style={{ width: '100%', minHeight: '300px' }}></div>
           <p className="mt-3">Point your camera at the packet barcode to scan and automatically add all products from that packet</p>
-          <p className="text-info mt-2">⚠️ Only packets with products assigned to you will be added</p>
+          <p className="text-info mt-2">⚠️ Only packets with products assigned to you and status "Assigned" will be added</p>
         </Modal.Body>
         <Modal.Footer>
           <Button variant="secondary" onClick={stopPacketScanner}>Cancel Scan</Button>
