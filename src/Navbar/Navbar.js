@@ -23,6 +23,7 @@ function Navbar() {
   const location = useLocation();
   const navigate = useNavigate();
 
+
   useEffect(() => {
     if (location.pathname !== "/purchase") {
       localStorage.removeItem("tableData");
