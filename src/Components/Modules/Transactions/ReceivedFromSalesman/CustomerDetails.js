@@ -11,7 +11,8 @@ const CustomerDetails = ({
   setFormData,
   tabId,
   selectedSalesmanProducts = [],
-  estimatesData = []
+  estimatesData = [],
+  data = [] // opening_tags_entry data
 }) => {
   const [stockPoints, setStockPoints] = useState([]);
   const [salesmen, setSalesmen] = useState([]);
@@ -25,7 +26,7 @@ const CustomerDetails = ({
   const canvasRef = useRef(null);
   const fileInputRef = useRef(null);
 
-  // New states for StockOutWard
+  // States for StockOutWard
   const [stockOutWardOptions, setStockOutWardOptions] = useState([]);
   const [selectedStockOutWard, setSelectedStockOutWard] = useState("");
   const [stockOutWardGrossWt, setStockOutWardGrossWt] = useState("");
@@ -34,7 +35,7 @@ const CustomerDetails = ({
   const userName = localStorage.getItem('userName');
   console.log("Retrieved from localStorage - Key: 'userName', Value:", userName);
 
-  // ===== NEW FUNCTION: Calculate total gross weight of all products =====
+  // ===== Calculate total gross weight of all products =====
   const calculateTotalGrossWeight = () => {
     if (!selectedSalesmanProducts || selectedSalesmanProducts.length === 0) {
       return 0;
@@ -48,20 +49,37 @@ const CustomerDetails = ({
     return totalGrossWt;
   };
 
-  // Build StockOutWard options from selectedSalesmanProducts and estimates
+  // ===== Build StockOutWard options - SIMILAR TO PRODUCT DETAILS =====
   useEffect(() => {
     const buildStockOutWardOptions = () => {
       const options = [];
-      const seenBarcodes = new Set();
+      const seenPacketBarcodes = new Set();
+      const seenProductCodes = new Set();
 
-      // 1. Add Packet Barcodes from estimates (if product has estimate)
-      if (estimatesData && estimatesData.length > 0) {
+      console.log("Building StockOutWard options...");
+      console.log("selectedSalesmanProducts:", selectedSalesmanProducts);
+      console.log("data (opening_tags_entry):", data);
+      console.log("estimatesData:", estimatesData);
+
+      // ===== GET ASSIGNED PRODUCTS WITH STATUS "ASSIGNED" =====
+      const assignedProducts = selectedSalesmanProducts.filter(product => {
+        const tag = data.find(t => t.PCode_BarCode === product.PCode_BarCode);
+        return tag && tag.Status === "Assigned";
+      });
+
+      console.log("Assigned products with Status='Assigned':", assignedProducts);
+
+      // ===== 1. ADD PACKET BARCODES (from estimates) =====
+      if (estimatesData && estimatesData.length > 0 && data && data.length > 0) {
         const packetMap = {};
+        
         estimatesData.forEach(est => {
           if (est.packet_barcode && est.code) {
-            const isAssigned = selectedSalesmanProducts.some(
+            // Check if this product is assigned to the salesman with Status "Assigned"
+            const isAssigned = assignedProducts.some(
               p => p.PCode_BarCode === est.code
             );
+            
             if (isAssigned) {
               if (!packetMap[est.packet_barcode]) {
                 packetMap[est.packet_barcode] = [];
@@ -71,9 +89,10 @@ const CustomerDetails = ({
           }
         });
 
+        // Add packet options
         Object.keys(packetMap).forEach(packetBarcode => {
-          if (!seenBarcodes.has(packetBarcode)) {
-            seenBarcodes.add(packetBarcode);
+          if (!seenPacketBarcodes.has(packetBarcode)) {
+            seenPacketBarcodes.add(packetBarcode);
             const productsInPacket = packetMap[packetBarcode];
             let totalGrossWt = 0;
             productsInPacket.forEach(est => {
@@ -87,21 +106,27 @@ const CustomerDetails = ({
               packetBarcode: packetBarcode,
               products: productsInPacket
             });
+            // Mark products in this packet as seen
+            productsInPacket.forEach(p => seenProductCodes.add(p.code));
           }
         });
       }
 
-      // 2. Add Normal Barcodes (products without packet barcode or not estimated)
-      selectedSalesmanProducts.forEach(product => {
-        const hasEstimate = estimatesData.some(est => 
-          est.code === product.PCode_BarCode && est.packet_barcode
+      // ===== 2. ADD INDIVIDUAL BARCODES (products with Status "Assigned") =====
+      assignedProducts.forEach((product) => {
+        const productCode = product.PCode_BarCode;
+        
+        // Check if this product already has a packet barcode
+        const hasPacketBarcode = estimatesData.some(est => 
+          est.code === productCode && est.packet_barcode
         );
         
-        if (!hasEstimate && !seenBarcodes.has(product.PCode_BarCode)) {
-          seenBarcodes.add(product.PCode_BarCode);
+        // Only add if not already in a packet and not already seen
+        if (!hasPacketBarcode && !seenProductCodes.has(productCode)) {
+          seenProductCodes.add(productCode);
           options.push({
-            value: product.PCode_BarCode,
-            label: `${product.PCode_BarCode} - ${product.product_name || product.sub_category || 'Product'}`,
+            value: productCode,
+            label: `${productCode} - ${product.product_name || product.sub_category || 'Product'}`,
             type: "barcode",
             grossWeight: parseFloat(product.gross_weight) || 0,
             packetBarcode: null,
@@ -111,27 +136,24 @@ const CustomerDetails = ({
       });
 
       setStockOutWardOptions(options);
-      console.log("StockOutWard Options built:", options);
+      console.log("Final StockOutWard Options:", options);
     };
 
     buildStockOutWardOptions();
-  }, [selectedSalesmanProducts, estimatesData]);
+  }, [selectedSalesmanProducts, estimatesData, data]);
 
-  // ===== UPDATED: Handle StockOutWard selection =====
+  // ===== Handle StockOutWard selection =====
   const handleStockOutWardChange = (e) => {
     const selectedValue = e.target.value;
     console.log("StockOutWard selected:", selectedValue);
     setSelectedStockOutWard(selectedValue);
     
-    // Find the selected option
     const selectedOption = stockOutWardOptions.find(opt => opt.value === selectedValue);
     
     if (selectedOption) {
-      // If a specific packet/barcode is selected, show its gross weight
       const grossWt = parseFloat(selectedOption.grossWeight) || 0;
       setStockOutWardGrossWt(grossWt.toFixed(3));
       
-      // Update formData with the selection
       setFormData(prev => ({
         ...prev,
         stock_outward_barcode: selectedValue,
@@ -142,7 +164,6 @@ const CustomerDetails = ({
       
       console.log("Updated formData with stock_outward_barcode:", selectedValue);
     } else {
-      // If "Select Barcode/Packet" is chosen, show total gross weight
       const totalGrossWt = calculateTotalGrossWeight();
       setStockOutWardGrossWt(totalGrossWt.toFixed(3));
       
@@ -156,25 +177,21 @@ const CustomerDetails = ({
     }
   };
 
-  // ===== NEW: Update StockOutWardGrossWt whenever salesman changes =====
+  // ===== Update StockOutWardGrossWt whenever salesman changes =====
   useEffect(() => {
     if (formData.salesman_id && selectedSalesmanProducts.length > 0) {
-      // When salesman is selected, calculate and display total gross weight of all products
       const totalGrossWt = calculateTotalGrossWeight();
       setStockOutWardGrossWt(totalGrossWt.toFixed(3));
       
-      // Also update formData with the total gross weight
       setFormData(prev => ({
         ...prev,
         stock_outward_gross_wt: totalGrossWt.toFixed(3)
       }));
       
-      // Reset selected dropdown to default
       setSelectedStockOutWard("");
       
       console.log("Total Gross Weight for Salesman:", totalGrossWt.toFixed(3));
     } else {
-      // If no salesman selected, clear the field
       setStockOutWardGrossWt("");
       setFormData(prev => ({
         ...prev,
@@ -186,7 +203,6 @@ const CustomerDetails = ({
   // Reset StockOutWard fields when salesman or stock point changes
   useEffect(() => {
     setSelectedStockOutWard("");
-    // Don't clear gross weight here, it will be updated by the above useEffect
   }, [formData.salesman_id, formData.active_stock_point_id]);
 
   useEffect(() => {
@@ -197,31 +213,23 @@ const CustomerDetails = ({
   // Set active stock point based on localStorage value
   useEffect(() => {
     if (stockPoints.length > 0 && userName) {
-      console.log("All Stock Points from API:", stockPoints);
-      console.log("Looking for stock point with name exactly:", userName);
-      
       let matchingStockPoint = stockPoints.find(
         sp => sp.stock_point_name === userName
       );
       
       if (!matchingStockPoint) {
-        console.log("Exact match not found, trying case-insensitive match...");
         matchingStockPoint = stockPoints.find(
           sp => sp.stock_point_name?.toLowerCase() === userName.toLowerCase()
         );
       }
       
       if (!matchingStockPoint) {
-        console.log("Case-insensitive match not found, trying trim and case-insensitive...");
         matchingStockPoint = stockPoints.find(
           sp => sp.stock_point_name?.toLowerCase().trim() === userName.toLowerCase().trim()
         );
       }
       
-      console.log("Matching Stock Point found:", matchingStockPoint);
-      
       if (matchingStockPoint) {
-        console.log("Setting active stock point to ID:", matchingStockPoint.stock_point_id);
         setFormData(prev => ({
           ...prev,
           active_stock_point_id: matchingStockPoint.stock_point_id.toString(),
@@ -229,12 +237,9 @@ const CustomerDetails = ({
         }));
         setIsLoading(false);
       } else if (stockPoints.length > 0 && !formData.active_stock_point_id) {
-        console.log("No matching stock point found for:", userName);
-        console.log("Available stock point names:", stockPoints.map(sp => sp.stock_point_name));
         setIsLoading(false);
       }
     } else if (stockPoints.length > 0 && !userName) {
-      console.log("No userName found in localStorage");
       setIsLoading(false);
     }
   }, [stockPoints, userName]);
@@ -242,7 +247,6 @@ const CustomerDetails = ({
   const fetchStockPoints = async () => {
     try {
       const response = await axios.get(`${baseURL}/api/stockpoints`);
-      console.log("Fetched Stock Points:", response.data);
       setStockPoints(response.data);
     } catch (error) {
       console.error("Error fetching stock points:", error);
@@ -253,13 +257,9 @@ const CustomerDetails = ({
   const fetchSalesmen = async () => {
     try {
       const response = await axios.get(`${baseURL}/get/account-details`);
-      console.log("Fetched Salesmen:", response.data);
-      
       const filteredSalesmen = response.data.filter(
         account => account.account_group === "SALESMAN"
       );
-      
-      console.log("Filtered Salesmen:", filteredSalesmen);
       setSalesmen(filteredSalesmen);
     } catch (error) {
       console.error("Error fetching salesmen:", error);
@@ -268,7 +268,6 @@ const CustomerDetails = ({
 
   const handleSalesmanChange = (e) => {
     const value = e.target.value;
-    console.log("Salesman selected:", value);
     
     setFormData(prev => ({
       ...prev,
@@ -279,7 +278,6 @@ const CustomerDetails = ({
 
   const handleActiveStockPointChange = (e) => {
     const value = e.target.value;
-    console.log("Manual selection changed to:", value);
     
     setFormData(prev => ({
       ...prev,
@@ -303,7 +301,6 @@ const CustomerDetails = ({
   };
 
   // ============= CAMERA FUNCTIONS =============
-  
   const startCamera = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ 
@@ -385,7 +382,6 @@ const CustomerDetails = ({
       handleImageUpload(files[0]);
     }
   };
-
   // ============= END CAMERA FUNCTIONS =============
 
   // Prepare salesman options
@@ -414,6 +410,12 @@ const CustomerDetails = ({
       label: opt.label
     }))
   ];
+
+  // Count available products with Status === "Assigned"
+  const assignedCount = selectedSalesmanProducts.filter(product => {
+    const tag = data.find(t => t.PCode_BarCode === product.PCode_BarCode);
+    return tag && tag.Status === "Assigned";
+  }).length;
 
   if (isLoading) {
     return <div>Loading...</div>;
@@ -547,6 +549,21 @@ const CustomerDetails = ({
             options={stockOutWardOptionsList}
             required
           />
+          {formData.salesman_id && (
+            <div style={{ fontSize: '11px', color: '#666', marginTop: '2px' }}>
+              {/* Available: {stockOutWardOptions.length} assigned products with Status="Assigned" */}
+              {stockOutWardOptions.length === 0 && assignedCount > 0 && (
+                <span style={{ color: '#dc3545', display: 'block' }}>
+                  ⚠️ No products found with Status="Assigned". They may have been already received.
+                </span>
+              )}
+              {stockOutWardOptions.length === 0 && assignedCount === 0 && (
+                <span style={{ color: '#dc3545', display: 'block' }}>
+                  ⚠️ No assigned products found for this salesman.
+                </span>
+              )}
+            </div>
+          )}
         </Col>
 
         <Col xs={12} md={4}>

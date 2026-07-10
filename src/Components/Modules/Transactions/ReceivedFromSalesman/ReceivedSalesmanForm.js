@@ -2871,7 +2871,8 @@ const handleSave = async () => {
                 mobileRef={mobileRef}
                 tabId={tabId}
                 selectedSalesmanProducts={selectedSalesmanProducts}  
-                estimatesData={estimatesData}                        
+                estimatesData={estimatesData}
+                data = {data}                        
               />
             </div>
             <div className="sales-form-right">
