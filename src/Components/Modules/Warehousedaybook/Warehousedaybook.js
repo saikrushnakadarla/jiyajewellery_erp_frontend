@@ -29,18 +29,47 @@ const DETAIL_ITEMS_KEY = {
 };
 
 const TYPE_META = {
-  "inward-main": { label: "Inward from Main", group: "inward", short: "IN · Main" },
-  "inward-salesman": { label: "Inward from Salesman", group: "inward", short: "IN · Salesman" },
-  "outward-main": { label: "Outward to Main", group: "outward", short: "OUT · Main" },
-  "outward-salesman": { label: "Outward to Salesman", group: "outward", short: "OUT · Salesman" },
+  "inward-main": {
+    label: "Inward from Main",
+    group: "inward",
+    short: "IN · Main",
+    code: "op",
+    tone: "#2F4A3C",
+    order: 0,
+  },
+  "outward-salesman": {
+    label: "Outward to Salesman",
+    group: "outward",
+    short: "OUT · Salesman",
+    code: "to sm",
+    tone: "#6E3B28",
+    order: 1,
+  },
+  "inward-salesman": {
+    label: "Inward from Salesman",
+    group: "inward",
+    short: "IN · Salesman",
+    code: "from sm",
+    tone: "#2F4A3C",
+    order: 2,
+  },
+  "outward-main": {
+    label: "Outward to Main",
+    group: "outward",
+    short: "OUT · Main",
+    code: "to admin",
+    tone: "#6E3B28",
+    order: 3,
+  },
 };
+
+const GROUP_ORDER = ["inward-main", "outward-salesman", "inward-salesman", "outward-main"];
 
 function toNum(v) {
   const n = parseFloat(v);
   return Number.isFinite(n) ? n : 0;
 }
 
-// Renders a UTC ISO timestamp into an IST calendar-day key (YYYY-MM-DD)
 function toDateKey(isoStr) {
   if (!isoStr) return null;
   const d = new Date(isoStr);
@@ -51,6 +80,12 @@ function toDateKey(isoStr) {
     month: "2-digit",
     day: "2-digit",
   }).format(d);
+}
+
+function toTimestamp(isoStr) {
+  if (!isoStr) return 0;
+  const d = new Date(isoStr);
+  return isNaN(d.getTime()) ? 0 : d.getTime();
 }
 
 function formatDateKeyLong(key) {
@@ -99,27 +134,18 @@ export default function DayBook() {
   const [detailLoading, setDetailLoading] = useState(null);
   const [detailError, setDetailError] = useState(null);
 
-  // Get current user's stock room label from localStorage (used for
-  // name-based filters on stockTransfers / receivedTransfers / assignedTransfers)
   const currentUserStockRoom = useMemo(() => {
     try {
       const userId = localStorage.getItem('userId');
-      const userName = localStorage.getItem('userName');
-      // If userId is 2, user is in 2ND STOCK ROOM
-      // For other users, adjust this logic based on your mapping
       if (userId === '2') {
         return '2ND STOCK ROOM';
       }
-      // Add more mappings as needed
-      return userName || '';
+      return localStorage.getItem('userName') || '';
     } catch (e) {
       return '';
     }
   }, []);
 
-  // Get the raw current user id (used for id-based filters, e.g. return
-  // transfers, where the API only carries from_user_id/to_user_id and NOT
-  // a stock-point name that matches currentUserStockRoom).
   const currentUserId = useMemo(() => {
     try {
       return localStorage.getItem('userId') || '';
@@ -157,17 +183,13 @@ export default function DayBook() {
     loadAll();
   }, [loadAll]);
 
-  // ------------------------------------------------------------------
   // Normalize all four sources into one flat ledger of records
-  // Filter based on current user's stock room / user id
-  // ------------------------------------------------------------------
   const records = useMemo(() => {
     const list = [];
 
     raw.stockTransfers.forEach((t) => {
-      // Only include if the transfer involves current user's stock room
-      if (currentUserStockRoom && 
-          t.to_stock_point_name !== currentUserStockRoom && 
+      if (currentUserStockRoom &&
+          t.to_stock_point_name !== currentUserStockRoom &&
           t.from_stock_point_name !== currentUserStockRoom) {
         return;
       }
@@ -177,6 +199,7 @@ export default function DayBook() {
         id: t.transfer_id,
         number: t.transfer_number,
         dateKey: toDateKey(t.transfer_date),
+        ts: toTimestamp(t.transfer_date),
         qty: toNum(t.total_quantity),
         gross: toNum(t.total_gross_weight),
         net: toNum(t.total_net_weight),
@@ -190,9 +213,8 @@ export default function DayBook() {
     });
 
     raw.receivedTransfers.forEach((t) => {
-      // Only include if the transfer involves current user's stock room
-      if (currentUserStockRoom && 
-          t.to_stock_point_name !== currentUserStockRoom && 
+      if (currentUserStockRoom &&
+          t.to_stock_point_name !== currentUserStockRoom &&
           t.from_salesman_name !== currentUserStockRoom) {
         return;
       }
@@ -202,6 +224,7 @@ export default function DayBook() {
         id: t.received_id,
         number: t.received_number,
         dateKey: toDateKey(t.transfer_date),
+        ts: toTimestamp(t.transfer_date),
         qty: toNum(t.total_quantity),
         gross: toNum(t.total_gross_weight),
         net: toNum(t.total_net_weight),
@@ -214,17 +237,6 @@ export default function DayBook() {
       });
     });
 
-    // -----------------------------------------------------------------
-    // RETURN-TO-MAIN-STOCK
-    // FIX: this endpoint's "to_stock_point_name" is always null (a return
-    // always goes to Main Stock, which has no stock_point row), and
-    // "from_stock_point_name" is the physical room name (e.g.
-    // "MAIN STOCK ROOM"), which will NEVER equal a synthetic room label
-    // like "2ND STOCK ROOM". Filtering by stock-point name therefore
-    // dropped every return transfer for every user. The record actually
-    // identifies its owner via from_user_id / to_user_id, so filter on
-    // that instead.
-    // -----------------------------------------------------------------
     raw.returnTransfers.forEach((t) => {
       if (
         currentUserId &&
@@ -239,6 +251,7 @@ export default function DayBook() {
         id: t.return_id,
         number: t.return_number,
         dateKey: toDateKey(t.return_date),
+        ts: toTimestamp(t.return_date),
         qty: toNum(t.total_quantity),
         gross: toNum(t.total_gross_weight),
         net: toNum(t.total_net_weight),
@@ -252,9 +265,8 @@ export default function DayBook() {
     });
 
     raw.assignedTransfers.forEach((t) => {
-      // Only include if the transfer involves current user's stock room
-      if (currentUserStockRoom && 
-          t.from_stock_point_name !== currentUserStockRoom && 
+      if (currentUserStockRoom &&
+          t.from_stock_point_name !== currentUserStockRoom &&
           t.to_salesman_name !== currentUserStockRoom) {
         return;
       }
@@ -264,6 +276,7 @@ export default function DayBook() {
         id: t.assigned_id,
         number: t.assigned_number,
         dateKey: toDateKey(t.transfer_date),
+        ts: toTimestamp(t.transfer_date),
         qty: toNum(t.total_quantity),
         gross: toNum(t.total_gross_weight),
         net: toNum(t.total_net_weight),
@@ -276,18 +289,157 @@ export default function DayBook() {
       });
     });
 
+    // Sort records chronologically
+    list.sort((a, b) => (a.ts || 0) - (b.ts || 0));
     return list;
   }, [raw, currentUserStockRoom, currentUserId]);
 
-  // ------------------------------------------------------------------
-  // Group by day
-  // ------------------------------------------------------------------
+  // Get the cumulative balance for ALL sections up to a certain point
+  const getCumulativeBalance = useCallback((dateKey, typeKey, entryIndex = null) => {
+    if (!dateKey) return 0;
+    
+    // Get all records for this day, sorted by type order
+    const dayRecords = records
+      .filter(r => r.dateKey === dateKey)
+      .sort((a, b) => {
+        const orderA = TYPE_META[a.type].order;
+        const orderB = TYPE_META[b.type].order;
+        if (orderA !== orderB) return orderA - orderB;
+        return (a.ts || 0) - (b.ts || 0);
+      });
+    
+    let balance = 0;
+    let foundTarget = false;
+    
+    for (const r of dayRecords) {
+      // If we've passed the target type, stop
+      if (foundTarget) break;
+      
+      // If this is the target type and we have an entry index, process up to that point
+      if (r.type === typeKey) {
+        if (entryIndex !== null) {
+          // Process only up to the specified entry index for this type
+          const typeEntries = dayRecords.filter(rec => rec.type === typeKey);
+          const currentIndex = typeEntries.indexOf(r);
+          if (currentIndex <= entryIndex) {
+            const group = TYPE_META[r.type].group;
+            if (group === "inward") {
+              balance += r.qty;
+            } else {
+              balance -= r.qty;
+            }
+          }
+          if (currentIndex === entryIndex) {
+            foundTarget = true;
+          }
+        } else {
+          // Process all entries of this type up to this point
+          const group = TYPE_META[r.type].group;
+          if (group === "inward") {
+            balance += r.qty;
+          } else {
+            balance -= r.qty;
+          }
+        }
+      } else {
+        // Process other types that come before this type in order
+        const orderA = TYPE_META[r.type].order;
+        const orderB = TYPE_META[typeKey].order;
+        if (orderA < orderB) {
+          const group = TYPE_META[r.type].group;
+          if (group === "inward") {
+            balance += r.qty;
+          } else {
+            balance -= r.qty;
+          }
+        }
+      }
+    }
+    
+    return balance;
+  }, [records]);
+
+  // Get opening balance for a section on a specific day
+  const getOpeningBalanceForSection = useCallback((dateKey, typeKey) => {
+    if (!dateKey || !typeKey) return 0;
+    
+    // Get all records for this day that come BEFORE this type
+    const dayRecords = records
+      .filter(r => r.dateKey === dateKey)
+      .sort((a, b) => {
+        const orderA = TYPE_META[a.type].order;
+        const orderB = TYPE_META[b.type].order;
+        if (orderA !== orderB) return orderA - orderB;
+        return (a.ts || 0) - (b.ts || 0);
+      });
+    
+    let balance = 0;
+    const targetOrder = TYPE_META[typeKey].order;
+    
+    for (const r of dayRecords) {
+      const currentOrder = TYPE_META[r.type].order;
+      if (currentOrder < targetOrder) {
+        const group = TYPE_META[r.type].group;
+        if (group === "inward") {
+          balance += r.qty;
+        } else {
+          balance -= r.qty;
+        }
+      } else if (currentOrder === targetOrder) {
+        // Same type, don't include any entries of this type as opening
+        break;
+      }
+    }
+    
+    return balance;
+  }, [records]);
+
+  // Get balance after a specific record
+  const getBalanceAfterRecord = useCallback((recordKey, dateKey, typeKey) => {
+    if (!dateKey || !typeKey) return 0;
+    
+    const dayRecords = records
+      .filter(r => r.dateKey === dateKey)
+      .sort((a, b) => {
+        const orderA = TYPE_META[a.type].order;
+        const orderB = TYPE_META[b.type].order;
+        if (orderA !== orderB) return orderA - orderB;
+        return (a.ts || 0) - (b.ts || 0);
+      });
+    
+    let balance = 0;
+    let found = false;
+    
+    for (const r of dayRecords) {
+      const group = TYPE_META[r.type].group;
+      if (group === "inward") {
+        balance += r.qty;
+      } else {
+        balance -= r.qty;
+      }
+      
+      if (r.key === recordKey) {
+        found = true;
+        break;
+      }
+    }
+    
+    return found ? balance : 0;
+  }, [records]);
+
+  // Group by day, and within each day, by transaction type
   const byDate = useMemo(() => {
     const map = {};
     records.forEach((r) => {
       if (!r.dateKey) return;
       if (!map[r.dateKey]) {
         map[r.dateKey] = {
+          byType: {
+            "inward-main": [],
+            "outward-salesman": [],
+            "inward-salesman": [],
+            "outward-main": [],
+          },
           inward: [],
           outward: [],
           inwardQty: 0,
@@ -299,21 +451,32 @@ export default function DayBook() {
         };
       }
       const bucket = map[r.dateKey];
+      // Calculate balance for this record
+      const balanceAfter = getBalanceAfterRecord(r.key, r.dateKey, r.type);
+      const withBalance = { ...r, balanceAfter };
+      bucket.byType[r.type].push(withBalance);
       const group = TYPE_META[r.type].group;
       if (group === "inward") {
-        bucket.inward.push(r);
+        bucket.inward.push(withBalance);
         bucket.inwardQty += r.qty;
         bucket.inwardNet += r.net;
         bucket.inwardGross += r.gross;
       } else {
-        bucket.outward.push(r);
+        bucket.outward.push(withBalance);
         bucket.outwardQty += r.qty;
         bucket.outwardNet += r.net;
         bucket.outwardGross += r.gross;
       }
     });
+    // sort every list chronologically ascending within type
+    Object.values(map).forEach((bucket) => {
+      const byTs = (a, b) => (a.ts || 0) - (b.ts || 0);
+      bucket.inward.sort(byTs);
+      bucket.outward.sort(byTs);
+      GROUP_ORDER.forEach((t) => bucket.byType[t].sort(byTs));
+    });
     return map;
-  }, [records]);
+  }, [records, getBalanceAfterRecord]);
 
   const grandTotals = useMemo(() => {
     let inwardQty = 0, outwardQty = 0, inwardNet = 0, outwardNet = 0, inwardGross = 0, outwardGross = 0;
@@ -336,13 +499,11 @@ export default function DayBook() {
     };
   }, [records]);
 
-  // ------------------------------------------------------------------
-  // Calendar grid for viewMonth
-  // ------------------------------------------------------------------
+  // Calendar grid
   const calendarDays = useMemo(() => {
     const { year, month } = viewMonth;
     const firstOfMonth = new Date(Date.UTC(year, month, 1));
-    const startWeekday = firstOfMonth.getUTCDay(); // 0 = Sunday
+    const startWeekday = firstOfMonth.getUTCDay();
     const daysInMonth = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
     const cells = [];
     for (let i = 0; i < startWeekday; i++) cells.push(null);
@@ -368,12 +529,18 @@ export default function DayBook() {
     });
   };
 
-  const selectedBucket = byDate[selectedKey] || { 
-    inward: [], 
-    outward: [], 
-    inwardQty: 0, 
-    outwardQty: 0, 
-    inwardNet: 0, 
+  const selectedBucket = byDate[selectedKey] || {
+    byType: {
+      "inward-main": [],
+      "outward-salesman": [],
+      "inward-salesman": [],
+      "outward-main": [],
+    },
+    inward: [],
+    outward: [],
+    inwardQty: 0,
+    outwardQty: 0,
+    inwardNet: 0,
     outwardNet: 0,
     inwardGross: 0,
     outwardGross: 0,
@@ -406,6 +573,64 @@ export default function DayBook() {
 
   const todayKey = todayKeyIST();
 
+  // Get all entries for the selected day in order
+  const allEntries = useMemo(() => {
+    const entries = [];
+    let cumulativeBalance = 0;
+    
+    // Get opening balance for the first type
+    const firstType = GROUP_ORDER[0];
+    const openingBal = getOpeningBalanceForSection(selectedKey, firstType);
+    cumulativeBalance = openingBal;
+    
+    // Add opening entry
+    if (openingBal !== 0 || true) { // Always show opening if there are entries
+      entries.push({
+        isOpening: true,
+        type: 'opening',
+        des: 'Opening Balance',
+        opening: 'Op',
+        gross: '—',
+        inWard: openingBal > 0 ? fmtNum(openingBal, 0) : '—',
+        outWard: openingBal < 0 ? fmtNum(Math.abs(openingBal), 0) : '—',
+        balance: fmtNum(openingBal, 0),
+        key: 'opening-entry',
+      });
+    }
+    
+    // Process each type in order
+    GROUP_ORDER.forEach((typeKey) => {
+      const entriesOfType = selectedBucket.byType[typeKey] || [];
+      
+      entriesOfType.forEach((r) => {
+        const isInward = TYPE_META[r.type].group === "inward";
+        const des = getDesValue(r.type);
+        
+        // Update cumulative balance
+        if (isInward) {
+          cumulativeBalance += r.qty;
+        } else {
+          cumulativeBalance -= r.qty;
+        }
+        
+        entries.push({
+          isOpening: false,
+          type: r.type,
+          record: r,
+          des: des,
+          opening: '—',
+          gross: fmtNum(r.gross),
+          inWard: isInward ? fmtNum(r.qty, 0) : '—',
+          outWard: !isInward ? fmtNum(r.qty, 0) : '—',
+          balance: fmtNum(cumulativeBalance, 0),
+          key: r.key,
+        });
+      });
+    });
+    
+    return entries;
+  }, [selectedKey, selectedBucket, getOpeningBalanceForSection]);
+
   return (
     <div style={styles.page}>
       <style>{`
@@ -416,6 +641,10 @@ export default function DayBook() {
         .db-daybtn:hover:not(.db-daybtn-empty) { transform: translateY(-1px); box-shadow: 0 3px 10px rgba(35,32,25,0.15); }
         .db-row:hover { background: #FBF8F0; }
         .db-navbtn:hover { background: #232019; color: #F1ECE0; }
+        .db-opening-row { background: #F5F2EA; }
+        .db-opening-row:hover { background: #F5F2EA; }
+        .db-transfer-details { font-size: 11px; color: #5B5442; margin-top: 2px; padding-left: 4px; }
+        .db-remarks { font-size: 11px; color: #8A806B; margin-top: 2px; font-style: italic; padding-left: 4px; }
       `}</style>
 
       <header style={styles.header}>
@@ -513,7 +742,7 @@ export default function DayBook() {
           </div>
         </section>
 
-        {/* SELECTED DAY LEDGER */}
+        {/* SELECTED DAY LEDGER - SINGLE UNIFIED TABLE */}
         <section style={styles.ledgerCard}>
           <div style={styles.ledgerHeaderRow}>
             <div>
@@ -523,73 +752,94 @@ export default function DayBook() {
             <div style={styles.dayTotalsInline}>
               <span style={{ color: "#2F4A3C" }}>In: {fmtNum(selectedBucket.inwardQty, 0)} pcs / {fmtNum(selectedBucket.inwardNet)} g</span>
               <span style={{ color: "#6E3B28" }}>Out: {fmtNum(selectedBucket.outwardQty, 0)} pcs / {fmtNum(selectedBucket.outwardNet)} g</span>
+              <span style={styles.balancePill}>Balance: {fmtNum(selectedBucket.inwardQty - selectedBucket.outwardQty, 0)} pcs</span>
             </div>
           </div>
 
           {loading && <div style={styles.emptyNote}>Loading ledger entries…</div>}
 
-          {!loading && selectedBucket.inward.length === 0 && selectedBucket.outward.length === 0 && (
+          {!loading && allEntries.length === 0 && (
             <div style={styles.emptyNote}>No stock movement recorded for this day.</div>
           )}
 
-          {!loading && (selectedBucket.inward.length > 0 || selectedBucket.outward.length > 0) && (
+          {!loading && allEntries.length > 0 && (
             <>
-              {/* ADDED: Total Stock Inward and Outward Cards */}
+              {/* Total Stock Inward / Outward / Balance cards */}
               <div style={styles.dayTotalsCards}>
-                <TotalCard 
-                  label="Total Stock Inward" 
-                  value={`${fmtNum(selectedBucket.inwardQty, 0)} pcs`} 
-                  sub={`${fmtNum(selectedBucket.inwardGross)} g gross · ${fmtNum(selectedBucket.inwardNet)} g net`} 
-                  tone="forest" 
+                <TotalCard
+                  label="Total Stock Inward"
+                  value={`${fmtNum(selectedBucket.inwardQty, 0)} pcs`}
+                  sub={`${fmtNum(selectedBucket.inwardGross)} g gross · ${fmtNum(selectedBucket.inwardNet)} g net`}
+                  tone="forest"
                 />
-                <TotalCard 
-                  label="Total Stock Outward" 
-                  value={`${fmtNum(selectedBucket.outwardQty, 0)} pcs`} 
-                  sub={`${fmtNum(selectedBucket.outwardGross)} g gross · ${fmtNum(selectedBucket.outwardNet)} g net`} 
-                  tone="rust" 
+                <TotalCard
+                  label="Total Stock Outward"
+                  value={`${fmtNum(selectedBucket.outwardQty, 0)} pcs`}
+                  sub={`${fmtNum(selectedBucket.outwardGross)} g gross · ${fmtNum(selectedBucket.outwardNet)} g net`}
+                  tone="rust"
+                />
+                <TotalCard
+                  label="Balance (as of this day)"
+                  value={`${fmtNum(selectedBucket.inwardQty - selectedBucket.outwardQty, 0)} pcs`}
+                  sub="Running total across all entries"
+                  tone="brass"
+                  emphasis
                 />
               </div>
 
-              <div style={styles.ledgerTable}>
-                {/* INWARD COLUMN */}
-                <div style={styles.ledgerColumn}>
-                  <div style={{ ...styles.columnHeader, color: "#2F4A3C", borderColor: "#2F4A3C" }}>
-                    Inward (Dr) — {selectedBucket.inward.length} entr{selectedBucket.inward.length === 1 ? "y" : "ies"}
+              {/* SINGLE UNIFIED TABLE */}
+              <div style={styles.tableWrapper}>
+                {/* Table Header */}
+                <div style={styles.tableHeader}>
+                  <div style={styles.tableHeaderRow}>
+                    <span style={styles.tableHeaderCell}>Opening</span>
+                    <span style={styles.tableHeaderCell}>Gross Wt</span>
+                    <span style={styles.tableHeaderCell}>Des</span>
+                    <span style={styles.tableHeaderCell}>In Ward</span>
+                    <span style={styles.tableHeaderCell}>Out Ward</span>
+                    <span style={styles.tableHeaderCell}>Bal</span>
                   </div>
-                  {selectedBucket.inward.length === 0 && <div style={styles.emptyNote}>No inward entries.</div>}
-                  {selectedBucket.inward.map((r) => (
-                    <LedgerRow
-                      key={r.key}
-                      record={r}
-                      expanded={expandedTxn === r.key}
-                      onToggle={() => toggleExpand(r)}
-                      detailItems={detailCache[r.key]}
-                      isDetailLoading={detailLoading === r.key}
-                      detailError={expandedTxn === r.key ? detailError : null}
-                      tone="#2F4A3C"
-                    />
-                  ))}
                 </div>
 
-                {/* OUTWARD COLUMN */}
-                <div style={styles.ledgerColumn}>
-                  <div style={{ ...styles.columnHeader, color: "#6E3B28", borderColor: "#6E3B28" }}>
-                    Outward (Cr) — {selectedBucket.outward.length} entr{selectedBucket.outward.length === 1 ? "y" : "ies"}
-                  </div>
-                  {selectedBucket.outward.length === 0 && <div style={styles.emptyNote}>No outward entries.</div>}
-                  {selectedBucket.outward.map((r) => (
+                {/* Table Body - All entries in one table */}
+                {allEntries.map((entry) => {
+                  if (entry.isOpening) {
+                    return (
+                      <div key={entry.key} style={{ ...styles.ledgerRow, ...styles.openingRow, cursor: 'default' }}>
+                        <div style={styles.ledgerRowTable}>
+                          <span style={styles.ledgerCellOpening}>{entry.opening}</span>
+                          <span style={styles.ledgerCellGross}>{entry.gross}</span>
+                          <span style={styles.ledgerCellDes}>{entry.des}</span>
+                          <span style={styles.ledgerCellInward}>{entry.inWard}</span>
+                          <span style={styles.ledgerCellOutward}>{entry.outWard}</span>
+                          <span style={styles.ledgerCellBal}>{entry.balance}</span>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  const record = entry.record;
+                  const isInward = TYPE_META[record.type].group === "inward";
+                  
+                  return (
                     <LedgerRow
-                      key={r.key}
-                      record={r}
-                      expanded={expandedTxn === r.key}
-                      onToggle={() => toggleExpand(r)}
-                      detailItems={detailCache[r.key]}
-                      isDetailLoading={detailLoading === r.key}
-                      detailError={expandedTxn === r.key ? detailError : null}
-                      tone="#6E3B28"
+                      key={entry.key}
+                      record={record}
+                      expanded={expandedTxn === entry.key}
+                      onToggle={() => toggleExpand(record)}
+                      detailItems={detailCache[entry.key]}
+                      isDetailLoading={detailLoading === entry.key}
+                      detailError={expandedTxn === entry.key ? detailError : null}
+                      openingValue={entry.opening}
+                      grossValue={entry.gross}
+                      desValue={entry.des}
+                      inWardValue={entry.inWard}
+                      outWardValue={entry.outWard}
+                      balanceValue={entry.balance}
+                      isInward={isInward}
                     />
-                  ))}
-                </div>
+                  );
+                })}
               </div>
             </>
           )}
@@ -597,6 +847,15 @@ export default function DayBook() {
       </main>
     </div>
   );
+}
+
+// Helper function to get the description value based on type
+function getDesValue(typeKey) {
+  if (typeKey === 'inward-main') return 'asmin to warehouse';
+  if (typeKey === 'outward-salesman') return 'warehouse to sm';
+  if (typeKey === 'inward-salesman') return 'salesman to warehouse';
+  if (typeKey === 'outward-main') return 'warehouse to admin';
+  return '';
 }
 
 function TotalCard({ label, value, sub, tone, emphasis }) {
@@ -615,23 +874,42 @@ function TotalCard({ label, value, sub, tone, emphasis }) {
   );
 }
 
-function LedgerRow({ record, expanded, onToggle, detailItems, isDetailLoading, detailError, tone }) {
-  const meta = TYPE_META[record.type];
+function LedgerRow({ 
+  record, 
+  expanded, 
+  onToggle, 
+  detailItems, 
+  isDetailLoading, 
+  detailError, 
+  openingValue,
+  grossValue,
+  desValue,
+  inWardValue,
+  outWardValue,
+  balanceValue,
+  isInward 
+}) {
   return (
     <div style={styles.ledgerRowWrap}>
       <button className="db-row" style={styles.ledgerRow} onClick={onToggle}>
-        <div style={styles.ledgerRowTop}>
-          <span style={{ ...styles.typeTag, borderColor: tone, color: tone }}>{meta.short}</span>
-          <span style={styles.ledgerNumber}>{record.number}</span>
-          <span style={styles.expandIcon}>{expanded ? "−" : "+"}</span>
-        </div>
-        <div style={styles.ledgerRowBottom}>
-          <span>{record.from || "—"} → {record.to || "—"}</span>
-          <span style={styles.ledgerFigures}>
-            {fmtNum(record.qty, 0)} pcs · {fmtNum(record.gross)} g gross · {fmtNum(record.net)} g net
+        <div style={styles.ledgerRowTable}>
+          <span style={styles.ledgerCellOpening}>{openingValue || '—'}</span>
+          <span style={styles.ledgerCellGross}>{grossValue || fmtNum(record.gross)}</span>
+          <span style={styles.ledgerCellDes}>{desValue}</span>
+          <span style={{...styles.ledgerCellInward, ...(isInward ? styles.ledgerCellHighlight : {})}}>
+            {inWardValue}
           </span>
+          <span style={{...styles.ledgerCellOutward, ...(!isInward ? styles.ledgerCellHighlight : {})}}>
+            {outWardValue}
+          </span>
+          <span style={styles.ledgerCellBal}>{balanceValue}</span>
         </div>
-        {record.remarks && <div style={styles.remarksText}>{record.remarks}</div>}
+        {record.remarks && <div className="db-remarks">{record.remarks}</div>}
+        {record.from && record.to && (
+          <div className="db-transfer-details">
+            {record.from} → {record.to}
+          </div>
+        )}
       </button>
 
       {expanded && (
@@ -694,7 +972,7 @@ const styles = {
     borderBottom: "2px solid #232019",
     paddingBottom: "18px",
     marginBottom: "20px",
-    marginTop:"70px"
+    marginTop: "70px",
   },
   headerLeft: { display: "flex", alignItems: "center", gap: "14px" },
   stampCircle: {
@@ -758,7 +1036,7 @@ const styles = {
   },
   totalsStrip: {
     display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+    gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
     gap: "14px",
     marginBottom: "24px",
   },
@@ -774,11 +1052,11 @@ const styles = {
     boxShadow: "0 2px 10px rgba(169,130,47,0.15)",
   },
   totalLabel: { fontSize: "12px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: "8px" },
-  totalValue: { fontFamily: "'IBM Plex Mono', monospace", fontSize: "26px", fontWeight: 600, color: "#232019" },
+  totalValue: { fontFamily: "'IBM Plex Mono', monospace", fontSize: "24px", fontWeight: 600, color: "#232019" },
   totalSub: { fontSize: "12px", color: "#8A806B", marginTop: "4px", fontFamily: "'IBM Plex Mono', monospace" },
   mainGrid: {
     display: "grid",
-    gridTemplateColumns: "340px 1fr",
+    gridTemplateColumns: "320px 1fr",
     gap: "20px",
     alignItems: "start",
   },
@@ -859,74 +1137,123 @@ const styles = {
   ledgerDate: { fontFamily: "'Fraunces', serif", fontSize: "22px", fontWeight: 600, margin: 0 },
   dayTotalsInline: {
     display: "flex",
+    alignItems: "center",
     gap: "16px",
     fontFamily: "'IBM Plex Mono', monospace",
     fontSize: "13px",
     fontWeight: 600,
+    flexWrap: "wrap",
   },
-  // ADDED: Day totals cards container
+  balancePill: {
+    color: "#A9822F",
+    border: "1px solid #A9822F",
+    borderRadius: "3px",
+    padding: "3px 8px",
+  },
   dayTotalsCards: {
     display: "grid",
-    gridTemplateColumns: "1fr 1fr",
+    gridTemplateColumns: "repeat(3, 1fr)",
     gap: "12px",
-    marginBottom: "16px",
+    marginBottom: "24px",
   },
   emptyNote: { color: "#8A806B", fontSize: "13px", fontStyle: "italic", padding: "10px 0" },
-  ledgerTable: {
-    display: "grid",
-    gridTemplateColumns: "1fr 1fr",
-    gap: "0",
-    borderLeft: "1px solid #E4DCC7",
+  tableWrapper: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "2px",
+    width: "100%",
   },
-  ledgerColumn: { padding: "0 16px", borderRight: "1px solid #E4DCC7" },
-  columnHeader: {
-    fontSize: "12px",
-    fontWeight: 700,
-    textTransform: "uppercase",
-    letterSpacing: "0.5px",
-    borderBottom: "2px solid",
-    paddingBottom: "8px",
-    marginBottom: "12px",
+  ledgerRowWrap: { 
+    marginBottom: "0px",
   },
-  ledgerRowWrap: { marginBottom: "10px" },
   ledgerRow: {
     width: "100%",
     textAlign: "left",
     background: "#FFFDF8",
     border: "1px solid #E4DCC7",
-    borderRadius: "4px",
-    padding: "10px 12px",
+    borderRadius: "3px",
+    padding: "4px 8px",
     cursor: "pointer",
     display: "block",
+    transition: "background 0.15s",
   },
-  ledgerRowTop: { display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" },
-  typeTag: {
-    fontSize: "10px",
+  openingRow: {
+    background: "#F5F2EA",
+    borderColor: "#D9CFB4",
+    cursor: "default",
+  },
+  tableHeader: {
+    marginBottom: "2px",
+  },
+  tableHeaderRow: {
+    display: "grid",
+    gridTemplateColumns: "60px 80px 1fr 80px 80px 80px",
+    gap: "4px",
+    padding: "4px 8px",
+    borderBottom: "2px solid #232019",
     fontWeight: 700,
-    border: "1px solid",
-    borderRadius: "3px",
-    padding: "2px 6px",
-    textTransform: "uppercase",
-    letterSpacing: "0.4px",
-  },
-  ledgerNumber: { fontFamily: "'IBM Plex Mono', monospace", fontSize: "13px", fontWeight: 600, flex: 1 },
-  expandIcon: { fontSize: "16px", fontWeight: 700, color: "#8A806B" },
-  ledgerRowBottom: {
-    display: "flex",
-    justifyContent: "space-between",
-    flexWrap: "wrap",
-    gap: "6px",
     fontSize: "12px",
     color: "#5B5442",
   },
-  ledgerFigures: { fontFamily: "'IBM Plex Mono', monospace" },
-  remarksText: { fontSize: "11px", color: "#8A806B", marginTop: "6px", fontStyle: "italic" },
+  tableHeaderCell: {
+    textAlign: "center",
+    textTransform: "uppercase",
+    fontSize: "11px",
+    letterSpacing: "0.5px",
+  },
+  ledgerRowTable: {
+    display: "grid",
+    gridTemplateColumns: "60px 80px 1fr 80px 80px 80px",
+    gap: "4px",
+    alignItems: "center",
+  },
+  ledgerCellOpening: {
+    fontFamily: "'IBM Plex Mono', monospace",
+    fontSize: "12px",
+    color: "#5B5442",
+    textAlign: "center",
+  },
+  ledgerCellGross: {
+    fontFamily: "'IBM Plex Mono', monospace",
+    fontSize: "12px",
+    color: "#5B5442",
+    textAlign: "center",
+  },
+  ledgerCellDes: {
+    fontSize: "12px",
+    color: "#232019",
+    textAlign: "center",
+    fontWeight: 500,
+  },
+  ledgerCellInward: {
+    fontFamily: "'IBM Plex Mono', monospace",
+    fontSize: "12px",
+    color: "#5B5442",
+    textAlign: "center",
+  },
+  ledgerCellOutward: {
+    fontFamily: "'IBM Plex Mono', monospace",
+    fontSize: "12px",
+    color: "#5B5442",
+    textAlign: "center",
+  },
+  ledgerCellBal: {
+    fontFamily: "'IBM Plex Mono', monospace",
+    fontSize: "12px",
+    fontWeight: 600,
+    color: "#232019",
+    textAlign: "center",
+  },
+  ledgerCellHighlight: {
+    fontWeight: 700,
+    color: "#232019",
+  },
   detailPanel: {
-    marginTop: "6px",
-    padding: "10px 12px",
+    marginTop: "2px",
+    padding: "8px 10px",
     background: "#F1ECE0",
     border: "1px dashed #C9BFA6",
-    borderRadius: "4px",
+    borderRadius: "3px",
   },
   detailError: { fontSize: "12px", color: "#6E3B28" },
   itemTable: { width: "100%", borderCollapse: "collapse", fontSize: "12px", minWidth: "520px" },
