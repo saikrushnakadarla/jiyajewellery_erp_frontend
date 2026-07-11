@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useRef  } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import InputField from "../../../Pages/InputField/InputField";
-import DataTable from "../../../Pages/InputField/TableLayout"; // Reusable table component
+import DataTable from "../../../Pages/InputField/TableLayout";
 import { FaEdit, FaTrash } from "react-icons/fa";
 import axios from "axios";
 import baseURL from "../../../../Url/NodeBaseURL";
@@ -12,7 +12,6 @@ function Purity() {
     "purity_percentage": "",
     "purity": "",
     "urd_purity": "",
-    "desc": "",
     "old_purity_desc": "",
     "cut_issue": "",
     "skin_print": ""
@@ -75,11 +74,12 @@ function Purity() {
         alert(`Purity updated successfully!`);
       } catch (error) {
         console.error("Error updating data:", error);
+        alert("Error updating data. Please try again.");
       }
     } else {
       // Add functionality
       try {
-        const response = await axios.post( `${baseURL}/purity`, formData);
+        const response = await axios.post(`${baseURL}/purity`, formData);
         console.log("Data submitted:", response.data);
 
         // Update the table with the new data
@@ -90,6 +90,7 @@ function Purity() {
         alert(`Purity created successfully!`);
       } catch (error) {
         console.error("Error submitting data:", error);
+        alert("Error submitting data. Please try again.");
       }
     }
   };
@@ -103,7 +104,6 @@ function Purity() {
     setTimeout(() => {
       formRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
     }, 100);
-
   };
 
   const handleDelete = async (id) => {
@@ -118,6 +118,7 @@ function Purity() {
       console.log(`Record with ID ${id} deleted successfully.`);
     } catch (error) {
       console.error("Error deleting record:", error);
+      alert("Error deleting record. Please try again.");
     }
   };
 
@@ -128,7 +129,6 @@ function Purity() {
       purity_percentage: "",
       purity: "",
       urd_purity: "",
-      desc: "",
       old_purity_desc: "",
       cut_issue: "",
       skin_print: "",
@@ -136,7 +136,6 @@ function Purity() {
     setEditMode(false);
     setEditId(null);
     setErrors({});
-
   };
 
   const columns = React.useMemo(
@@ -166,10 +165,6 @@ function Purity() {
         accessor: "urd_purity",
       },
       {
-        Header: "DESC",
-        accessor: "desc",
-      },
-      {
         Header: "Old Purity Desc",
         accessor: "old_purity_desc",
       },
@@ -186,11 +181,11 @@ function Purity() {
         Cell: ({ row }) => (
           <div>
             <FaEdit
-              style={{ cursor: 'pointer', marginLeft: '10px', color: 'blue', }}
+              style={{ cursor: 'pointer', marginLeft: '10px', color: 'blue' }}
               onClick={() => handleEdit(row.original)}
             />
             <FaTrash
-              style={{ cursor: 'pointer', marginLeft: '10px', color: 'red', }}
+              style={{ cursor: 'pointer', marginLeft: '10px', color: 'red' }}
               onClick={() => handleDelete(row.original.purity_id)}
             />
           </div>
@@ -206,7 +201,12 @@ function Purity() {
         <h3 style={{ textAlign: "center", marginBottom: "30px" }}>
           {editMode ? "Edit Purity" : "Add Purity"}
         </h3>
-        <form className="customer-master-form" onSubmit={handleSubmit} onKeyDown={(e) => e.key === "Enter" && e.preventDefault()}>
+        <form 
+          className="customer-master-form" 
+          onSubmit={handleSubmit} 
+          onKeyDown={(e) => e.key === "Enter" && e.preventDefault()}
+          ref={formRef}
+        >
           <div className="form-row">
             {/* <InputField
               label="Purity Percentage:"
@@ -270,13 +270,6 @@ function Purity() {
             />
           </div>
           <div className="form-row">
-            <InputField
-              label="DESC"
-              name="desc"
-              value={formData.desc}
-              onChange={handleChange}
-              error={errors.desc}
-            />
             <InputField
               label="Old Purity Desc"
               name="old_purity_desc"

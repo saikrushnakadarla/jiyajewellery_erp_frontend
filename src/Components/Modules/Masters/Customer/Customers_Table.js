@@ -1,8 +1,6 @@
-
-
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import DataTable from '../../../Pages/InputField/TableLayout'; // Import the reusable DataTable component
+import DataTable from '../../../Pages/InputField/TableLayout';
 import { FaEdit, FaTrash, FaEye } from 'react-icons/fa';
 import { Button, Row, Col, Modal } from 'react-bootstrap';
 import './Customers_Table.css';
@@ -11,16 +9,18 @@ import baseURL from '../../../../Url/NodeBaseURL';
 
 const RepairsTable = () => {
   const navigate = useNavigate();
-  const [data, setData] = useState([]); // State to store table data
-  const [loading, setLoading] = useState(true); // State for loading indicator
-  const [modalData, setModalData] = useState(null); // State to store data for the modal
-  const [showModal, setShowModal] = useState(false); // State to control modal visibility
+  const [data, setData] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [modalData, setModalData] = useState(null);
+  const [showModal, setShowModal] = useState(false);
+  const [selectedImage, setSelectedImage] = useState(null);
+  const [showImageModal, setShowImageModal] = useState(false);
 
   const columns = React.useMemo(
     () => [
       {
         Header: 'Sr. No.',
-        Cell: ({ row }) => row.index + 1, // Generate a sequential number based on the row index
+        Cell: ({ row }) => row.index + 1,
       },
       {
         Header: 'Trade Name',
@@ -41,10 +41,22 @@ const RepairsTable = () => {
       {
         Header: "Image",
         accessor: "images",
-        Cell: ({ value }) =>
-          value && value.length > 0 ? (
+        Cell: ({ value }) => {
+          // Parse the JSON string if it exists
+          let parsedImages = null;
+          if (value && typeof value === 'string') {
+            try {
+              parsedImages = JSON.parse(value);
+            } catch (e) {
+              console.error('Error parsing images:', e);
+            }
+          } else if (value && Array.isArray(value)) {
+            parsedImages = value;
+          }
+
+          return parsedImages && parsedImages.length > 0 ? (
             <img
-              src={`${baseURL}/uploads/${value[0].filename}`}
+              src={`${baseURL}/uploads/customer_images/${parsedImages[0].filename}`}
               alt="customerImage"
               style={{
                 width: "50px",
@@ -53,27 +65,33 @@ const RepairsTable = () => {
                 objectFit: "cover",
                 cursor: "pointer",
               }}
-            // onClick={() => handleImageClick(`${baseURL}/uploads/${value[0].filename}`)}
+              onClick={() => handleImageClick(`${baseURL}/uploads/customer_images/${parsedImages[0].filename}`)}
+              onError={(e) => {
+                e.target.onerror = null;
+                e.target.src = 'fallback-image-url'; // Add a fallback image
+                e.target.style.display = 'none';
+                e.target.parentElement.innerHTML = 'No Image';
+              }}
             />
           ) : (
             "No Image"
-          ),
+          );
+        },
       },
-
       {
         Header: 'Action',
         Cell: ({ row }) => (
-          <div >
+          <div>
             <FaEye
               style={{ cursor: 'pointer', marginLeft: '10px', color: 'green' }}
               onClick={() => handleView(row.original)}
             />
             <FaEdit
-              style={{ cursor: 'pointer', marginLeft: '10px', color: 'blue', }}
+              style={{ cursor: 'pointer', marginLeft: '10px', color: 'blue' }}
               onClick={() => handleEdit(row.original.account_id)}
             />
             <FaTrash
-              style={{ cursor: 'pointer', marginLeft: '10px', color: 'red', }}
+              style={{ cursor: 'pointer', marginLeft: '10px', color: 'red' }}
               onClick={() => handleDelete(row.original.account_id)}
             />
           </div>
@@ -83,17 +101,21 @@ const RepairsTable = () => {
     []
   );
 
-  // Utility function to format date to dd/mm/yyyy
   const formatDate = (date) => {
     if (!date) return '';
     const d = new Date(date);
     const day = String(d.getDate()).padStart(2, '0');
-    const month = String(d.getMonth() + 1).padStart(2, '0'); // Month is 0-based
+    const month = String(d.getMonth() + 1).padStart(2, '0');
     const year = d.getFullYear();
     return `${day}/${month}/${year}`;
   };
 
-  // Fetch data and filter where account_group = "CUSTOMERS"
+  // Handle image click to show enlarged image
+  const handleImageClick = (imageUrl) => {
+    setSelectedImage(imageUrl);
+    setShowImageModal(true);
+  };
+
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -103,7 +125,6 @@ const RepairsTable = () => {
         }
         const result = await response.json();
 
-        // Filter only customers and format dates
         const customers = result
           .filter((item) => item.account_group === 'CUSTOMERS')
           .map((item) => ({
@@ -113,7 +134,7 @@ const RepairsTable = () => {
           }));
 
         setData(customers);
-        console.log("customer", customers)
+        console.log("customer", customers);
         setLoading(false);
       } catch (error) {
         console.error('Error fetching data:', error);
@@ -124,7 +145,6 @@ const RepairsTable = () => {
     fetchData();
   }, []);
 
-  // Delete a customer
   const handleDelete = async (id) => {
     if (window.confirm('Are you sure you want to delete this customer?')) {
       try {
@@ -146,16 +166,23 @@ const RepairsTable = () => {
     }
   };
 
-  // Navigate to edit form
   const handleEdit = (id) => {
     navigate(`/customermaster/${id}`);
   };
 
   const handleCreate = () => {
-    navigate('/customermaster'); // Navigate to the /customermaster page
+    navigate('/customermaster');
   };
 
   const handleView = (rowData) => {
+    // Parse images if needed for modal view
+    if (rowData.images && typeof rowData.images === 'string') {
+      try {
+        rowData.images = JSON.parse(rowData.images);
+      } catch (e) {
+        console.error('Error parsing images in modal:', e);
+      }
+    }
     setModalData(rowData);
     setShowModal(true);
   };
@@ -230,11 +257,65 @@ const RepairsTable = () => {
                 <Col md={6}><strong>Aadhar Card:</strong> {modalData.aadhar_card}</Col>
                 <Col md={6}><strong>PAN Card:</strong> {modalData.pan_card}</Col>
               </Row>
+              {/* Add image display in modal */}
+              {modalData.images && modalData.images.length > 0 && (
+                <Row>
+                  <Col md={12}>
+                    <strong>Image:</strong>
+                    <img
+                      src={`${baseURL}/uploads/customer_images/${modalData.images[0].filename}`}
+                      alt="customerImage"
+                      style={{
+                        width: "150px",
+                        height: "150px",
+                        borderRadius: "5px",
+                        objectFit: "cover",
+                        marginTop: "10px",
+                        cursor: "pointer",
+                      }}
+                      onClick={() => handleImageClick(`${baseURL}/uploads/customer_images/${modalData.images[0].filename}`)}
+                      onError={(e) => {
+                        e.target.onerror = null;
+                        e.target.style.display = 'none';
+                      }}
+                    />
+                  </Col>
+                </Row>
+              )}
             </div>
           )}
         </Modal.Body>
         <Modal.Footer>
           <Button variant="secondary" onClick={() => setShowModal(false)}>
+            Close
+          </Button>
+        </Modal.Footer>
+      </Modal>
+
+      {/* Image Preview Modal */}
+      <Modal show={showImageModal} onHide={() => setShowImageModal(false)} centered>
+        <Modal.Header closeButton>
+          <Modal.Title>Image Preview</Modal.Title>
+        </Modal.Header>
+        <Modal.Body className="text-center">
+          {selectedImage && (
+            <img
+              src={selectedImage}
+              alt="Preview"
+              style={{
+                maxWidth: '100%',
+                maxHeight: '500px',
+                objectFit: 'contain',
+              }}
+              onError={(e) => {
+                e.target.onerror = null;
+                e.target.alt = 'Image failed to load';
+              }}
+            />
+          )}
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setShowImageModal(false)}>
             Close
           </Button>
         </Modal.Footer>

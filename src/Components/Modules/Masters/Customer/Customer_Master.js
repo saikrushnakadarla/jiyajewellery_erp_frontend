@@ -107,69 +107,83 @@ function Customer_Master() {
     fetchCustomer();
   }, [id]);
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    let updatedValue = value;
+ const handleChange = (e) => {
+  const { name, value } = e.target;
+  let updatedValue = value;
 
-    switch (name) {
-      case "account_name":
-      case "print_name":
-        updatedValue = value.toUpperCase();
-        if (/^\d+$/.test(updatedValue)) {
+  switch (name) {
+    case "account_name":
+      updatedValue = value.toUpperCase();
+
+      // Prevent only numbers
+      if (/^\d+$/.test(updatedValue)) {
+        return;
+      }
+
+      setFormData((prevData) => ({
+        ...prevData,
+        account_name: updatedValue,
+        ...(prevData.print_name === prevData.account_name && {
+          print_name: updatedValue,
+        }),
+      }));
+      return;
+
+    case "print_name":
+      updatedValue = value.charAt(0).toUpperCase() + value.slice(1);
+      break;
+
+    case "birthday":
+    case "anniversary":
+      // Restrict year to maximum 4 digits
+      if (value) {
+        const parts = value.split("-");
+
+        if (parts.length > 0 && parts[0].length > 4) {
           return;
         }
-        setFormData((prevData) => ({
-          ...prevData,
-          [name]: updatedValue,
-          ...(name === "account_name" &&
-            prevData.print_name === prevData.account_name && {
-            print_name: updatedValue,
-          }),
-        }));
-        return;
+      }
+      updatedValue = value;
+      break;
 
-      case "print_name":
-        updatedValue = value.charAt(0).toUpperCase() + value.slice(1);
-        break;
+    case "mobile":
+    case "phone":
+      updatedValue = value.replace(/\D/g, "").slice(0, 10);
+      break;
 
-      case "mobile":
-      case "phone":
-        updatedValue = value.replace(/\D/g, "").slice(0, 10);
-        break;
+    case "aadhar_card":
+      updatedValue = value.replace(/\D/g, "").slice(0, 12);
+      break;
 
-      case "aadhar_card":
-        updatedValue = value.replace(/\D/g, "").slice(0, 12);
-        break;
+    case "pincode":
+      updatedValue = value.replace(/\D/g, "").slice(0, 6);
+      break;
 
-      case "pincode":
-        updatedValue = value.replace(/\D/g, "").slice(0, 6);
-        break;
+    case "gst_in":
+      updatedValue = value.toUpperCase().slice(0, 15);
+      break;
 
-      case "gst_in":
-        updatedValue = value.toUpperCase().slice(0, 15);
-        break;
+    case "pan_card":
+      updatedValue = value.toUpperCase().slice(0, 10);
+      break;
 
-      case "pan_card":
-        updatedValue = value.toUpperCase().slice(0, 10);
-        break;
+    case "ifsc_code":
+      updatedValue = value.toUpperCase().slice(0, 11);
+      break;
 
-      case "ifsc_code":
-        updatedValue = value.toUpperCase().slice(0, 11);
-        break;
+    case "bank_account_no":
+      updatedValue = value.replace(/\D/g, "").slice(0, 18);
+      break;
 
-      case "bank_account_no":
-        updatedValue = value.replace(/\D/g, "").slice(0, 18);
-        break;
+    default:
+      break;
+  }
 
-      default:
-        break;
-    }
-
-    setFormData((prevData) => ({
-      ...prevData,
-      [name]: updatedValue,
-    }));
-  };
+  setFormData((prevData) => ({
+    ...prevData,
+    [name]: updatedValue,
+  }));
+};
 
   const validateForm = () => {
     if (!formData.account_name || !formData.account_name.trim()) {
