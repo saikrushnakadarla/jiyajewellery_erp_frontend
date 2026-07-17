@@ -573,46 +573,48 @@ export default function DayBook() {
 
   const todayKey = todayKeyIST();
 
-  // Get all entries for the selected day in order
+  // ========== FIXED: allEntries with proper opening balance carryover ==========
   const allEntries = useMemo(() => {
     const entries = [];
-    let cumulativeBalance = 0;
-    
-    // Get opening balance for the first type
-    const firstType = GROUP_ORDER[0];
-    const openingBal = getOpeningBalanceForSection(selectedKey, firstType);
-    cumulativeBalance = openingBal;
-    
-    // Add opening entry
-    if (openingBal !== 0 || true) { // Always show opening if there are entries
-      entries.push({
-        isOpening: true,
-        type: 'opening',
-        des: 'Opening Balance',
-        opening: 'Op',
-        gross: '—',
-        inWard: openingBal > 0 ? fmtNum(openingBal, 0) : '—',
-        outWard: openingBal < 0 ? fmtNum(Math.abs(openingBal), 0) : '—',
-        balance: fmtNum(openingBal, 0),
-        key: 'opening-entry',
-      });
-    }
-    
-    // Process each type in order
+
+    // 1. Opening balance = sum of all inward/outward from days BEFORE selectedKey
+    const prevRecords = records.filter(r => r.dateKey < selectedKey);
+    const openingBalance = prevRecords.reduce((sum, r) => {
+      const group = TYPE_META[r.type].group;
+      return sum + (group === "inward" ? r.qty : -r.qty);
+    }, 0);
+
+    // 2. Add opening row (always show)
+    entries.push({
+      isOpening: true,
+      type: 'opening',
+      des: 'Op',
+      opening: 'Op',
+      gross: '—',
+      inWard: openingBalance > 0 ? fmtNum(openingBalance, 0) : '—',
+      outWard: openingBalance < 0 ? fmtNum(Math.abs(openingBalance), 0) : '—',
+      balance: fmtNum(openingBalance, 0),
+      key: 'opening-entry',
+    });
+
+    let cumulativeBalance = openingBalance;
+
+    // 3. Process each transaction type in the defined order
     GROUP_ORDER.forEach((typeKey) => {
       const entriesOfType = selectedBucket.byType[typeKey] || [];
-      
+      // entriesOfType are already sorted by timestamp inside byDate
+
       entriesOfType.forEach((r) => {
         const isInward = TYPE_META[r.type].group === "inward";
         const des = getDesValue(r.type);
-        
-        // Update cumulative balance
+
+        // Update running balance
         if (isInward) {
           cumulativeBalance += r.qty;
         } else {
           cumulativeBalance -= r.qty;
         }
-        
+
         entries.push({
           isOpening: false,
           type: r.type,
@@ -627,9 +629,9 @@ export default function DayBook() {
         });
       });
     });
-    
+
     return entries;
-  }, [selectedKey, selectedBucket, getOpeningBalanceForSection]);
+  }, [selectedKey, selectedBucket, records]);
 
   return (
     <div style={styles.page}>
