@@ -3,6 +3,19 @@ import React, { useState, useEffect, useMemo, useCallback } from "react";
 // ============================================================================
 // DAY BOOK — Stock Ledger for Warehouse Inward / Outward movements
 // Plain JavaScript, no TypeScript types anywhere.
+//
+// KEY FIX IN THIS VERSION:
+// The API's "transfer_date" / "return_date" fields have NO time-of-day —
+// they are always midnight IST (e.g. "2026-07-17T18:30:00.000Z" = midnight
+// IST on 2026-07-18). Every transaction on the same calendar day shares the
+// exact same transfer_date value. Using that field for sort order meant all
+// same-day rows had an identical timestamp, so the sort fell back to the
+// API's own array order — which is newest-first — and a fresh "From Admin"
+// transfer always landed at the top.
+//
+// Fix: keep transfer_date/return_date for grouping into the correct calendar
+// day (dateKey), but use created_at — which has the real time of creation —
+// for ordering rows within that day (ts).
 // ============================================================================
 
 const API_BASE = "http://localhost:5001";
@@ -21,6 +34,8 @@ const DETAIL_ENDPOINTS = {
   "outward-salesman": (id) => `${API_BASE}/api/assigned-salesman/get-assigned-transfer/${id}`,
 };
 
+// Detail endpoints return { transfer_details / return_details, transfer_items / return_items }
+// Keep both possible "items" keys per type so we never end up parsing the wrong shape.
 const DETAIL_ITEMS_KEY = {
   "inward-main": "transfer_items",
   "inward-salesman": "transfer_items",
@@ -82,10 +97,12 @@ function toDateKey(isoStr) {
   }).format(d);
 }
 
+// Unknown/missing/unparsable timestamps sort LAST (never first), so a record
+// with no usable date never jumps to the top of a day's list.
 function toTimestamp(isoStr) {
-  if (!isoStr) return 0;
+  if (!isoStr) return Number.MAX_SAFE_INTEGER;
   const d = new Date(isoStr);
-  return isNaN(d.getTime()) ? 0 : d.getTime();
+  return isNaN(d.getTime()) ? Number.MAX_SAFE_INTEGER : d.getTime();
 }
 
 function formatDateKeyLong(key) {
@@ -198,8 +215,10 @@ export default function DayBook() {
         type: "inward-main",
         id: t.transfer_id,
         number: t.transfer_number,
+        // dateKey: which calendar day this belongs to (business transfer date)
         dateKey: toDateKey(t.transfer_date),
-        ts: toTimestamp(t.transfer_date),
+        // ts: real creation time, used purely for ordering rows within a day
+        ts: toTimestamp(t.created_at || t.transfer_date),
         qty: toNum(t.total_quantity),
         gross: toNum(t.total_gross_weight),
         net: toNum(t.total_net_weight),
@@ -224,7 +243,7 @@ export default function DayBook() {
         id: t.received_id,
         number: t.received_number,
         dateKey: toDateKey(t.transfer_date),
-        ts: toTimestamp(t.transfer_date),
+        ts: toTimestamp(t.created_at || t.transfer_date),
         qty: toNum(t.total_quantity),
         gross: toNum(t.total_gross_weight),
         net: toNum(t.total_net_weight),
@@ -251,7 +270,7 @@ export default function DayBook() {
         id: t.return_id,
         number: t.return_number,
         dateKey: toDateKey(t.return_date),
-        ts: toTimestamp(t.return_date),
+        ts: toTimestamp(t.created_at || t.return_date),
         qty: toNum(t.total_quantity),
         gross: toNum(t.total_gross_weight),
         net: toNum(t.total_net_weight),
@@ -276,7 +295,7 @@ export default function DayBook() {
         id: t.assigned_id,
         number: t.assigned_number,
         dateKey: toDateKey(t.transfer_date),
-        ts: toTimestamp(t.transfer_date),
+        ts: toTimestamp(t.created_at || t.transfer_date),
         qty: toNum(t.total_quantity),
         gross: toNum(t.total_gross_weight),
         net: toNum(t.total_net_weight),
@@ -289,143 +308,12 @@ export default function DayBook() {
       });
     });
 
-    // Sort records chronologically
-    list.sort((a, b) => (a.ts || 0) - (b.ts || 0));
+    // Sort records chronologically by real creation time. Tiebreak by id so
+    // that even if two records somehow share a timestamp, the one created
+    // later (higher id, assigned in creation order) still sorts after.
+    list.sort((a, b) => (a.ts || 0) - (b.ts || 0) || (a.id - b.id));
     return list;
   }, [raw, currentUserStockRoom, currentUserId]);
-
-  // Get the cumulative balance for ALL sections up to a certain point
-  const getCumulativeBalance = useCallback((dateKey, typeKey, entryIndex = null) => {
-    if (!dateKey) return 0;
-    
-    // Get all records for this day, sorted by type order
-    const dayRecords = records
-      .filter(r => r.dateKey === dateKey)
-      .sort((a, b) => {
-        const orderA = TYPE_META[a.type].order;
-        const orderB = TYPE_META[b.type].order;
-        if (orderA !== orderB) return orderA - orderB;
-        return (a.ts || 0) - (b.ts || 0);
-      });
-    
-    let balance = 0;
-    let foundTarget = false;
-    
-    for (const r of dayRecords) {
-      // If we've passed the target type, stop
-      if (foundTarget) break;
-      
-      // If this is the target type and we have an entry index, process up to that point
-      if (r.type === typeKey) {
-        if (entryIndex !== null) {
-          // Process only up to the specified entry index for this type
-          const typeEntries = dayRecords.filter(rec => rec.type === typeKey);
-          const currentIndex = typeEntries.indexOf(r);
-          if (currentIndex <= entryIndex) {
-            const group = TYPE_META[r.type].group;
-            if (group === "inward") {
-              balance += r.qty;
-            } else {
-              balance -= r.qty;
-            }
-          }
-          if (currentIndex === entryIndex) {
-            foundTarget = true;
-          }
-        } else {
-          // Process all entries of this type up to this point
-          const group = TYPE_META[r.type].group;
-          if (group === "inward") {
-            balance += r.qty;
-          } else {
-            balance -= r.qty;
-          }
-        }
-      } else {
-        // Process other types that come before this type in order
-        const orderA = TYPE_META[r.type].order;
-        const orderB = TYPE_META[typeKey].order;
-        if (orderA < orderB) {
-          const group = TYPE_META[r.type].group;
-          if (group === "inward") {
-            balance += r.qty;
-          } else {
-            balance -= r.qty;
-          }
-        }
-      }
-    }
-    
-    return balance;
-  }, [records]);
-
-  // Get opening balance for a section on a specific day
-  const getOpeningBalanceForSection = useCallback((dateKey, typeKey) => {
-    if (!dateKey || !typeKey) return 0;
-    
-    // Get all records for this day that come BEFORE this type
-    const dayRecords = records
-      .filter(r => r.dateKey === dateKey)
-      .sort((a, b) => {
-        const orderA = TYPE_META[a.type].order;
-        const orderB = TYPE_META[b.type].order;
-        if (orderA !== orderB) return orderA - orderB;
-        return (a.ts || 0) - (b.ts || 0);
-      });
-    
-    let balance = 0;
-    const targetOrder = TYPE_META[typeKey].order;
-    
-    for (const r of dayRecords) {
-      const currentOrder = TYPE_META[r.type].order;
-      if (currentOrder < targetOrder) {
-        const group = TYPE_META[r.type].group;
-        if (group === "inward") {
-          balance += r.qty;
-        } else {
-          balance -= r.qty;
-        }
-      } else if (currentOrder === targetOrder) {
-        // Same type, don't include any entries of this type as opening
-        break;
-      }
-    }
-    
-    return balance;
-  }, [records]);
-
-  // Get balance after a specific record
-  const getBalanceAfterRecord = useCallback((recordKey, dateKey, typeKey) => {
-    if (!dateKey || !typeKey) return 0;
-    
-    const dayRecords = records
-      .filter(r => r.dateKey === dateKey)
-      .sort((a, b) => {
-        const orderA = TYPE_META[a.type].order;
-        const orderB = TYPE_META[b.type].order;
-        if (orderA !== orderB) return orderA - orderB;
-        return (a.ts || 0) - (b.ts || 0);
-      });
-    
-    let balance = 0;
-    let found = false;
-    
-    for (const r of dayRecords) {
-      const group = TYPE_META[r.type].group;
-      if (group === "inward") {
-        balance += r.qty;
-      } else {
-        balance -= r.qty;
-      }
-      
-      if (r.key === recordKey) {
-        found = true;
-        break;
-      }
-    }
-    
-    return found ? balance : 0;
-  }, [records]);
 
   // Group by day, and within each day, by transaction type
   const byDate = useMemo(() => {
@@ -451,32 +339,29 @@ export default function DayBook() {
         };
       }
       const bucket = map[r.dateKey];
-      // Calculate balance for this record
-      const balanceAfter = getBalanceAfterRecord(r.key, r.dateKey, r.type);
-      const withBalance = { ...r, balanceAfter };
-      bucket.byType[r.type].push(withBalance);
+      bucket.byType[r.type].push(r);
       const group = TYPE_META[r.type].group;
       if (group === "inward") {
-        bucket.inward.push(withBalance);
+        bucket.inward.push(r);
         bucket.inwardQty += r.qty;
         bucket.inwardNet += r.net;
         bucket.inwardGross += r.gross;
       } else {
-        bucket.outward.push(withBalance);
+        bucket.outward.push(r);
         bucket.outwardQty += r.qty;
         bucket.outwardNet += r.net;
         bucket.outwardGross += r.gross;
       }
     });
-    // sort every list chronologically ascending within type
+    // sort every list chronologically ascending (by real creation time)
+    const byTs = (a, b) => (a.ts || 0) - (b.ts || 0) || (a.id - b.id);
     Object.values(map).forEach((bucket) => {
-      const byTs = (a, b) => (a.ts || 0) - (b.ts || 0);
       bucket.inward.sort(byTs);
       bucket.outward.sort(byTs);
       GROUP_ORDER.forEach((t) => bucket.byType[t].sort(byTs));
     });
     return map;
-  }, [records, getBalanceAfterRecord]);
+  }, [records]);
 
   const grandTotals = useMemo(() => {
     let inwardQty = 0, outwardQty = 0, inwardNet = 0, outwardNet = 0, inwardGross = 0, outwardGross = 0;
@@ -573,7 +458,10 @@ export default function DayBook() {
 
   const todayKey = todayKeyIST();
 
-  // ========== FIXED: allEntries with proper opening balance carryover ==========
+  // allEntries: opening balance row + every transaction for the selected day,
+  // in TRUE chronological order (by real creation time, ts), never grouped
+  // by fixed type order. This is what keeps a brand-new entry appended at
+  // the bottom of the day instead of jumping to the top.
   const allEntries = useMemo(() => {
     const entries = [];
 
@@ -599,39 +487,38 @@ export default function DayBook() {
 
     let cumulativeBalance = openingBalance;
 
-    // 3. Process each transaction type in the defined order
-    GROUP_ORDER.forEach((typeKey) => {
-      const entriesOfType = selectedBucket.byType[typeKey] || [];
-      // entriesOfType are already sorted by timestamp inside byDate
+    // 3. Process ALL of today's transactions in true chronological order
+    //    (by real creation timestamp), regardless of type.
+    const todaysRecordsChrono = records
+      .filter((r) => r.dateKey === selectedKey)
+      .sort((a, b) => (a.ts || 0) - (b.ts || 0) || (a.id - b.id));
 
-      entriesOfType.forEach((r) => {
-        const isInward = TYPE_META[r.type].group === "inward";
-        const des = getDesValue(r.type);
+    todaysRecordsChrono.forEach((r) => {
+      const isInward = TYPE_META[r.type].group === "inward";
+      const des = getDesValue(r.type);
 
-        // Update running balance
-        if (isInward) {
-          cumulativeBalance += r.qty;
-        } else {
-          cumulativeBalance -= r.qty;
-        }
+      if (isInward) {
+        cumulativeBalance += r.qty;
+      } else {
+        cumulativeBalance -= r.qty;
+      }
 
-        entries.push({
-          isOpening: false,
-          type: r.type,
-          record: r,
-          des: des,
-          opening: '—',
-          gross: fmtNum(r.gross),
-          inWard: isInward ? fmtNum(r.qty, 0) : '—',
-          outWard: !isInward ? fmtNum(r.qty, 0) : '—',
-          balance: fmtNum(cumulativeBalance, 0),
-          key: r.key,
-        });
+      entries.push({
+        isOpening: false,
+        type: r.type,
+        record: r,
+        des: des,
+        opening: '—',
+        gross: fmtNum(r.gross),
+        inWard: isInward ? fmtNum(r.qty, 0) : '—',
+        outWard: !isInward ? fmtNum(r.qty, 0) : '—',
+        balance: fmtNum(cumulativeBalance, 0),
+        key: r.key,
       });
     });
 
     return entries;
-  }, [selectedKey, selectedBucket, records]);
+  }, [selectedKey, records]);
 
   return (
     <div style={styles.page}>
@@ -822,7 +709,7 @@ export default function DayBook() {
 
                   const record = entry.record;
                   const isInward = TYPE_META[record.type].group === "inward";
-                  
+
                   return (
                     <LedgerRow
                       key={entry.key}
@@ -876,20 +763,20 @@ function TotalCard({ label, value, sub, tone, emphasis }) {
   );
 }
 
-function LedgerRow({ 
-  record, 
-  expanded, 
-  onToggle, 
-  detailItems, 
-  isDetailLoading, 
-  detailError, 
+function LedgerRow({
+  record,
+  expanded,
+  onToggle,
+  detailItems,
+  isDetailLoading,
+  detailError,
   openingValue,
   grossValue,
   desValue,
   inWardValue,
   outWardValue,
   balanceValue,
-  isInward 
+  isInward
 }) {
   return (
     <div style={styles.ledgerRowWrap}>
@@ -1165,7 +1052,7 @@ const styles = {
     gap: "2px",
     width: "100%",
   },
-  ledgerRowWrap: { 
+  ledgerRowWrap: {
     marginBottom: "0px",
   },
   ledgerRow: {
