@@ -853,9 +853,9 @@ export default function DayBook() {
 
 // Helper function to get the description value based on type
 function getDesValue(typeKey) {
-  if (typeKey === 'inward-main') return 'Admin to Warehouse';
+  if (typeKey === 'inward-main') return 'From Admin';
   if (typeKey === 'outward-salesman') return 'Warehouse to Salesman';
-  if (typeKey === 'inward-salesman') return 'Salesman to Warehouse';
+  if (typeKey === 'inward-salesman') return 'From Salesman';
   if (typeKey === 'outward-main') return 'Warehouse to Admin';
   return '';
 }

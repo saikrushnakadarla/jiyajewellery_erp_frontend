@@ -115,27 +115,27 @@ const ReceivedSalesmanTable = () => {
         accessor: 'salesman_mobile',
         Cell: ({ value }) => value || 'N/A',
       },
-      {
-        Header: 'To Stock Point',
-        accessor: 'to_stock_point_name',
-        Cell: ({ value }) => value || 'N/A',
-      },
+      // {
+      //   Header: 'To Stock Point',
+      //   accessor: 'to_stock_point_name',
+      //   Cell: ({ value }) => value || 'N/A',
+      // },
       {
         Header: 'Total Items',
         accessor: 'total_items',
       },
-      {
-        Header: 'Total Qty',
-        accessor: 'total_quantity',
-      },
+      // {
+      //   Header: 'Total Qty',
+      //   accessor: 'total_quantity',
+      // },
       {
         Header: 'Total Gross Wt',
         accessor: 'total_gross_weight',
       },
-      {
-        Header: 'Total Net Wt',
-        accessor: 'total_net_weight',
-      },
+      // {
+      //   Header: 'Total Net Wt',
+      //   accessor: 'total_net_weight',
+      // },
       {
         Header: 'Status',
         accessor: 'status',
@@ -423,12 +423,12 @@ const ReceivedSalesmanTable = () => {
                       <th>Design Name</th>
                       <th>Qty</th>
                       <th>Gross Wt</th>
-                      <th>Stone Wt</th>
+                      {/* <th>Stone Wt</th>
                       <th>Net Wt</th>
                       <th>Rate</th>
                       <th>MC</th>
                       <th>Stone Price</th>
-                      <th>Total Price</th>
+                      <th>Total Price</th> */}
                     </tr>
                   </thead>
                   <tbody style={{ whiteSpace: 'nowrap', fontSize: '13px' }}>
@@ -467,12 +467,12 @@ const ReceivedSalesmanTable = () => {
                           <td>{item.design_name || 'N/A'}</td>
                           <td>{item.qty}</td>
                           <td>{item.gross_weight}</td>
-                          <td>{item.stone_weight}</td>
+                          {/* <td>{item.stone_weight}</td>
                           <td>{item.net_weight}</td>
                           <td>{item.rate}</td>
                           <td>{item.making_charges}</td>
                           <td>{item.stone_price}</td>
-                          <td><strong>{item.total_price}</strong></td>
+                          <td><strong>{item.total_price}</strong></td> */}
                         </tr>
                       ))
                     ) : (
@@ -485,11 +485,11 @@ const ReceivedSalesmanTable = () => {
                         <td colSpan="9" className="text-end"><strong>Totals:</strong></td>
                         <td><strong>{transferDetails.transfer_items.reduce((sum, item) => sum + parseFloat(item.qty || 0), 0).toFixed(3)}</strong></td>
                         <td><strong>{transferDetails.transfer_items.reduce((sum, item) => sum + parseFloat(item.gross_weight || 0), 0).toFixed(3)}</strong></td>
-                        <td><strong>{transferDetails.transfer_items.reduce((sum, item) => sum + parseFloat(item.stone_weight || 0), 0).toFixed(3)}</strong></td>
+                        {/* <td><strong>{transferDetails.transfer_items.reduce((sum, item) => sum + parseFloat(item.stone_weight || 0), 0).toFixed(3)}</strong></td>
                         <td><strong>{transferDetails.transfer_items.reduce((sum, item) => sum + parseFloat(item.net_weight || 0), 0).toFixed(3)}</strong></td>
                         <td colSpan="2"></td>
                         <td></td>
-                        <td><strong>{transferDetails.transfer_items.reduce((sum, item) => sum + parseFloat(item.total_price || 0), 0).toFixed(2)}</strong></td>
+                        <td><strong>{transferDetails.transfer_items.reduce((sum, item) => sum + parseFloat(item.total_price || 0), 0).toFixed(2)}</strong></td> */}
                       </tr>
                     )}
                   </tbody>
