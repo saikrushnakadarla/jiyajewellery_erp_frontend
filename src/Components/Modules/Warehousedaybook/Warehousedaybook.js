@@ -676,9 +676,9 @@ export default function DayBook() {
 
       {/* TOTALS STRIP */}
       <section style={styles.totalsStrip}>
-        <TotalCard label="Total Inward (Qty)" value={fmtNum(grandTotals.inwardQty, 0)} sub={`${fmtNum(grandTotals.inwardGross)} g gross`} tone="forest" />
-        <TotalCard label="Total Outward (Qty)" value={fmtNum(grandTotals.outwardQty, 0)} sub={`${fmtNum(grandTotals.outwardGross)} g gross`} tone="rust" />
-        <TotalCard label="Net Stock Balance (Qty)" value={fmtNum(grandTotals.balanceQty, 0)} sub={`${fmtNum(grandTotals.balanceNet)} g net wt`} tone="brass" emphasis />
+        <TotalCard label="Total Inward (Qty)" value={`${fmtNum(grandTotals.inwardQty, 0)} Pcs`} sub={`${fmtNum(grandTotals.inwardGross)} g gross`} tone="forest" />
+        <TotalCard label="Total Outward (Qty)" value={`${fmtNum(grandTotals.outwardQty, 0)} Pcs`} sub={`${fmtNum(grandTotals.outwardGross)} g gross`} tone="rust" />
+        <TotalCard label="Net Stock Balance (Qty)" value={`${fmtNum(grandTotals.balanceQty, 0)} Pcs`} sub={`${fmtNum(grandTotals.balanceNet)} g net wt`} tone="brass" emphasis />
         <TotalCard label="Net Weight Balance" value={`${fmtNum(grandTotals.balanceNet)} g`} sub={`In ${fmtNum(grandTotals.inwardNet)} g · Out ${fmtNum(grandTotals.outwardNet)} g`} tone="ink" />
       </section>
 
@@ -769,24 +769,24 @@ export default function DayBook() {
               {/* Total Stock Inward / Outward / Balance cards */}
               <div style={styles.dayTotalsCards}>
                 <TotalCard
-                  label="Total Stock Inward"
-                  value={`${fmtNum(selectedBucket.inwardQty, 0)} pcs`}
-                  sub={`${fmtNum(selectedBucket.inwardGross)} g gross · ${fmtNum(selectedBucket.inwardNet)} g net`}
-                  tone="forest"
-                />
-                <TotalCard
-                  label="Total Stock Outward"
-                  value={`${fmtNum(selectedBucket.outwardQty, 0)} pcs`}
-                  sub={`${fmtNum(selectedBucket.outwardGross)} g gross · ${fmtNum(selectedBucket.outwardNet)} g net`}
-                  tone="rust"
-                />
-                <TotalCard
-                  label="Balance (as of this day)"
-                  value={`${fmtNum(selectedBucket.inwardQty - selectedBucket.outwardQty, 0)} pcs`}
-                  sub="Running total across all entries"
-                  tone="brass"
-                  emphasis
-                />
+                    label="Total Stock Inward"
+                    value={`${fmtNum(selectedBucket.inwardQty, 0)} Pcs`}
+                    sub={`${fmtNum(selectedBucket.inwardGross)} g gross · ${fmtNum(selectedBucket.inwardNet)} g net`}
+                    tone="forest"
+                  />
+                  <TotalCard
+                    label="Total Stock Outward"
+                    value={`${fmtNum(selectedBucket.outwardQty, 0)} Pcs`}
+                    sub={`${fmtNum(selectedBucket.outwardGross)} g gross · ${fmtNum(selectedBucket.outwardNet)} g net`}
+                    tone="rust"
+                  />
+                  <TotalCard
+                    label="Balance (as of this day)"
+                    value={`${fmtNum(selectedBucket.inwardQty - selectedBucket.outwardQty, 0)} Pcs`}
+                    sub="Running total across all entries"
+                    tone="brass"
+                    emphasis
+                  />
               </div>
 
               {/* SINGLE UNIFIED TABLE */}
@@ -853,10 +853,10 @@ export default function DayBook() {
 
 // Helper function to get the description value based on type
 function getDesValue(typeKey) {
-  if (typeKey === 'inward-main') return 'asmin to warehouse';
-  if (typeKey === 'outward-salesman') return 'warehouse to sm';
-  if (typeKey === 'inward-salesman') return 'salesman to warehouse';
-  if (typeKey === 'outward-main') return 'warehouse to admin';
+  if (typeKey === 'inward-main') return 'Admin to Warehouse';
+  if (typeKey === 'outward-salesman') return 'Warehouse to Salesman';
+  if (typeKey === 'inward-salesman') return 'Salesman to Warehouse';
+  if (typeKey === 'outward-main') return 'Warehouse to Admin';
   return '';
 }
 
@@ -1055,7 +1055,7 @@ const styles = {
   },
   totalLabel: { fontSize: "12px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: "8px" },
   totalValue: { fontFamily: "'IBM Plex Mono', monospace", fontSize: "24px", fontWeight: 600, color: "#232019" },
-  totalSub: { fontSize: "12px", color: "#8A806B", marginTop: "4px", fontFamily: "'IBM Plex Mono', monospace" },
+  totalSub: { fontSize: "13px", color: "#5B5442", marginTop: "6px", fontFamily: "'IBM Plex Mono', monospace", fontWeight: 700 },
   mainGrid: {
     display: "grid",
     gridTemplateColumns: "320px 1fr",
