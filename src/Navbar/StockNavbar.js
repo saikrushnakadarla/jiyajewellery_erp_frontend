@@ -279,6 +279,37 @@ function StockNavbar() {
           </Link>
         </div>
 
+
+        {/* Page heading - shows the name of the currently selected stock item */}
+        <div>
+          <span>
+            {/* {location.pathname === "/stock-dashboard" && (
+              <h1 className="stock-path-heading">DASHBOARD</h1>
+            )} */}
+            {location.pathname === "/warehouse-stock-respective-items" && (
+              <h1 className="stock-path-heading">STOCK</h1>
+            )}
+            {location.pathname === "/stock-inward" && (
+              <h1 className="stock-path-heading">INWARD FROM MAIN ADMIN</h1>
+            )}
+            {location.pathname === "/receive-from-salesman" && (
+              <h1 className="stock-path-heading">INWARD FROM SALESMAN</h1>
+            )}
+            {location.pathname === "/return-to-main-stock" && (
+              <h1 className="stock-path-heading">OUTWARD TO MAIN ADMIN</h1>
+            )}
+            {location.pathname === "/assign-to-salesman" && (
+              <h1 className="stock-path-heading">OUTWARD TO SALESMAN</h1>
+            )}
+            {/* {location.pathname === "/day-book" && (
+              <h1 className="stock-path-heading">DAY BOOK</h1>
+            )} */}
+            {/* {location.pathname === "/visit-logs-salesman-schedule" && (
+              <h1 className="stock-path-heading">VISIT LOGS SALESMAN</h1>
+            )} */}
+          </span>
+        </div>
+
         {/* Removed separate ASSIGN and RECEIVE links since they're now nested */}
         {/* Visit Logs Salesman Schedule Link */}
         {/* <div>
