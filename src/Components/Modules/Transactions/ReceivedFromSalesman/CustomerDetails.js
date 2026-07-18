@@ -35,17 +35,24 @@ const CustomerDetails = ({
   const userName = localStorage.getItem('userName');
   console.log("Retrieved from localStorage - Key: 'userName', Value:", userName);
 
-  // ===== Calculate total gross weight of all products =====
+  // ===== Calculate total gross weight of products with Status = "Assigned" ONLY =====
   const calculateTotalGrossWeight = () => {
     if (!selectedSalesmanProducts || selectedSalesmanProducts.length === 0) {
       return 0;
     }
     
+    // Filter products that have Status = "Assigned" in the opening_tags_entry data
+    const assignedProducts = selectedSalesmanProducts.filter(product => {
+      const tag = data.find(t => t.PCode_BarCode === product.PCode_BarCode);
+      return tag && tag.Status === "Assigned";
+    });
+    
     let totalGrossWt = 0;
-    selectedSalesmanProducts.forEach(product => {
+    assignedProducts.forEach(product => {
       totalGrossWt += parseFloat(product.gross_weight) || 0;
     });
     
+    console.log("Total Gross Weight for Assigned products only:", totalGrossWt.toFixed(3));
     return totalGrossWt;
   };
 
@@ -62,6 +69,7 @@ const CustomerDetails = ({
       console.log("estimatesData:", estimatesData);
 
       // ===== GET ASSIGNED PRODUCTS WITH STATUS "ASSIGNED" =====
+      // Only include products that are still assigned (not yet received/transferred)
       const assignedProducts = selectedSalesmanProducts.filter(product => {
         const tag = data.find(t => t.PCode_BarCode === product.PCode_BarCode);
         return tag && tag.Status === "Assigned";
@@ -164,6 +172,7 @@ const CustomerDetails = ({
       
       console.log("Updated formData with stock_outward_barcode:", selectedValue);
     } else {
+      // When "Select Barcode/Packet" is chosen, show total weight of all assigned products
       const totalGrossWt = calculateTotalGrossWeight();
       setStockOutWardGrossWt(totalGrossWt.toFixed(3));
       
@@ -190,7 +199,7 @@ const CustomerDetails = ({
       
       setSelectedStockOutWard("");
       
-      console.log("Total Gross Weight for Salesman:", totalGrossWt.toFixed(3));
+      console.log("Total Gross Weight for Assigned products:", totalGrossWt.toFixed(3));
     } else {
       setStockOutWardGrossWt("");
       setFormData(prev => ({
@@ -417,6 +426,9 @@ const CustomerDetails = ({
     return tag && tag.Status === "Assigned";
   }).length;
 
+  // Get the selected option to display additional info
+  const selectedOption = stockOutWardOptions.find(opt => opt.value === selectedStockOutWard);
+
   if (isLoading) {
     return <div>Loading...</div>;
   }
@@ -435,6 +447,11 @@ const CustomerDetails = ({
             options={salesmanOptions}
             required
           />
+          {formData.salesman_id && (
+            <div style={{ fontSize: '11px', color: '#666', marginTop: '2px' }}>
+              Assigned products available: {assignedCount}
+            </div>
+          )}
         </Col>
 
         <Col xs={12} md={4}>
@@ -551,7 +568,6 @@ const CustomerDetails = ({
           />
           {formData.salesman_id && (
             <div style={{ fontSize: '11px', color: '#666', marginTop: '2px' }}>
-              {/* Available: {stockOutWardOptions.length} assigned products with Status="Assigned" */}
               {stockOutWardOptions.length === 0 && assignedCount > 0 && (
                 <span style={{ color: '#dc3545', display: 'block' }}>
                   ⚠️ No products found with Status="Assigned". They may have been already received.
@@ -560,6 +576,16 @@ const CustomerDetails = ({
               {stockOutWardOptions.length === 0 && assignedCount === 0 && (
                 <span style={{ color: '#dc3545', display: 'block' }}>
                   ⚠️ No assigned products found for this salesman.
+                </span>
+              )}
+              {stockOutWardOptions.length > 0 && assignedCount > 0 && (
+                <span style={{ color: '#28a745', display: 'block' }}>
+                  ✓ {stockOutWardOptions.length} product(s) available for transfer
+                </span>
+              )}
+              {selectedOption && selectedOption.type === "packet" && (
+                <span style={{ color: '#007bff', display: 'block', fontSize: '10px' }}>
+                  📦 Packet contains {selectedOption.products?.length || 0} products
                 </span>
               )}
             </div>
@@ -575,6 +601,11 @@ const CustomerDetails = ({
             readOnly
             style={{ backgroundColor: '#f5f5f5', cursor: 'not-allowed' }}
           />
+          {formData.salesman_id && (
+            <div style={{ fontSize: '10px', color: '#888', marginTop: '2px' }}>
+              Total weight of all assigned products: {calculateTotalGrossWeight().toFixed(3)}g
+            </div>
+          )}
         </Col>
 
         <Col xs={12} md={4}>
