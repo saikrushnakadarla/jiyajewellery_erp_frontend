@@ -107,7 +107,9 @@ const useProductHandlers = () => {
     active_stock_point_id: "",
     other_stock_point_id: "",
     active_stock_point_details: null,
-    other_stock_point_details: null
+    other_stock_point_details: null,
+    salesman_id: "",
+    salesman_name: ""
   });
 
   const [formData, setFormData] = useState(() => {
@@ -139,6 +141,36 @@ const useProductHandlers = () => {
   const [showWebcam, setShowWebcam] = useState(false);
   const webcamRef = useRef(null);
   const fileInputRef = useRef(null);
+  
+  // NEW: State for visit logs warehouse schedule data
+  const [visitLogsData, setVisitLogsData] = useState([]);
+
+  // NEW: Fetch visit logs warehouse schedule data
+  useEffect(() => {
+    const fetchVisitLogs = async () => {
+      try {
+        const response = await axios.get(`${baseURL}/api/visit-logs-warehouse-schedule`);
+        console.log("Visit Logs Warehouse Schedule Data:", response.data);
+        setVisitLogsData(response.data);
+      } catch (error) {
+        console.error("Error fetching visit logs warehouse schedule:", error);
+      }
+    };
+    fetchVisitLogs();
+  }, []);
+
+  // NEW: Helper function to get barcodes scheduled by selected salesman
+  const getScheduledBarcodesBySalesman = () => {
+    if (!formData.salesman_id) return [];
+    
+    const salesmanId = parseInt(formData.salesman_id);
+    const scheduledBarcodes = visitLogsData
+      .filter(log => log.salesman_id === salesmanId)
+      .map(log => log.barcode);
+    
+    console.log(`Scheduled barcodes for salesman ${formData.salesman_name} (ID: ${salesmanId}):`, scheduledBarcodes);
+    return scheduledBarcodes;
+  };
 
   useEffect(() => {
     const fetchCurrentRates = async () => {
@@ -724,6 +756,7 @@ const useProductHandlers = () => {
     fetchPurity();
   }, [formData.metal_type]);
 
+  // UPDATED: handleBarcodeChange with salesman filter
   const handleBarcodeChange = async (code) => {
     try {
       if (!code) {
@@ -747,7 +780,7 @@ const useProductHandlers = () => {
           va_on: "Gross Weight",
           va_percent: "",
           wastage_weight: "",
-          total_weight_aw: "",
+          total_weight_av: "",
           mc_on: "MC %",
           mc_per_gram: "",
           making_charges: "",
@@ -830,6 +863,32 @@ const useProductHandlers = () => {
           const loggedInUserId = localStorage.getItem('userId');
           if (loggedInUserId && tag.user_id !== parseInt(loggedInUserId)) {
             alert("This product does not belong to you. You can only transfer products assigned to you.");
+            setFormData((prevData) => ({
+              ...prevData,
+              code: "",
+            }));
+            setIsQtyEditable(true);
+            return;
+          }
+
+          // NEW: Check if the product is scheduled for the selected salesman
+          if (formData.salesman_id) {
+            const salesmanId = parseInt(formData.salesman_id);
+            const isScheduledForSalesman = visitLogsData.some(
+              log => log.salesman_id === salesmanId && log.barcode === String(code)
+            );
+            
+            if (!isScheduledForSalesman) {
+              alert(`This product (${code}) is not scheduled for the selected salesman (${formData.salesman_name || formData.salesman_id}). Please select a different product or salesman.`);
+              setFormData((prevData) => ({
+                ...prevData,
+                code: "",
+              }));
+              setIsQtyEditable(true);
+              return;
+            }
+          } else {
+            alert("Please select a salesman first before scanning/selecting a product.");
             setFormData((prevData) => ({
               ...prevData,
               code: "",
@@ -941,7 +1000,7 @@ const useProductHandlers = () => {
             va_on: "Gross Weight",
             va_percent: "",
             wastage_weight: "",
-            total_weight_aw: "",
+            total_weight_av: "",
             mc_on: "MC %",
             mc_per_gram: "",
             making_charges: "",
@@ -1035,7 +1094,8 @@ const useProductHandlers = () => {
     isManualTotalPriceChange,
     setIsManualTotalPriceChange,
     isTotalPriceCleared,
-    setIsTotalPriceCleared
+    setIsTotalPriceCleared,
+    visitLogsData 
   };
 };
 

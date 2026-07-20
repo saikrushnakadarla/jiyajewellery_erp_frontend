@@ -59,7 +59,8 @@ const ProductDetails = ({
   offers,
   handleOrderChange,
   selectedOrder,
-  orderData
+  orderData,
+  visitLogsData
 }) => {
 
   const [showModal, setShowModal] = useState(false);
@@ -162,6 +163,7 @@ const ProductDetails = ({
       console.log("Scanned barcode:", barcode);
 
       if (barcode) {
+        // Check if product exists in products master
         const product = products.find((prod) => String(prod.rbarcode) === String(barcode));
         if (product) {
           Swal.close();
@@ -176,8 +178,27 @@ const ProductDetails = ({
           return;
         }
 
+        // Check if product exists in tags
         const tag = data.find((tag) => String(tag.PCode_BarCode) === String(barcode));
         if (tag) {
+          // If salesman is selected, check if product is scheduled
+          if (formData.salesman_id) {
+            const salesmanId = parseInt(formData.salesman_id);
+            const isScheduled = visitLogsData?.some(
+              log => log.salesman_id === salesmanId && log.barcode === String(barcode)
+            );
+            if (!isScheduled) {
+              Swal.close();
+              Swal.fire({
+                icon: 'error',
+                title: 'Product Not Scheduled',
+                text: `This product is not scheduled for ${formData.salesman_name || 'selected salesman'}.`,
+                confirmButtonText: 'OK'
+              });
+              return;
+            }
+          }
+
           if (tag.Status !== "Available") {
             Swal.close();
             Swal.fire({
@@ -239,43 +260,104 @@ const ProductDetails = ({
     }
   };
 
+  // Get scheduled barcodes for selected salesman from visitLogsData
+  const getScheduledBarcodes = () => {
+    if (!formData.salesman_id || !visitLogsData || visitLogsData.length === 0) {
+      return [];
+    }
+    const salesmanId = parseInt(formData.salesman_id);
+    return visitLogsData
+      .filter(log => log.salesman_id === salesmanId)
+      .map(log => log.barcode);
+  };
+
+  const scheduledBarcodes = getScheduledBarcodes();
+
   const defaultBarcode = formData.category
     ? products.find((product) => product.product_name === formData.category)?.rbarcode || ""
     : "";
 
-  const barcodeOptions = [
-    ...products
+  // Build barcode options
+  const barcodeOptions = [];
+
+  // 1. Product master options (only when no salesman selected)
+  if (!formData.salesman_id) {
+    const productOptions = products
       .filter((product) => (formData.category ? product.product_name === formData.category : true))
       .map((product) => ({
         value: product.rbarcode,
         label: product.rbarcode,
         type: "product"
-      })),
-    ...data
-      .filter((tag) => {
-        if (formData.category && tag.category !== formData.category) return false;
-        if (tag.Status !== 'Available') return false;
-        if (tag.user_id === null || tag.user_id === undefined) return false;
-        if (loggedInUserId && tag.user_id !== loggedInUserId) return false;
-        return true;
-      })
-      .map((tag) => ({
+      }));
+    barcodeOptions.push(...productOptions);
+  }
+
+  // 2. FIXED: When salesman is selected, ONLY show scheduled products
+  if (formData.salesman_id) {
+    // Only show products that are scheduled for this salesman
+    const scheduledSet = new Set(scheduledBarcodes);
+    
+    // Filter tags: include ONLY if scheduled for the salesman
+    const scheduledTags = data.filter((tag) => {
+      if (formData.category && tag.category !== formData.category) return false;
+      // Only include if scheduled
+      return scheduledSet.has(tag.PCode_BarCode);
+    });
+
+    // Add scheduled tags to barcode options
+    barcodeOptions.push(
+      ...scheduledTags.map((tag) => ({
+        value: tag.PCode_BarCode,
+        label: tag.PCode_BarCode,
+        type: 'tag',
+        tagData: tag,
+        isScheduled: true
+      }))
+    );
+  } else {
+    // No salesman selected: show all available stock
+    const stockTags = data.filter((tag) => {
+      if (formData.category && tag.category !== formData.category) return false;
+      if (tag.Status !== 'Available') return false;
+      if (tag.user_id === null || tag.user_id === undefined) return false;
+      if (loggedInUserId && tag.user_id !== loggedInUserId) return false;
+      return true;
+    });
+
+    barcodeOptions.push(
+      ...stockTags.map((tag) => ({
         value: tag.PCode_BarCode,
         label: tag.PCode_BarCode,
         type: 'tag',
         tagData: tag
-      })),
-  ];
+      }))
+    );
+  }
 
-  if (defaultBarcode && !barcodeOptions.some((option) => option.value === defaultBarcode)) {
-    barcodeOptions.unshift({ value: defaultBarcode, label: defaultBarcode });
+  // Add placeholder if no options
+  if (barcodeOptions.length === 0) {
+    barcodeOptions.push({
+      value: '',
+      label: formData.salesman_id ? 'No products scheduled for this salesman' : 'No products available',
+      disabled: true
+    });
+  }
+
+  // Remove duplicate options (keep first occurrence)
+  const uniqueBarcodeOptions = [];
+  const seenValues = new Set();
+  for (const option of barcodeOptions) {
+    if (!seenValues.has(option.value) && option.value !== '') {
+      seenValues.add(option.value);
+      uniqueBarcodeOptions.push(option);
+    }
   }
 
   useEffect(() => {
-    if (!formData.code && defaultBarcode) {
+    if (!formData.code && defaultBarcode && !formData.salesman_id) {
       handleBarcodeChange(defaultBarcode);
     }
-  }, [formData.category, defaultBarcode]);
+  }, [formData.category, defaultBarcode, formData.salesman_id]);
 
   const handleClear = () => {
     setFormData(prevFormData => ({
@@ -428,6 +510,9 @@ const ProductDetails = ({
     formData.pricing,
   ]);
 
+  // Count scheduled products for display
+  const scheduledCount = formData.salesman_id ? scheduledBarcodes.length : 0;
+
   return (
     <Col>
       {/* First Row - All Fields in One Line */}
@@ -439,18 +524,42 @@ const ProductDetails = ({
               <InputField
                 label="BarCode/Rbarcode"
                 name="code"
-                value={formData.code || defaultBarcode}
+                value={formData.code || (formData.salesman_id ? '' : defaultBarcode)}
                 onChange={(e) => handleBarcodeChange(e.target.value)}
                 type="select"
-                options={barcodeOptions}
+                options={uniqueBarcodeOptions}
                 autoFocus
               />
+              {/* Info messages */}
+              {/* {formData.salesman_id && (
+                <>
+                  {uniqueBarcodeOptions.length > 0 ? (
+                    <small style={{ color: '#28a745', display: 'block', marginTop: '2px' }}>
+                      ✅ Showing {uniqueBarcodeOptions.filter(opt => opt.type === 'tag').length} product(s) scheduled for {formData.salesman_name || 'selected salesman'}
+                    </small>
+                  ) : (
+                    <small style={{ color: '#dc3545', display: 'block', marginTop: '2px' }}>
+                      ❌ No products scheduled for {formData.salesman_name || 'selected salesman'}
+                    </small>
+                  )}
+                  {scheduledCount > 0 && uniqueBarcodeOptions.filter(opt => opt.type === 'tag').length === 0 && (
+                    <small style={{ color: '#ffc107', display: 'block', marginTop: '1px' }}>
+                      ⚠️ Products are scheduled but not in stock (add to stock first)
+                    </small>
+                  )}
+                </>
+              )}
+              {!formData.salesman_id && (
+                <small style={{ color: '#ffc107', display: 'block', marginTop: '2px' }}>
+                  📋 Showing all available stock. Select a salesman to see scheduled products.
+                </small>
+              )} */}
             </div>
             <Button
               variant="primary"
               size="sm"
               onClick={startScanner}
-                className="scan-barcode-btn"
+              className="scan-barcode-btn"
               style={{ 
                 backgroundColor: '#007bff',
                 borderColor: '#007bff',
@@ -586,153 +695,7 @@ const ProductDetails = ({
           </>
         ) : (
           <>
-            {/* ================================================ */}
-            {/* COMMENTED OUT: All fields from Selling Purity to Total MC */}
-            {/* ================================================ */}
-            {/* 
-            <Col xs={12} md={2}>
-              <InputField
-                label="Selling Purity"
-                name="selling_purity"
-                type="select"
-                value={formData.selling_purity}
-                onChange={handleChange}
-                options={[
-                  ...(formData.product_name
-                    ? [{
-                        label: subcategoryOptions.find(option => option.value === formData.product_name)?.selling_purity || "Default Purity",
-                        value: subcategoryOptions.find(option => option.value === formData.product_name)?.selling_purity || ""
-                      }]
-                    : []),
-                  { label: "Manual", value: "Manual" }
-                ]}
-              />
-            </Col>
-
-            {formData.selling_purity === "Manual" && (
-              <Col xs={12} md={2}>
-                <InputField
-                  label="Custom Purity %"
-                  name="custom_purity"
-                  value={formData.custom_purity || ""}
-                  onChange={handleChange}
-                />
-              </Col>
-            )}
-
-            <Col xs={12} md={1}>
-              <InputField
-                label="Gross Wt"
-                name="gross_weight"
-                type='number'
-                value={formData.gross_weight || ""}
-                onChange={handleChange}
-              />
-            </Col>
-            <Col xs={12} md={1}>
-              <InputField
-                label="Stone Wt"
-                name="stone_weight"
-                type='number'
-                value={formData.stone_weight || ""}
-                onChange={handleChange}
-              />
-            </Col>
-            <Col xs={12} md={1}>
-              <InputField
-                label="Weight BW"
-                name="weight_bw"
-                value={formData.weight_bw || ""}
-                onChange={handleChange}
-                readOnly
-              />
-            </Col>
-
-            <Col xs={12} md={2}>
-              <InputField
-                label="Wastage On"
-                name="va_on"
-                type="select"
-                value={formData.va_on || ""}
-                onChange={handleChange}
-                options={[
-                  { value: "Gross Weight", label: "Gross Weight" },
-                  { value: "Weight BW", label: "Weight BW" },
-                  ...(formData.va_on &&
-                    !["Gross Weight", "Weight BW"].includes(formData.va_on)
-                    ? [{ value: formData.va_on, label: formData.va_on }]
-                    : []),
-                ]}
-              />
-            </Col>
-            <Col xs={12} md={1}>
-              <InputField
-                label="Wastage%"
-                name="va_percent"
-                type='number'
-                value={formData.va_percent || "0"}
-                onChange={handleChange}
-              />
-            </Col>
-            <Col xs={12} md={1}>
-              <InputField
-                label="W.Wt"
-                name="wastage_weight"
-                value={formData.wastage_weight || "0.00"}
-                onChange={handleChange}
-                readOnly
-              />
-            </Col>
-            <Col xs={12} md={2}>
-              <InputField
-                label="Total Weight AW"
-                name="total_weight_av"
-                value={formData.total_weight_av || ""}
-                onChange={handleChange}
-                readOnly
-              />
-            </Col>
-
-            <Col xs={12} md={2}>
-              <InputField
-                label="MC On"
-                name="mc_on"
-                type="select"
-                value={formData.mc_on || ""}
-                onChange={handleChange}
-                options={[
-                  { value: "MC / Gram", label: "MC / Gram" },
-                  { value: "MC / Piece", label: "MC / Piece" },
-                  { value: "MC %", label: "MC %" },
-                  ...(formData.mc_on &&
-                    !["MC / Gram", "MC / Piece", "MC %"].includes(formData.mc_on)
-                    ? [{ value: formData.mc_on, label: formData.mc_on }]
-                    : []),
-                ]}
-              />
-            </Col>
-
-            <Col xs={12} md={1}>
-              <InputField
-                label={formData.mc_on === "MC %" ? "MC %" : "MC/Gm"}
-                name="mc_per_gram"
-                type='number'
-                value={formData.mc_per_gram || ""}
-                onChange={handleChange}
-                readOnly={formData.mc_on === "MC / Piece"}
-              />
-            </Col>
-            <Col xs={12} md={1}>
-              <InputField
-                label="Total MC"
-                name="making_charges"
-                type='number'
-                value={formData.making_charges || ""}
-                onChange={handleChange}
-                disabled={formData.mc_on === "MC / Gram"}
-              />
-            </Col>
-            */}
+            {/* All fields are commented out as per original code */}
           </>
         )}
       </Row>
@@ -858,6 +821,9 @@ const ProductDetails = ({
           <div id="barcode-reader" style={{ width: '100%', minHeight: '300px' }}></div>
           <p className="mt-3">Point your camera at the product barcode to scan and automatically load product details</p>
           <p className="text-info mt-2">⚠️ Only products assigned to you and with status "Available" can be scanned</p>
+          {formData.salesman_id && (
+            <p className="text-info mt-1">🔍 Showing only products scheduled for {formData.salesman_name || 'selected salesman'}</p>
+          )}
         </Modal.Body>
         <Modal.Footer>
           <Button variant="secondary" onClick={stopScanner}>Cancel Scan</Button>

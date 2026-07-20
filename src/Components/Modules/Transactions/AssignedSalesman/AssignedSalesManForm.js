@@ -48,14 +48,13 @@ const AssignedSalesmanForm = () => {
     localStorage.setItem("schemeSalesData", JSON.stringify(schemeSalesData));
   }, [schemeSalesData]);
 
-
   useEffect(() => {
-  const userId = localStorage.getItem('userId');
-  if (userId) {
-    setLoggedInUserId(parseInt(userId));
-    console.log("Logged in User ID:", parseInt(userId));
-  }
-}, []);
+    const userId = localStorage.getItem('userId');
+    if (userId) {
+      setLoggedInUserId(parseInt(userId));
+      console.log("Logged in User ID:", parseInt(userId));
+    }
+  }, []);
 
   // const [paymentDetails, setPaymentDetails] = useState(
   //   JSON.parse(localStorage.getItem('paymentDetails')) || {
@@ -108,6 +107,7 @@ const AssignedSalesmanForm = () => {
     isTotalPriceCleared,
     setIsTotalPriceCleared,
     manualTotalPriceRef,
+    visitLogsData, // <-- ADD THIS: Get visitLogsData from the hook
   } = useProductHandlers();
 
   const [repairDetails, setRepairDetails] = useState(() => {
@@ -146,31 +146,31 @@ const AssignedSalesmanForm = () => {
 
   // ✅ ADD THIS: Fetch next transfer number on component mount - displays automatically
 // ✅ FIX THIS: Fetch next assigned number from assigned-salesman API
-useEffect(() => {
-  const fetchNextAssignedNumber = async () => {
-    try {
+  useEffect(() => {
+    const fetchNextAssignedNumber = async () => {
+      try {
       // Change from stock-transfer to assigned-salesman
-      const response = await axios.get(`${baseURL}/api/assigned-salesman/lastAssignedNumber`);
-      const nextNumber = response.data.lastAssignedNumber;
-      console.log("Next Assigned Number to display:", nextNumber);
-      setFormData((prev) => ({
-        ...prev,
+        const response = await axios.get(`${baseURL}/api/assigned-salesman/lastAssignedNumber`);
+        const nextNumber = response.data.lastAssignedNumber;
+        console.log("Next Assigned Number to display:", nextNumber);
+        setFormData((prev) => ({
+          ...prev,
         assigned_number: nextNumber,  // Change from transfer_number to assigned_number
         transfer_number: nextNumber,  // Keep for compatibility
-      }));
-    } catch (error) {
-      console.error("Error fetching next assigned number:", error);
+        }));
+      } catch (error) {
+        console.error("Error fetching next assigned number:", error);
       // Set default if API fails
-      setFormData((prev) => ({
-        ...prev,
-        assigned_number: "ASN001",
-        transfer_number: "ASN001",
-      }));
-    }
-  };
+        setFormData((prev) => ({
+          ...prev,
+          assigned_number: "ASN001",
+          transfer_number: "ASN001",
+        }));
+      }
+    };
 
-  fetchNextAssignedNumber();
-}, []);
+    fetchNextAssignedNumber();
+  }, []);
 
   // Fetch stock points for dropdown
   useEffect(() => {
@@ -371,7 +371,7 @@ useEffect(() => {
 
   const [editIndex, setEditIndex] = useState(null);
   const [discount, setDiscount] = useState(() => {
-    return parseFloat(localStorage.getItem(`discount_${tabId}`)) || ""; // Load discount from localStorage
+    return parseFloat(localStorage.getItem(`discount_${tabId}`)) || "";
   });
   const [isManualNetMode, setIsManualNetMode] = useState(false);
 
@@ -852,91 +852,91 @@ useEffect(() => {
   }, []);
 
 // In AssignedSalesmanForm.js - this is already correct (no Stock_Point filter)
-useEffect(() => {
-  const fetchStock = async () => {
-    try {
-      const response = await fetch(`${baseURL}/get/opening-tags-entry`);
-      if (!response.ok) {
-        throw new Error("Failed to fetch stock entries");
-      }
-      const data = await response.json();
-      
-      let stockData = data.result || [];
-      
+  useEffect(() => {
+    const fetchStock = async () => {
+      try {
+        const response = await fetch(`${baseURL}/get/opening-tags-entry`);
+        if (!response.ok) {
+          throw new Error("Failed to fetch stock entries");
+        }
+        const data = await response.json();
+        
+        let stockData = data.result || [];
+        
       // Filter based on logged-in user ID
-      if (loggedInUserId) {
-        stockData = stockData.filter(item => 
-          item.Status === "Available" && 
-          item.user_id === loggedInUserId
+        if (loggedInUserId) {
+          stockData = stockData.filter(item => 
+            item.Status === "Available" && 
+            item.user_id === loggedInUserId
           // Removed Stock_Point filter - now fetch from all stock points
-        );
-      } else {
+          );
+        } else {
         // If no logged-in user, only show Available items
-        stockData = stockData.filter(item => item.Status === "Available");
+          stockData = stockData.filter(item => item.Status === "Available");
+        }
+        
+        console.log("Filtered Stock Data by user_id (all stock points):", stockData);
+        setStock(stockData);
+      } catch (error) {
+        console.error("Error fetching stock entries:", error);
+        setStock([]);
       }
-      
-      console.log("Filtered Stock Data by user_id (all stock points):", stockData);
-      setStock(stockData);
-    } catch (error) {
-      console.error("Error fetching stock entries:", error);
-      setStock([]);
-    }
-  };
-  
-  fetchStock();
-}, [loggedInUserId]);
+    };
+    
+    fetchStock();
+  }, [loggedInUserId]);
 
   const fetchEstimateDetails = async (estimate_number) => {
-  if (!estimate_number) return;
+    if (!estimate_number) return;
 
-  try {
-    const response = await axios.get(
-      `${baseURL}/get-estimates/${estimate_number}`,
-    );
+    try {
+      const response = await axios.get(
+        `${baseURL}/get-estimates/${estimate_number}`,
+      );
 
-    setEstimateDetails(response.data);
+      setEstimateDetails(response.data);
 
-    if (!stock) {
-      console.warn("Stock data not yet available!");
-      return;
-    }
+      if (!stock) {
+        console.warn("Stock data not yet available!");
+        return;
+      }
 
     // Filter only matching repeatedData items with Status Available and matching user_id
-    const filteredData = response.data.repeatedData
-      .filter((item) =>
-        stock.some(
-          (stockItem) =>
-            stockItem.PCode_BarCode === item.code &&
-            stockItem.Status === "Available" &&
-            (loggedInUserId ? stockItem.user_id === loggedInUserId : true)
-        ),
-      )
-      .map((item) => ({
-        ...item,
-        transfer_number: formData.transfer_number,
-        transaction_status: "Stock Transfer",
-        date: formData.date,
-      }));
+      const filteredData = response.data.repeatedData
+        .filter((item) =>
+          stock.some(
+            (stockItem) =>
+              stockItem.PCode_BarCode === item.code &&
+              stockItem.Status === "Available" &&
+              (loggedInUserId ? stockItem.user_id === loggedInUserId : true)
+          ),
+        )
+        .map((item) => ({
+          ...item,
+          transfer_number: formData.transfer_number,
+          transaction_status: "Stock Transfer",
+          date: formData.date,
+        }));
 
-    if (filteredData.length > 0) {
-      localStorage.setItem(
-        `repairDetails_${tabId}`,
-        JSON.stringify(filteredData),
-      );
-      setRepairDetails(filteredData);
-      const storedData = JSON.parse(
-        localStorage.getItem(`repairDetails_${tabId}`),
-      );
-      console.log("Stored repairDetails from estimate:", storedData);
-    } else {
-      localStorage.removeItem(`repairDetails_${tabId}`);
-      setRepairDetails([]);
-      console.log("No matching data found for estimate. LocalStorage cleared.");
+      if (filteredData.length > 0) {
+        localStorage.setItem(
+          `repairDetails_${tabId}`,
+          JSON.stringify(filteredData),
+        );
+        setRepairDetails(filteredData);
+        const storedData = JSON.parse(
+          localStorage.getItem(`repairDetails_${tabId}`),
+        );
+        console.log("Stored repairDetails from estimate:", storedData);
+      } else {
+        localStorage.removeItem(`repairDetails_${tabId}`);
+        setRepairDetails([]);
+        console.log("No matching data found for estimate. LocalStorage cleared.");
+      }
+    } catch (error) {
+      console.error("Error fetching selected estimate details:", error);
     }
-  } catch (error) {
-    console.error("Error fetching selected estimate details:", error);
-  }
-};
+  };
 
   const handleEstimateChange = (e) => {
     const selectedValue = e.target.value;
@@ -1021,48 +1021,48 @@ useEffect(() => {
   };
 
   const fetchOrderDetails = async (order_number) => {
-  try {
-    const response = await axios.get(
-      `${baseURL}/get-order-details/${order_number}`,
-    );
+    try {
+      const response = await axios.get(
+        `${baseURL}/get-order-details/${order_number}`,
+      );
 
     // Filter only matching repeatedData items with Status Available and matching user_id
-    const filteredData = response.data.repeatedData
-      .filter((item) => {
-        const stockItem = stock?.find(s => s.PCode_BarCode === item.code);
-        return stockItem && 
-               stockItem.Status === "Available" &&
-               (loggedInUserId ? stockItem.user_id === loggedInUserId : true);
-      })
-      .map((item) => ({
-        ...item,
-        transfer_number: formData.transfer_number,
-        transaction_status: "Stock Transfer",
-        date: formData.date,
-        invoice: "Converted",
-      }));
+      const filteredData = response.data.repeatedData
+        .filter((item) => {
+          const stockItem = stock?.find(s => s.PCode_BarCode === item.code);
+          return stockItem && 
+                 stockItem.Status === "Available" &&
+                 (loggedInUserId ? stockItem.user_id === loggedInUserId : true);
+        })
+        .map((item) => ({
+          ...item,
+          transfer_number: formData.transfer_number,
+          transaction_status: "Stock Transfer",
+          date: formData.date,
+          invoice: "Converted",
+        }));
 
-    if (filteredData.length > 0) {
-      localStorage.setItem(
-        `repairDetails_${tabId}`,
-        JSON.stringify(filteredData),
-      );
-      setRepairDetails(filteredData);
-      setAutoEditIndex(0);
-      const storedData = JSON.parse(
-        localStorage.getItem(`repairDetails_${tabId}`),
-      );
-      console.log("Stored repairDetails from order:", storedData);
-      return filteredData;
-    } else {
-      localStorage.removeItem(`repairDetails_${tabId}`);
-      setRepairDetails([]);
-      console.log("No matching data found for order. LocalStorage cleared.");
+      if (filteredData.length > 0) {
+        localStorage.setItem(
+          `repairDetails_${tabId}`,
+          JSON.stringify(filteredData),
+        );
+        setRepairDetails(filteredData);
+        setAutoEditIndex(0);
+        const storedData = JSON.parse(
+          localStorage.getItem(`repairDetails_${tabId}`),
+        );
+        console.log("Stored repairDetails from order:", storedData);
+        return filteredData;
+      } else {
+        localStorage.removeItem(`repairDetails_${tabId}`);
+        setRepairDetails([]);
+        console.log("No matching data found for order. LocalStorage cleared.");
+      }
+    } catch (error) {
+      console.error("Error fetching selected order details:", error);
     }
-  } catch (error) {
-    console.error("Error fetching selected order details:", error);
-  }
-};
+  };
 
   const handleOrderChange = (e) => {
     const selectedValue = e.target.value;
@@ -1139,77 +1139,77 @@ useEffect(() => {
     fetchRepairs();
   }, []);
 
- const fetchRepairDetails = async (repair) => {
-  try {
-    const storageKey = `repairDetails_${tabId}`;
+  const fetchRepairDetails = async (repair) => {
+    try {
+      const storageKey = `repairDetails_${tabId}`;
 
     // First check if the repair item exists in stock with matching user_id
-    const stockItem = stock?.find(s => s.PCode_BarCode === repair.code);
-    
-    if (!stockItem || stockItem.Status !== "Available" || 
-        (loggedInUserId && stockItem.user_id !== loggedInUserId)) {
-      alert("This repair item is not available for transfer or doesn't belong to you");
-      return null;
-    }
+      const stockItem = stock?.find(s => s.PCode_BarCode === repair.code);
+      
+      if (!stockItem || stockItem.Status !== "Available" || 
+          (loggedInUserId && stockItem.user_id !== loggedInUserId)) {
+        alert("This repair item is not available for transfer or doesn't belong to you");
+        return null;
+      }
 
     // Create new filtered entry with necessary fields
-    const filteredData = [
-      {
-        sub_category: repair.item,
-        product_name: repair.item,
-        customer_id: repair.customer_id,
-        account_name: repair.account_name,
-        mobile: repair.mobile,
-        email: repair.email,
-        address1: repair.address1,
-        address2: repair.address2,
-        city: repair.city,
-        metal_type: repair.metal_type,
-        purity: repair.purity,
-        category: repair.category,
-        gross_weight: "1",
-        stone_weight: "0",
-        stone_price: "0",
-        weight_bw: "0",
-        va_on: "Gross Weight",
-        va_percent: "0",
-        wastage_weight: "0",
-        total_weight_av: "1",
-        mc_on: "MC %",
-        disscount_percentage: "0",
-        disscount: "0",
-        mc_per_gram: "0",
-        making_charges: "0",
-        printing_purity: repair.purity,
-        selling_purity: repair.purity,
-        qty: repair.qty,
-        total_price: repair.total_amt,
-        repair_no: repair.repair_no,
-        transfer_number: formData.transfer_number,
-        transaction_status: "Stock Transfer",
-        date: formData.date,
-        invoice: "Converted",
-        rate: repair.total_amt,
-        tax_percent: "0",
-        tax_amt: "0",
-        hm_charges: "0",
+      const filteredData = [
+        {
+          sub_category: repair.item,
+          product_name: repair.item,
+          customer_id: repair.customer_id,
+          account_name: repair.account_name,
+          mobile: repair.mobile,
+          email: repair.email,
+          address1: repair.address1,
+          address2: repair.address2,
+          city: repair.city,
+          metal_type: repair.metal_type,
+          purity: repair.purity,
+          category: repair.category,
+          gross_weight: "1",
+          stone_weight: "0",
+          stone_price: "0",
+          weight_bw: "0",
+          va_on: "Gross Weight",
+          va_percent: "0",
+          wastage_weight: "0",
+          total_weight_av: "1",
+          mc_on: "MC %",
+          disscount_percentage: "0",
+          disscount: "0",
+          mc_per_gram: "0",
+          making_charges: "0",
+          printing_purity: repair.purity,
+          selling_purity: repair.purity,
+          qty: repair.qty,
+          total_price: repair.total_amt,
+          repair_no: repair.repair_no,
+          transfer_number: formData.transfer_number,
+          transaction_status: "Stock Transfer",
+          date: formData.date,
+          invoice: "Converted",
+          rate: repair.total_amt,
+          tax_percent: "0",
+          tax_amt: "0",
+          hm_charges: "0",
         code: repair.code, // Add the barcode code
-      },
-    ];
+        },
+      ];
 
-    localStorage.setItem(storageKey, JSON.stringify(filteredData));
-    setRepairDetails(filteredData);
-    setAutoEditIndex(0);
+      localStorage.setItem(storageKey, JSON.stringify(filteredData));
+      setRepairDetails(filteredData);
+      setAutoEditIndex(0);
 
-    const storedData = JSON.parse(localStorage.getItem(storageKey));
-    console.log("Stored repairDetails (Repairs):", storedData);
+      const storedData = JSON.parse(localStorage.getItem(storageKey));
+      console.log("Stored repairDetails (Repairs):", storedData);
 
-    return filteredData;
-  } catch (error) {
-    console.error("Error fetching repair details:", error);
-    return null;
-  }
-};
+      return filteredData;
+    } catch (error) {
+      console.error("Error fetching repair details:", error);
+      return null;
+    }
+  };
 
   const handleRepairCheckboxChange = async (e, repair_no) => {
     const isChecked = e.target.checked;
@@ -1291,70 +1291,70 @@ useEffect(() => {
   //   localStorage.setItem(`repairDetails_${tabId}`, JSON.stringify(updatedRepairDetails));
   // };
 
-const handleAdd = () => {
+  const handleAdd = () => {
   // Check if the selected product belongs to the logged-in user and is Available
-  const selectedStockItem = stock?.find(s => s.PCode_BarCode === formData.code);
-  
-  if (selectedStockItem) {
-    if (selectedStockItem.Status !== "Available") {
-      alert("This product is not available for transfer");
-      return;
+    const selectedStockItem = stock?.find(s => s.PCode_BarCode === formData.code);
+    
+    if (selectedStockItem) {
+      if (selectedStockItem.Status !== "Available") {
+        alert("This product is not available for transfer");
+        return;
+      }
+      if (loggedInUserId && selectedStockItem.user_id !== loggedInUserId) {
+        alert("This product does not belong to you. You can only transfer products assigned to you.");
+        return;
+      }
     }
-    if (loggedInUserId && selectedStockItem.user_id !== loggedInUserId) {
-      alert("This product does not belong to you. You can only transfer products assigned to you.");
-      return;
-    }
-  }
 
-  const storedRepairDetails = JSON.parse(localStorage.getItem(`repairDetails_${tabId}`)) || [];
+    const storedRepairDetails = JSON.parse(localStorage.getItem(`repairDetails_${tabId}`)) || [];
 
   // Check for duplicate
-  const isDuplicate = storedRepairDetails.some(
-    (item) => item.code === formData.code
-  );
+    const isDuplicate = storedRepairDetails.some(
+      (item) => item.code === formData.code
+    );
 
-  if (isDuplicate) {
-    alert("This product has already been added");
-    return;
-  }
+    if (isDuplicate) {
+      alert("This product has already been added");
+      return;
+    }
 
-  const updatedRepairDetails = [
-    ...repairDetails,
-    {
-      ...formData,
-      pieace_cost:
-        formData.pieace_cost && parseFloat(formData.pieace_cost) > 0
-          ? parseFloat(formData.pieace_cost).toFixed(2)
-          : null,
-      rate:
-        formData.rate && parseFloat(formData.rate) > 0
-          ? parseFloat(formData.rate).toFixed(2)
-          : "",
-      imagePreview: formData.imagePreview,
+    const updatedRepairDetails = [
+      ...repairDetails,
+      {
+        ...formData,
+        pieace_cost:
+          formData.pieace_cost && parseFloat(formData.pieace_cost) > 0
+            ? parseFloat(formData.pieace_cost).toFixed(2)
+            : null,
+        rate:
+          formData.rate && parseFloat(formData.rate) > 0
+            ? parseFloat(formData.rate).toFixed(2)
+            : "",
+        imagePreview: formData.imagePreview,
       image: formData.image, // Include image path from stock transfer
-    },
-  ];
+      },
+    ];
 
-  setRepairDetails(updatedRepairDetails);
-  localStorage.setItem(
-    `repairDetails_${tabId}`,
-    JSON.stringify(updatedRepairDetails),
-  );
+    setRepairDetails(updatedRepairDetails);
+    localStorage.setItem(
+      `repairDetails_${tabId}`,
+      JSON.stringify(updatedRepairDetails),
+    );
 
-  setFormData((prevData) => ({
-    ...prevData,
-    disscount: "",
-    disscount_percentage: "",
-    pieace_cost: "",
-    imagePreview: null,
-    image: null,
-    sale_status: "Delivered",
-    piece_taxable_amt: "",
-    festival_discount: "",
-  }));
+    setFormData((prevData) => ({
+      ...prevData,
+      disscount: "",
+      disscount_percentage: "",
+      pieace_cost: "",
+      imagePreview: null,
+      image: null,
+      sale_status: "Delivered",
+      piece_taxable_amt: "",
+      festival_discount: "",
+    }));
 
-  resetProductFields();
-};
+    resetProductFields();
+  };
 
   const handleEdit = (index) => {
     setEditIndex(index);
@@ -1453,38 +1453,38 @@ const handleAdd = () => {
     return savedData ? JSON.parse(savedData) : [];
   });
 
-const resetForm = () => {
-  setFormData({
-    customer_id: "",
-    mobile: "",
-    account_name: "",
-    email: "",
-    address1: "",
-    address2: "",
-    city: "",
-    pincode: "",
-    state: "",
-    state_code: "",
-    aadhar_card: "",
-    gst_in: "",
-    pan_card: "",
-    date: new Date().toISOString().split("T")[0],
-    transfer_number: "",
-    active_stock_point_id: "",
+  const resetForm = () => {
+    setFormData({
+      customer_id: "",
+      mobile: "",
+      account_name: "",
+      email: "",
+      address1: "",
+      address2: "",
+      city: "",
+      pincode: "",
+      state: "",
+      state_code: "",
+      aadhar_card: "",
+      gst_in: "",
+      pan_card: "",
+      date: new Date().toISOString().split("T")[0],
+      transfer_number: "",
+      active_stock_point_id: "",
     salesman_id: "",        // Add this
     salesman_name: "",      // Add this
-    active_stock_point_details: null,
-  });
-  setPaymentDetails({
-    cash_amount: 0,
-    card_amt: 0,
-    chq: "",
-    chq_amt: 0,
-    online: "",
-    online_amt: 0,
-  });
-  setRepairDetails([]);
-};
+      active_stock_point_details: null,
+    });
+    setPaymentDetails({
+      cash_amount: 0,
+      card_amt: 0,
+      chq: "",
+      chq_amt: 0,
+      online: "",
+      online_amt: 0,
+    });
+    setRepairDetails([]);
+  };
 
   const resetSaleReturnForm = () => {
     setReturnData({
@@ -2389,125 +2389,125 @@ const resetForm = () => {
   // };
 
 
-const handleSave = async () => {
-  try {
-    const activeStockPointDetails = formData.active_stock_point_details;
-    const selectedSalesman = formData.salesman_id ? {
-      salesman_id: formData.salesman_id,
-      salesman_name: formData.salesman_name
-    } : null;
+  const handleSave = async () => {
+    try {
+      const activeStockPointDetails = formData.active_stock_point_details;
+      const selectedSalesman = formData.salesman_id ? {
+        salesman_id: formData.salesman_id,
+        salesman_name: formData.salesman_name
+      } : null;
 
-    if (!activeStockPointDetails) {
-      alert("Please select an Active Stock Point");
-      return;
-    }
+      if (!activeStockPointDetails) {
+        alert("Please select an Active Stock Point");
+        return;
+      }
 
-    if (!selectedSalesman) {
-      alert("Please select a Salesman");
-      return;
-    }
+      if (!selectedSalesman) {
+        alert("Please select a Salesman");
+        return;
+      }
 
-    if (!repairDetails || repairDetails.length === 0) {
-      alert("Please add items to transfer");
-      return;
-    }
+      if (!repairDetails || repairDetails.length === 0) {
+        alert("Please add items to transfer");
+        return;
+      }
 
     // Use assigned_number instead of transfer_number
-    let nextAssignedNumber = formData.assigned_number || formData.transfer_number;
-    
-    if (!nextAssignedNumber) {
-      try {
-        const response = await axios.get(`${baseURL}/api/assigned-salesman/lastAssignedNumber`);
-        nextAssignedNumber = response.data.lastAssignedNumber;
-      } catch (error) {
-        console.error("Error fetching next assigned number:", error);
-        nextAssignedNumber = `ASN001`;
+      let nextAssignedNumber = formData.assigned_number || formData.transfer_number;
+      
+      if (!nextAssignedNumber) {
+        try {
+          const response = await axios.get(`${baseURL}/api/assigned-salesman/lastAssignedNumber`);
+          nextAssignedNumber = response.data.lastAssignedNumber;
+        } catch (error) {
+          console.error("Error fetching next assigned number:", error);
+          nextAssignedNumber = `ASN001`;
+        }
       }
-    }
 
-    console.log("Saving with Assigned Number:", nextAssignedNumber);
+      console.log("Saving with Assigned Number:", nextAssignedNumber);
 
     // Get the capture image from formData (from Customer Details)
-    const captureImage = formData.capture_image || null;
-    console.log("📷 Capture Image present:", !!captureImage);
+      const captureImage = formData.capture_image || null;
+      console.log("📷 Capture Image present:", !!captureImage);
 
-    const transferData = repairDetails.map(item => ({
-      product_id: item.product_id || null,
-      product_name: item.product_name || null,
-      metal_type: item.metal_type || null,
-      purity: item.purity || item.selling_purity || null,
-      category: item.category || null,
-      sub_category: item.sub_category || item.product_name || null,
-      design_name: item.design_name || null,
-      qty: parseFloat(item.qty) || 1,
-      gross_weight: parseFloat(item.gross_weight) || 0,
-      stone_weight: parseFloat(item.stone_weight) || 0,
-      net_weight: parseFloat(item.total_weight_av) || parseFloat(item.weight_bw) || 0,
-      rate: parseFloat(item.rate) || 0,
-      making_charges: parseFloat(item.making_charges) || 0,
-      stone_price: parseFloat(item.stone_price) || 0,
-      total_price: parseFloat(item.total_price) || 0,
+      const transferData = repairDetails.map(item => ({
+        product_id: item.product_id || null,
+        product_name: item.product_name || null,
+        metal_type: item.metal_type || null,
+        purity: item.purity || item.selling_purity || null,
+        category: item.category || null,
+        sub_category: item.sub_category || item.product_name || null,
+        design_name: item.design_name || null,
+        qty: parseFloat(item.qty) || 1,
+        gross_weight: parseFloat(item.gross_weight) || 0,
+        stone_weight: parseFloat(item.stone_weight) || 0,
+        net_weight: parseFloat(item.total_weight_av) || parseFloat(item.weight_bw) || 0,
+        rate: parseFloat(item.rate) || 0,
+        making_charges: parseFloat(item.making_charges) || 0,
+        stone_price: parseFloat(item.stone_price) || 0,
+        total_price: parseFloat(item.total_price) || 0,
       image: item.image || null, // Include image path
-      remarks: item.remarks || null,
-      PCode_BarCode: item.code
-    }));
+        remarks: item.remarks || null,
+        PCode_BarCode: item.code
+      }));
 
-    const payload = {
-      transfer_data: transferData,
-      from_stock_point_id: parseInt(formData.active_stock_point_id),
-      to_salesman_id: parseInt(selectedSalesman.salesman_id),
-      transfer_date: formData.date || new Date().toISOString().split('T')[0],
-      reference_number: nextAssignedNumber,
-      remarks: `Assigned to ${selectedSalesman.salesman_name} from ${activeStockPointDetails.stock_point_name}`,
-      created_by: formData.account_name || "system",
-      from_user_id: activeStockPointDetails.user_id || null,
-      to_user_id: null,
+      const payload = {
+        transfer_data: transferData,
+        from_stock_point_id: parseInt(formData.active_stock_point_id),
+        to_salesman_id: parseInt(selectedSalesman.salesman_id),
+        transfer_date: formData.date || new Date().toISOString().split('T')[0],
+        reference_number: nextAssignedNumber,
+        remarks: `Assigned to ${selectedSalesman.salesman_name} from ${activeStockPointDetails.stock_point_name}`,
+        created_by: formData.account_name || "system",
+        from_user_id: activeStockPointDetails.user_id || null,
+        to_user_id: null,
       capture_image: captureImage  // <-- NEW: Add capture image from Customer Details
-    };
+      };
 
-    console.log("📦 Sending Assigned Salesman Payload with capture_image:", !!payload.capture_image);
+      console.log("📦 Sending Assigned Salesman Payload with capture_image:", !!payload.capture_image);
 
-    const response = await axios.post(`${baseURL}/api/assigned-salesman/save-assigned-salesman`, payload);
-   
-    if (response.status === 200 || response.status === 201) {
-      alert(`Assigned to Salesman completed successfully! Assigned Number: ${nextAssignedNumber}`);
-      
+      const response = await axios.post(`${baseURL}/api/assigned-salesman/save-assigned-salesman`, payload);
+     
+      if (response.status === 200 || response.status === 201) {
+        alert(`Assigned to Salesman completed successfully! Assigned Number: ${nextAssignedNumber}`);
+        
       // Clear data
-      setOldSalesData([]);
-      setSchemeSalesData([]);
-      setRepairDetails([]);
-      setPaymentDetails({
-        cash_amount: 0,
-        card_amt: 0,
-        chq: "",
-        chq_amt: 0,
-        online: "",
-        online_amt: 0,
-      });
-      setOldTableData([]);
-      setSchemeTableData([]);
-      setDiscount(0);
-      
+        setOldSalesData([]);
+        setSchemeSalesData([]);
+        setRepairDetails([]);
+        setPaymentDetails({
+          cash_amount: 0,
+          card_amt: 0,
+          chq: "",
+          chq_amt: 0,
+          online: "",
+          online_amt: 0,
+        });
+        setOldTableData([]);
+        setSchemeTableData([]);
+        setDiscount(0);
+        
       // Reset form data
-      setFormData({
-        ...formData,
-        active_stock_point_id: "",
-        salesman_id: "",
-        salesman_name: "",
-        active_stock_point_details: null,
-        assigned_number: "",
-        transfer_number: "",
+        setFormData({
+          ...formData,
+          active_stock_point_id: "",
+          salesman_id: "",
+          salesman_name: "",
+          active_stock_point_details: null,
+          assigned_number: "",
+          transfer_number: "",
         capture_image: null,  // Clear capture image
-        capture_image_file: null
-      });
-      
-      navigate("/assign-to-salesman");
+          capture_image_file: null
+        });
+        
+        navigate("/assign-to-salesman");
+      }
+    } catch (error) {
+      console.error("Error saving assigned salesman:", error);
+      alert("Error saving assigned salesman: " + (error.response?.data?.message || error.message));
     }
-  } catch (error) {
-    console.error("Error saving assigned salesman:", error);
-    alert("Error saving assigned salesman: " + (error.response?.data?.message || error.message));
-  }
-};
+  };
 
 
 
@@ -2691,6 +2691,7 @@ const handleSave = async () => {
               handleOrderChange={handleOrderChange}
               selectedOrder={selectedOrder}
               orderData={orderData}
+              visitLogsData={visitLogsData} // <-- ADD THIS: Pass visitLogsData to ProductDetails
             />
           </div>
 

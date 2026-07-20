@@ -128,14 +128,54 @@ const CustomerDetails = ({
     }
   };
 
+  // UPDATED: When salesman changes, store both ID and name in formData
   const handleSalesmanChange = (e) => {
     const value = e.target.value;
     console.log("Salesman selected:", value);
     
+    const selectedSalesman = value ? salesmen.find(s => s.account_id === parseInt(value)) : null;
+    
     setFormData(prev => ({
       ...prev,
       salesman_id: value,
-      salesman_name: value ? salesmen.find(s => s.account_id === parseInt(value))?.account_name : null
+      salesman_name: selectedSalesman ? selectedSalesman.account_name : null,
+      // Clear barcode and product data when salesman changes
+      code: "",
+      product_id: "",
+      product_name: "",
+      metal_type: "",
+      design_name: "",
+      purity: "",
+      category: "",
+      sub_category: "",
+      gross_weight: "",
+      stone_weight: "",
+      stone_price: "",
+      weight_bw: "",
+      va_on: "Gross Weight",
+      va_percent: "",
+      wastage_weight: "",
+      total_weight_av: "",
+      mc_on: "MC %",
+      mc_per_gram: "",
+      making_charges: "",
+      disscount_percentage: "",
+      disscount: "",
+      rate: "",
+      pieace_cost: "",
+      mrp_price: "",
+      rate_amt: "",
+      tax_percent: "03% GST",
+      tax_amt: "",
+      total_price: "",
+      qty: "",
+      remarks: "",
+      sale_status: "Delivered",
+      piece_taxable_amt: "",
+      festival_discount: "",
+      custom_purity: "",
+      image: null,
+      imagePreview: null,
     }));
   };
 
