@@ -654,7 +654,7 @@ export default function DayBook() {
           {!loading && allEntries.length > 0 && (
             <>
               {/* Total Stock Inward / Outward / Balance cards */}
-              <div style={styles.dayTotalsCards}>
+              {/* <div style={styles.dayTotalsCards}>
                 <TotalCard
                     label="Total Stock Inward"
                     value={`${fmtNum(selectedBucket.inwardQty, 0)} Pcs`}
@@ -674,7 +674,7 @@ export default function DayBook() {
                     tone="brass"
                     emphasis
                   />
-              </div>
+              </div> */}
 
               {/* SINGLE UNIFIED TABLE */}
               <div style={styles.tableWrapper}>
