@@ -299,10 +299,10 @@ const StockInward = () => {
         Header: 'Total Gross Wt',
         accessor: 'total_gross_weight',
       },
-      {
-        Header: 'Total Net Wt',
-        accessor: 'total_net_weight',
-      },
+      // {
+      //   Header: 'Total Net Wt',
+      //   accessor: 'total_net_weight',
+      // },
       {
         Header: 'Images',
         id: 'images',

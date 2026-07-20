@@ -449,7 +449,7 @@ const CustomerDetails = ({
           />
           {formData.salesman_id && (
             <div style={{ fontSize: '11px', color: '#666', marginTop: '2px' }}>
-              Assigned products available: {assignedCount}
+              {/* Assigned products available: {assignedCount} */}
             </div>
           )}
         </Col>
