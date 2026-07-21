@@ -295,11 +295,20 @@ function StockNavbar() {
             {location.pathname === "/receive-from-salesman" && (
               <h1 className="stock-path-heading">INWARD FROM SALESMAN</h1>
             )}
+            {location.pathname === "/add-receive-from-salesman" && (
+              <h1 className="stock-path-heading">ADD INWARD FROM SALESMAN</h1>
+            )}
             {location.pathname === "/return-to-main-stock" && (
               <h1 className="stock-path-heading">OUTWARD TO MAIN ADMIN</h1>
             )}
+             {location.pathname === "/add-return-to-main-stock" && (
+              <h1 className="stock-path-heading">ADD OUTWARD TO MAIN ADMIN</h1>
+            )}
             {location.pathname === "/assign-to-salesman" && (
               <h1 className="stock-path-heading">OUTWARD TO SALESMAN</h1>
+            )}
+             {location.pathname === "/add-assign-salesmantransfer" && (
+              <h1 className="stock-path-heading">ADD OUTWARD TO SALESMAN</h1>
             )}
             {/* {location.pathname === "/day-book" && (
               <h1 className="stock-path-heading">DAY BOOK</h1>
