@@ -141,3 +141,52 @@
         font-weight: bold;
       }
       
+
+      /* Password field with eye toggle */
+.password-field-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+.password-field-wrapper .input-field {
+  padding-right: 45px !important;
+}
+
+.password-toggle-btn {
+  position: absolute;
+  right: 12px;
+  top: 8px; /* Adjust based on your label height */
+  background: none;
+  border: none;
+  color: #6c757d;
+  cursor: pointer;
+  padding: 5px;
+  font-size: 18px;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s ease;
+}
+
+.password-toggle-btn:hover {
+  color: #333;
+}
+
+.password-toggle-btn:focus {
+  outline: none;
+}
+
+/* If using InputField component with different structure, adjust accordingly */
+.password-field-wrapper .form-control {
+  padding-right: 45px;
+}
+
+/* For better mobile responsiveness */
+@media (max-width: 768px) {
+  .password-toggle-btn {
+    top: 35px;
+    right: 10px;
+    font-size: 16px;
+  }
+}

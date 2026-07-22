@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Container, Row, Col, Button, Table, Form, Alert, Badge, Modal } from 'react-bootstrap';
 import axios from 'axios';
 import baseURL from '../../../../Url/NodeBaseURL';
@@ -7,7 +7,9 @@ import {
   FaPlus, FaEdit, FaTrash, FaCalendarCheck, FaUser, 
   FaClock, FaCheck, FaTimes, FaWarehouse, FaBarcode, 
   FaBoxes, FaList, FaEye, FaCheckCircle, FaMinusCircle,
-  FaUserTie, FaUserCheck, FaUserPlus
+  FaUserTie, FaUserCheck, FaUserPlus, FaMapMarkerAlt,
+  FaCity, FaMapPin, FaChevronDown, FaChevronRight,
+  FaBuilding, FaLocationDot
 } from 'react-icons/fa';
 import './VisitLogsWarehouseSchedule.css';
 import Swal from 'sweetalert2';
@@ -46,6 +48,14 @@ const VisitLogsWarehouseSchedule = () => {
   const [selectedBarcodes, setSelectedBarcodes] = useState([]);
   const [selectedBarcodeDetails, setSelectedBarcodeDetails] = useState([]);
 
+  // State for custom dropdown
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [expandedStates, setExpandedStates] = useState({});
+  const [expandedDistricts, setExpandedDistricts] = useState({});
+  const [expandedCities, setExpandedCities] = useState({});
+  const dropdownRef = useRef(null);
+
   // Get today's date for min date validation
   const today = new Date().toISOString().split('T')[0];
 
@@ -56,7 +66,18 @@ const VisitLogsWarehouseSchedule = () => {
     fetchStockPoints();
     fetchScheduledVisits();
     fetchStockTransfers();
-    fetchSalesmen();  // Added salesmen fetch
+    fetchSalesmen();
+  }, []);
+
+  // Click outside handler for dropdown
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   // Fetch customers from account-details API
@@ -386,6 +407,10 @@ const VisitLogsWarehouseSchedule = () => {
     setSelectedBarcodeDetails([]);
     setAvailableBarcodes([]);
     setSelectedBarcodes([]);
+    setSearchTerm('');
+    setExpandedStates({});
+    setExpandedDistricts({});
+    setExpandedCities({});
   };
 
   // Handle edit
@@ -504,6 +529,231 @@ const VisitLogsWarehouseSchedule = () => {
     return stockPoint ? stockPoint.name : 'Unknown Stock Point';
   };
 
+  // Get selected customer name
+  const getSelectedCustomerName = () => {
+    if (!formData.customer_id) return '-- Select Customer --';
+    const customer = customers.find(c => c.account_id === parseInt(formData.customer_id));
+    return customer ? `${customer.account_name} ${customer.customer_id ? `(${customer.customer_id})` : ''}` : '-- Select Customer --';
+  };
+
+  // Get grouped data for custom dropdown
+  const getGroupedData = () => {
+    const grouped = {};
+    
+    customers.forEach(customer => {
+      const state = customer.state && customer.state.trim() ? customer.state.trim() : 'Unknown State';
+      const district = customer.district && customer.district.trim() ? customer.district.trim() : 'Unknown District';
+      const city = customer.city && customer.city.trim() ? customer.city.trim() : 'Unknown City';
+      
+      if (!grouped[state]) {
+        grouped[state] = {};
+      }
+      if (!grouped[state][district]) {
+        grouped[state][district] = {};
+      }
+      if (!grouped[state][district][city]) {
+        grouped[state][district][city] = [];
+      }
+      grouped[state][district][city].push(customer);
+    });
+    
+    return grouped;
+  };
+
+  // Filter data based on search
+  const filterData = (data, search) => {
+    if (!search) return data;
+    const lowerSearch = search.toLowerCase();
+    const filtered = {};
+    
+    Object.keys(data).forEach(state => {
+      const stateMatch = state.toLowerCase().includes(lowerSearch);
+      const districts = {};
+      
+      Object.keys(data[state]).forEach(district => {
+        const districtMatch = district.toLowerCase().includes(lowerSearch);
+        const cities = {};
+        
+        Object.keys(data[state][district]).forEach(city => {
+          const cityMatch = city.toLowerCase().includes(lowerSearch);
+          const customersMatch = data[state][district][city].filter(c => 
+            c.account_name.toLowerCase().includes(lowerSearch) ||
+            (c.customer_id && c.customer_id.toLowerCase().includes(lowerSearch)) ||
+            (c.phone && c.phone.includes(lowerSearch))
+          );
+          
+          if (cityMatch || districtMatch || stateMatch || customersMatch.length > 0) {
+            cities[city] = customersMatch.length > 0 ? customersMatch : data[state][district][city];
+          }
+        });
+        
+        if (Object.keys(cities).length > 0) {
+          districts[district] = cities;
+        }
+      });
+      
+      if (Object.keys(districts).length > 0) {
+        filtered[state] = districts;
+      }
+    });
+    
+    return filtered;
+  };
+
+  // Toggle state expansion
+  const toggleState = (state) => {
+    setExpandedStates(prev => ({
+      ...prev,
+      [state]: !prev[state]
+    }));
+  };
+
+  // Toggle district expansion
+  const toggleDistrict = (state, district) => {
+    const key = `${state}|||${district}`;
+    setExpandedDistricts(prev => ({
+      ...prev,
+      [key]: !prev[key]
+    }));
+  };
+
+  // Toggle city expansion
+  const toggleCity = (state, district, city) => {
+    const key = `${state}|||${district}|||${city}`;
+    setExpandedCities(prev => ({
+      ...prev,
+      [key]: !prev[key]
+    }));
+  };
+
+  // Handle customer selection
+  const handleCustomerSelect = (customerId) => {
+    setFormData(prev => ({
+      ...prev,
+      customer_id: customerId.toString()
+    }));
+    setIsDropdownOpen(false);
+    setSearchTerm('');
+  };
+
+  // Render hierarchical dropdown
+  const renderDropdownItems = () => {
+    const groupedData = getGroupedData();
+    const filteredData = filterData(groupedData, searchTerm);
+    
+    if (Object.keys(filteredData).length === 0) {
+      return (
+        <div className="vlws-dropdown-empty">
+          <FaUser className="me-2" />
+          No customers found
+        </div>
+      );
+    }
+
+    const items = [];
+    
+    Object.keys(filteredData).sort().forEach(state => {
+      const districts = filteredData[state];
+      const isStateExpanded = expandedStates[state] || searchTerm;
+      const stateCustomerCount = Object.values(districts).reduce((count, districtCities) => {
+        return count + Object.values(districtCities).reduce((c, customers) => c + customers.length, 0);
+      }, 0);
+      
+      items.push(
+        <div key={`state-${state}`} className="vlws-dropdown-group">
+          <div 
+            className="vlws-dropdown-group-header"
+            onClick={() => toggleState(state)}
+          >
+            <span className="vlws-dropdown-toggle-icon">
+              {isStateExpanded ? <FaChevronDown /> : <FaChevronRight />}
+            </span>
+            <FaBuilding className="vlws-state-icon" />
+            <span className="vlws-dropdown-group-label">{state}</span>
+            <Badge bg="secondary" className="vlws-customer-count">{stateCustomerCount} customer(s)</Badge>
+          </div>
+          
+          {isStateExpanded && (
+            <div className="vlws-dropdown-group-children">
+              {Object.keys(districts).sort().map(district => {
+                const cities = districts[district];
+                const isDistrictExpanded = expandedDistricts[`${state}|||${district}`] || searchTerm;
+                const districtCustomerCount = Object.values(cities).reduce((count, customers) => count + customers.length, 0);
+                
+                return (
+                  <div key={`district-${state}-${district}`} className="vlws-dropdown-subgroup">
+                    <div 
+                      className="vlws-dropdown-subgroup-header"
+                      onClick={() => toggleDistrict(state, district)}
+                    >
+                      <span className="vlws-dropdown-toggle-icon">
+                        {isDistrictExpanded ? <FaChevronDown /> : <FaChevronRight />}
+                      </span>
+                      <FaCity className="vlws-district-icon" />
+                      <span className="vlws-dropdown-subgroup-label">{district}</span>
+                      <Badge bg="secondary" className="vlws-customer-count">{districtCustomerCount} customer(s)</Badge>
+                    </div>
+                    
+                    {isDistrictExpanded && (
+                      <div className="vlws-dropdown-subgroup-children">
+                        {Object.keys(cities).sort().map(city => {
+                          const customerList = cities[city];
+                          const isCityExpanded = expandedCities[`${state}|||${district}|||${city}`] || searchTerm;
+                          
+                          return (
+                            <div key={`city-${state}-${district}-${city}`} className="vlws-dropdown-subgroup">
+                              <div 
+                                className="vlws-dropdown-subgroup-header vlws-city-header"
+                                onClick={() => toggleCity(state, district, city)}
+                              >
+                                <span className="vlws-dropdown-toggle-icon">
+                                  {isCityExpanded ? <FaChevronDown /> : <FaChevronRight />}
+                                </span>
+                                <FaMapMarkerAlt className="vlws-city-icon" />
+                                <span className="vlws-dropdown-subgroup-label">{city}</span>
+                                <Badge bg="secondary" className="vlws-customer-count">{customerList.length} customer(s)</Badge>
+                              </div>
+                              
+                              {isCityExpanded && (
+                                <div className="vlws-dropdown-subgroup-children">
+                                  {customerList.map(customer => (
+                                    <div
+                                      key={customer.account_id}
+                                      className={`vlws-dropdown-item ${formData.customer_id === customer.account_id.toString() ? 'active' : ''}`}
+                                      onClick={() => handleCustomerSelect(customer.account_id)}
+                                    >
+                                      <FaUser className="vlws-customer-icon" />
+                                      <span className="vlws-customer-name">{customer.account_name}</span>
+                                      {customer.customer_id && (
+                                        <span className="vlws-customer-id">({customer.customer_id})</span>
+                                      )}
+                                      {customer.phone && (
+                                        <span className="vlws-customer-phone">📞 {customer.phone}</span>
+                                      )}
+                                      {customer.email && (
+                                        <span className="vlws-customer-email">✉️ {customer.email}</span>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      );
+    });
+    
+    return items;
+  };
+
   return (
     <>
       <Navbar />
@@ -565,27 +815,53 @@ const VisitLogsWarehouseSchedule = () => {
                       </Form.Group>
                     </Col>
 
-                    {/* Customer Dropdown */}
+                    {/* Customer Dropdown - Custom Hierarchical */}
                     <Col lg={3} md={6} className="mb-3">
                       <Form.Group>
                         <Form.Label className="vlws-label">
                           <FaUser className="me-1" /> Customer <span className="text-danger">*</span>
                         </Form.Label>
-                        <Form.Select
-                          name="customer_id"
-                          value={formData.customer_id}
-                          onChange={handleInputChange}
-                          className="vlws-select"
-                          required
-                        >
-                          <option value="">-- Select Customer --</option>
-                          {customers.map(customer => (
-                            <option key={customer.account_id} value={customer.account_id}>
-                              {customer.account_name} 
-                              {customer.customer_id ? ` (${customer.customer_id})` : ''}
-                            </option>
-                          ))}
-                        </Form.Select>
+                        <div className="vlws-custom-dropdown" ref={dropdownRef}>
+                          <div 
+                            className="vlws-dropdown-select"
+                            onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                          >
+                            <span className="vlws-dropdown-selected">
+                              {getSelectedCustomerName()}
+                            </span>
+                            <FaChevronDown className={`vlws-dropdown-arrow ${isDropdownOpen ? 'open' : ''}`} />
+                          </div>
+                          
+                          {isDropdownOpen && (
+                            <div className="vlws-dropdown-menu">
+                              <div className="vlws-dropdown-search">
+                                <FaUser className="vlws-search-icon" />
+                                <input
+                                  type="text"
+                                  placeholder="Search customers by name, ID, or phone..."
+                                  value={searchTerm}
+                                  onChange={(e) => setSearchTerm(e.target.value)}
+                                  className="vlws-search-input"
+                                />
+                                {searchTerm && (
+                                  <button 
+                                    className="vlws-search-clear"
+                                    onClick={() => setSearchTerm('')}
+                                  >
+                                    <FaTimes />
+                                  </button>
+                                )}
+                              </div>
+                              <div className="vlws-dropdown-items">
+                                {renderDropdownItems()}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                        {/* <small className="text-muted mt-1 d-block">
+                          <FaMapMarkerAlt className="me-1" />
+                          Grouped by State → District → City
+                        </small> */}
                       </Form.Group>
                     </Col>
 
@@ -612,7 +888,7 @@ const VisitLogsWarehouseSchedule = () => {
                       </Form.Group>
                     </Col>
 
-                    {/* Salesman Dropdown - NEW */}
+                    {/* Salesman Dropdown */}
                     <Col lg={3} md={6} className="mb-3">
                       <Form.Group>
                         <Form.Label className="vlws-label">
@@ -784,7 +1060,7 @@ const VisitLogsWarehouseSchedule = () => {
             </Col>
           </Row>
 
-          {/* Info Alert - Updated with Salesman info */}
+          {/* Info Alert */}
           <Row className="mb-4">
             <Col md={12}>
               <Alert variant="info" className="vlws-info-alert">
@@ -798,7 +1074,7 @@ const VisitLogsWarehouseSchedule = () => {
             </Col>
           </Row>
 
-          {/* Scheduled Visits Table - Updated with Salesman column */}
+          {/* Scheduled Visits Table */}
           <Row className="vlws-table-section">
             <Col md={12}>
               <div className="vlws-table-card">
@@ -911,7 +1187,7 @@ const VisitLogsWarehouseSchedule = () => {
         </Container>
       </div>
 
-      {/* Barcode Items Modal - Multi-select */}
+      {/* Barcode Items Modal */}
       <Modal 
         show={showBarcodeModal} 
         onHide={() => {

@@ -6,7 +6,7 @@ import axios from "axios";
 import { Row, Col, Button } from 'react-bootstrap';
 import baseURL from '../../../../Url/NodeBaseURL';
 import baseURL2 from '../../../../Url/NodeBaseURL2';
-import { FaUpload, FaTrash } from 'react-icons/fa';
+import { FaUpload, FaTrash, FaEye, FaEyeSlash } from 'react-icons/fa';
 import Webcam from 'react-webcam';
 
 function Customer_Master() {
@@ -18,6 +18,7 @@ function Customer_Master() {
     address1: '',
     address2: '',
     city: '',
+    district: '',
     pincode: '',
     state: '',
     state_code: '',
@@ -34,6 +35,8 @@ function Customer_Master() {
     gst_in: '',
     aadhar_card: '',
     pan_card: '',
+    password: '',
+    confirm_password: '',
   });
   const [existingMobiles, setExistingMobiles] = useState([]);
   const [tcsApplicable, setTcsApplicable] = useState(false);
@@ -49,6 +52,10 @@ function Customer_Master() {
   const webcamRef = useRef(null);
   const fileInputRef = useRef(null);
   const [isSaving, setIsSaving] = useState(false);
+
+  // Password visibility states
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   useEffect(() => {
     const fetchCustomers = async () => {
@@ -107,83 +114,88 @@ function Customer_Master() {
     fetchCustomer();
   }, [id]);
 
- const handleChange = (e) => {
-  const { name, value } = e.target;
-  let updatedValue = value;
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    let updatedValue = value;
 
-  switch (name) {
-    case "account_name":
-      updatedValue = value.toUpperCase();
+    switch (name) {
+      case "account_name":
+        updatedValue = value.toUpperCase();
 
-      // Prevent only numbers
-      if (/^\d+$/.test(updatedValue)) {
-        return;
-      }
-
-      setFormData((prevData) => ({
-        ...prevData,
-        account_name: updatedValue,
-        ...(prevData.print_name === prevData.account_name && {
-          print_name: updatedValue,
-        }),
-      }));
-      return;
-
-    case "print_name":
-      updatedValue = value.charAt(0).toUpperCase() + value.slice(1);
-      break;
-
-    case "birthday":
-    case "anniversary":
-      // Restrict year to maximum 4 digits
-      if (value) {
-        const parts = value.split("-");
-
-        if (parts.length > 0 && parts[0].length > 4) {
+        // Prevent only numbers
+        if (/^\d+$/.test(updatedValue)) {
           return;
         }
-      }
-      updatedValue = value;
-      break;
 
-    case "mobile":
-    case "phone":
-      updatedValue = value.replace(/\D/g, "").slice(0, 10);
-      break;
+        setFormData((prevData) => ({
+          ...prevData,
+          account_name: updatedValue,
+          ...(prevData.print_name === prevData.account_name && {
+            print_name: updatedValue,
+          }),
+        }));
+        return;
 
-    case "aadhar_card":
-      updatedValue = value.replace(/\D/g, "").slice(0, 12);
-      break;
+      case "print_name":
+        updatedValue = value.charAt(0).toUpperCase() + value.slice(1);
+        break;
 
-    case "pincode":
-      updatedValue = value.replace(/\D/g, "").slice(0, 6);
-      break;
+      case "birthday":
+      case "anniversary":
+        // Restrict year to maximum 4 digits
+        if (value) {
+          const parts = value.split("-");
 
-    case "gst_in":
-      updatedValue = value.toUpperCase().slice(0, 15);
-      break;
+          if (parts.length > 0 && parts[0].length > 4) {
+            return;
+          }
+        }
+        updatedValue = value;
+        break;
 
-    case "pan_card":
-      updatedValue = value.toUpperCase().slice(0, 10);
-      break;
+      case "mobile":
+      case "phone":
+        updatedValue = value.replace(/\D/g, "").slice(0, 10);
+        break;
 
-    case "ifsc_code":
-      updatedValue = value.toUpperCase().slice(0, 11);
-      break;
+      case "aadhar_card":
+        updatedValue = value.replace(/\D/g, "").slice(0, 12);
+        break;
 
-    case "bank_account_no":
-      updatedValue = value.replace(/\D/g, "").slice(0, 18);
-      break;
+      case "pincode":
+        updatedValue = value.replace(/\D/g, "").slice(0, 6);
+        break;
 
-    default:
-      break;
-  }
+      case "gst_in":
+        updatedValue = value.toUpperCase().slice(0, 15);
+        break;
 
-  setFormData((prevData) => ({
-    ...prevData,
-    [name]: updatedValue,
-  }));
-};
+      case "pan_card":
+        updatedValue = value.toUpperCase().slice(0, 10);
+        break;
+
+      case "ifsc_code":
+        updatedValue = value.toUpperCase().slice(0, 11);
+        break;
+
+      case "bank_account_no":
+        updatedValue = value.replace(/\D/g, "").slice(0, 18);
+        break;
+
+      case "password":
+      case "confirm_password":
+        // No formatting for password fields
+        break;
+
+      default:
+        break;
+    }
+
+    setFormData((prevData) => ({
+      ...prevData,
+      [name]: updatedValue,
+    }));
+  };
 
   const validateForm = () => {
     if (!formData.account_name || !formData.account_name.trim()) {
@@ -218,6 +230,19 @@ function Customer_Master() {
       alert("IFSC Code must be exactly 11 characters.");
       return false;
     }
+    
+    // Validate password for new customers
+    if (!id) {
+      if (!formData.password || formData.password.length < 6) {
+        alert("Password must be at least 6 characters long.");
+        return false;
+      }
+      if (formData.password !== formData.confirm_password) {
+        alert("Password and Confirm Password do not match.");
+        return false;
+      }
+    }
+
     return true;
   };
 
@@ -267,8 +292,8 @@ function Customer_Master() {
   // Function to store customer in users database
   const storeInUsersDB = async (customerData, customerId) => {
     try {
-      // Generate a random password if not provided
-      const randomPassword = Math.random().toString(36).slice(-8) + "@123";
+      // Use provided password or generate random one
+      const passwordToUse = customerData.password || Math.random().toString(36).slice(-8) + "@123";
       
       const usersData = {
         full_name: customerData.account_name,
@@ -286,8 +311,8 @@ function Customer_Master() {
         role: "customer",
         status: "pending",
         pincode: customerData.pincode || "",
-        password: randomPassword,
-        confirm_password: randomPassword,
+        password: passwordToUse,
+        confirm_password: passwordToUse,
         customer_id: customerId,
         latitude: customerData.latitude || null,
         longitude: customerData.longitude || null
@@ -400,9 +425,10 @@ function Customer_Master() {
           anniversary: formData.anniversary,
           state: formData.state,
           city: formData.city,
-          district: formData.city,
+          district: formData.district,
           pincode: formData.pincode,
           company_name: formData.company_name,
+          password: formData.password, // Pass the password
           gender: "",
           latitude: null,
           longitude: null
@@ -456,6 +482,15 @@ function Customer_Master() {
       state: selectedState?.state_name || "",
       state_code: selectedState?.state_code || "",
     });
+  };
+
+  // Toggle password visibility
+  const togglePasswordVisibility = () => {
+    setShowPassword(!showPassword);
+  };
+
+  const toggleConfirmPasswordVisibility = () => {
+    setShowConfirmPassword(!showConfirmPassword);
   };
 
   return (
@@ -520,6 +555,14 @@ function Customer_Master() {
                 label="City"
                 name="city"
                 value={formData.city}
+                onChange={handleChange}
+              />
+            </Col>
+            <Col md={4}>
+              <InputField
+                label="District"
+                name="district"
+                value={formData.district}
                 onChange={handleChange}
               />
             </Col>
@@ -646,6 +689,52 @@ function Customer_Master() {
                 onChange={handleChange}
               />
             </Col>
+
+            {/* Password Fields with Eye Icons - Only for New Customers */}
+            {!id && (
+              <>
+                <Col md={4}>
+                  <div className="password-field-wrapper">
+                    <InputField
+                      label="Password"
+                      name="password"
+                      type={showPassword ? "text" : "password"}
+                      value={formData.password}
+                      onChange={handleChange}
+                      required
+                    />
+                    <button
+                      type="button"
+                      className="password-toggle-btn"
+                      onClick={togglePasswordVisibility}
+                      tabIndex="-1"
+                    >
+                      {showPassword ? <FaEyeSlash /> : <FaEye />}
+                    </button>
+                  </div>
+                </Col>
+                <Col md={4}>
+                  <div className="password-field-wrapper">
+                    <InputField
+                      label="Confirm Password"
+                      name="confirm_password"
+                      type={showConfirmPassword ? "text" : "password"}
+                      value={formData.confirm_password}
+                      onChange={handleChange}
+                      required
+                    />
+                    <button
+                      type="button"
+                      className="password-toggle-btn"
+                      onClick={toggleConfirmPasswordVisibility}
+                      tabIndex="-1"
+                    >
+                      {showConfirmPassword ? <FaEyeSlash /> : <FaEye />}
+                    </button>
+                  </div>
+                </Col>
+              </>
+            )}
 
             <Col md={12}>
               <div className="image-upload-section">
