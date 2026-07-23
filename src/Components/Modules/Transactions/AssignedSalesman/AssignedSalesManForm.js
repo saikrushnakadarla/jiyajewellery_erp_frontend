@@ -29,6 +29,11 @@ const AssignedSalesmanForm = () => {
   const [activeStockPoints, setActiveStockPoints] = useState([]);
   const [otherStockPoints, setOtherStockPoints] = useState([]);
 
+  // NEW: State for stock transfers (to validate all barcodes are selected)
+  const [stockTransfers, setStockTransfers] = useState([]);
+  const [selectedTransferItems, setSelectedTransferItems] = useState([]);
+  const [isAllProductsSelected, setIsAllProductsSelected] = useState(false);
+
   const [loggedInUserId, setLoggedInUserId] = useState(null);
 
   const [oldSalesData, setOldSalesData] = useState(
@@ -144,23 +149,20 @@ const AssignedSalesmanForm = () => {
     fetchCustomers();
   }, []);
 
-  // ✅ ADD THIS: Fetch next transfer number on component mount - displays automatically
-// ✅ FIX THIS: Fetch next assigned number from assigned-salesman API
+  // ✅ Fetch next assigned number from assigned-salesman API
   useEffect(() => {
     const fetchNextAssignedNumber = async () => {
       try {
-      // Change from stock-transfer to assigned-salesman
         const response = await axios.get(`${baseURL}/api/assigned-salesman/lastAssignedNumber`);
         const nextNumber = response.data.lastAssignedNumber;
         console.log("Next Assigned Number to display:", nextNumber);
         setFormData((prev) => ({
           ...prev,
-        assigned_number: nextNumber,  // Change from transfer_number to assigned_number
-        transfer_number: nextNumber,  // Keep for compatibility
+          assigned_number: nextNumber,
+          transfer_number: nextNumber,
         }));
       } catch (error) {
         console.error("Error fetching next assigned number:", error);
-      // Set default if API fails
         setFormData((prev) => ({
           ...prev,
           assigned_number: "ASN001",
@@ -187,6 +189,118 @@ const AssignedSalesmanForm = () => {
     };
     fetchStockPoints();
   }, []);
+
+  // 🆕 NEW: Fetch stock transfers to get all transferred products
+  useEffect(() => {
+    const fetchStockTransfers = async () => {
+      try {
+        const response = await axios.get(`${baseURL}/api/stock-transfer/get-stock-transfers`);
+        console.log("📦 Stock Transfers:", response.data);
+        setStockTransfers(response.data);
+      } catch (error) {
+        console.error("Error fetching stock transfers:", error);
+      }
+    };
+    fetchStockTransfers();
+  }, []);
+
+  // 🆕 NEW: Get transfer items for a specific stock point
+  const getTransferItemsForStockPoint = async (stockPointId) => {
+    try {
+      if (!stockPointId) return [];
+      
+      // Find all transfers that have this stock point as destination
+      const transfers = stockTransfers.filter(
+        t => t.to_stock_point_id === parseInt(stockPointId) && t.status === 'completed'
+      );
+      
+      console.log(`📦 Found ${transfers.length} transfers for stock point ${stockPointId}`);
+      
+      // Get details for each transfer to get items
+      const allItems = [];
+      for (const transfer of transfers) {
+        try {
+          const detailResponse = await axios.get(`${baseURL}/api/stock-transfer/get-stock-transfer/${transfer.transfer_id}`);
+          if (detailResponse.data && detailResponse.data.transfer_items) {
+            // Add transfer number to each item for reference
+            const itemsWithTransfer = detailResponse.data.transfer_items.map(item => ({
+              ...item,
+              transfer_number: transfer.transfer_number,
+              transfer_id: transfer.transfer_id
+            }));
+            allItems.push(...itemsWithTransfer);
+          }
+        } catch (error) {
+          console.error(`Error fetching transfer details for ${transfer.transfer_id}:`, error);
+        }
+      }
+      
+      console.log(`📦 Total items found: ${allItems.length}`);
+      return allItems;
+    } catch (error) {
+      console.error("Error getting transfer items:", error);
+      return [];
+    }
+  };
+
+  // 🆕 NEW: When active stock point changes, fetch transfer items
+  useEffect(() => {
+    if (formData.active_stock_point_id) {
+      const fetchItems = async () => {
+        const items = await getTransferItemsForStockPoint(formData.active_stock_point_id);
+        setSelectedTransferItems(items);
+        // Reset selection validation
+        setIsAllProductsSelected(false);
+      };
+      fetchItems();
+    } else {
+      setSelectedTransferItems([]);
+      setIsAllProductsSelected(false);
+    }
+  }, [formData.active_stock_point_id, stockTransfers]);
+
+  // 🆕 NEW: Check if all products from a transfer are selected
+  const checkAllProductsSelected = (selectedBarcodes) => {
+    if (!selectedTransferItems.length) return false;
+    
+    // Group items by transfer_id
+    const groupedByTransfer = {};
+    selectedTransferItems.forEach(item => {
+      if (!groupedByTransfer[item.transfer_id]) {
+        groupedByTransfer[item.transfer_id] = [];
+      }
+      groupedByTransfer[item.transfer_id].push(item.PCode_BarCode);
+    });
+    
+    // For each transfer, check if all its barcodes are in selectedBarcodes
+    for (const transferId in groupedByTransfer) {
+      const allBarcodes = groupedByTransfer[transferId];
+      const allSelected = allBarcodes.every(barcode => selectedBarcodes.includes(barcode));
+      if (allSelected) {
+        console.log(`✅ All products from transfer ${transferId} are selected`);
+        return true;
+      }
+    }
+    return false;
+  };
+
+  // 🆕 NEW: Get barcodes that are already added to repairDetails
+  const getSelectedBarcodes = () => {
+    return repairDetails.map(item => item.code).filter(Boolean);
+  };
+
+  // 🆕 NEW: Check validation when repairDetails changes
+  useEffect(() => {
+    const selectedBarcodes = getSelectedBarcodes();
+    const allSelected = checkAllProductsSelected(selectedBarcodes);
+    setIsAllProductsSelected(allSelected);
+    
+    if (allSelected) {
+      console.log("✅ All products from a transfer have been selected!");
+    } else {
+      console.log("⚠️ Not all products from a transfer have been selected yet.");
+    }
+  }, [repairDetails, selectedTransferItems]);
 
   // Handle Active Stock Point Selection
   const handleActiveStockPointChange = (e) => {
@@ -767,8 +881,7 @@ const AssignedSalesmanForm = () => {
       const weightBasedDiscount = (rateDiscount / 10) * grossWeight;
       const totalDiscountValue =
         pricingType === "By fixed"
-          ? fixedPercentageDiscount
-          : percentageDiscount + weightBasedDiscount;
+          ? fixedPercentageDiscount          : percentageDiscount + weightBasedDiscount;
 
       if (pricingType === "By fixed") {
         const pieceTaxableAmt = pieceCost * qty;
@@ -1318,6 +1431,16 @@ const AssignedSalesmanForm = () => {
       return;
     }
 
+  // 🆕 NEW: Check if the product is part of a stock transfer
+    const transferItem = selectedTransferItems.find(
+      item => item.PCode_BarCode === formData.code
+    );
+
+    if (!transferItem) {
+      alert("This product is not part of any completed stock transfer.");
+      return;
+    }
+
     const updatedRepairDetails = [
       ...repairDetails,
       {
@@ -1332,6 +1455,7 @@ const AssignedSalesmanForm = () => {
             : "",
         imagePreview: formData.imagePreview,
       image: formData.image, // Include image path from stock transfer
+      transfer_id: transferItem.transfer_id, // Add transfer_id for validation
       },
     ];
 
@@ -2388,7 +2512,7 @@ const AssignedSalesmanForm = () => {
   //   }
   // };
 
-
+  // 🆕 UPDATED: handleSave with validation for all products
   const handleSave = async () => {
     try {
       const activeStockPointDetails = formData.active_stock_point_details;
@@ -2412,7 +2536,27 @@ const AssignedSalesmanForm = () => {
         return;
       }
 
-    // Use assigned_number instead of transfer_number
+      // 🆕 NEW: Check if ALL products from a transfer are selected
+      const selectedBarcodes = repairDetails.map(item => item.code).filter(Boolean);
+      const allSelected = checkAllProductsSelected(selectedBarcodes);
+
+      if (!allSelected) {
+        alert("⚠️ You must select ALL products from a stock transfer before assigning to a salesman. Please add all products from the same transfer.");
+        return;
+      }
+
+      // 🆕 NEW: Check if all selected products belong to the same transfer
+      const transferIds = repairDetails
+        .map(item => item.transfer_id)
+        .filter(Boolean);
+      
+      const uniqueTransferIds = [...new Set(transferIds)];
+      if (uniqueTransferIds.length > 1) {
+        alert("⚠️ All products must belong to the same stock transfer. Please select products from only one transfer.");
+        return;
+      }
+
+      // Use assigned_number instead of transfer_number
       let nextAssignedNumber = formData.assigned_number || formData.transfer_number;
       
       if (!nextAssignedNumber) {
@@ -2427,7 +2571,7 @@ const AssignedSalesmanForm = () => {
 
       console.log("Saving with Assigned Number:", nextAssignedNumber);
 
-    // Get the capture image from formData (from Customer Details)
+      // Get the capture image from formData (from Customer Details)
       const captureImage = formData.capture_image || null;
       console.log("📷 Capture Image present:", !!captureImage);
 
@@ -2470,7 +2614,7 @@ const AssignedSalesmanForm = () => {
       const response = await axios.post(`${baseURL}/api/assigned-salesman/save-assigned-salesman`, payload);
      
       if (response.status === 200 || response.status === 201) {
-        alert(`Assigned to Salesman completed successfully! Assigned Number: ${nextAssignedNumber}`);
+        alert(`✅ All products assigned to Salesman successfully! Assigned Number: ${nextAssignedNumber}`);
         
       // Clear data
         setOldSalesData([]);
@@ -2487,6 +2631,7 @@ const AssignedSalesmanForm = () => {
         setOldTableData([]);
         setSchemeTableData([]);
         setDiscount(0);
+        setIsAllProductsSelected(false);
         
       // Reset form data
         setFormData({
@@ -2574,7 +2719,7 @@ const AssignedSalesmanForm = () => {
             </div>
           </div>
           
-          {/* Stock Points Selection Section */}
+          {/* Stock Points Selection Section - COMMENTED OUT */}
           {/* <div className="sales-form" style={{ marginTop: "15px", marginBottom: "15px" }}>
             <div className="sales-form-left">
               <div style={{ padding: "10px", border: "1px solid #ddd", borderRadius: "5px", backgroundColor: "#f9f9f9" }}>
@@ -2634,6 +2779,21 @@ const AssignedSalesmanForm = () => {
               </div>
             </div>
           </div> */}
+
+          {/* 🆕 NEW: Display validation status message */}
+          {selectedTransferItems.length > 0 && !isAllProductsSelected && (
+            <div className="alert alert-warning mt-2" style={{ padding: "8px 12px", fontSize: "14px" }}>
+              <strong>⚠️ Note:</strong> You must add <strong>ALL</strong> products from a stock transfer before assigning to a salesman.
+              {repairDetails.length > 0 && (
+                <span> Currently selected: {repairDetails.length} of {selectedTransferItems.length} products.</span>
+              )}
+            </div>
+          )}
+          {isAllProductsSelected && (
+            <div className="alert alert-success mt-2" style={{ padding: "8px 12px", fontSize: "14px" }}>
+              <strong>✅ All products from this transfer have been added!</strong> You can now assign to salesman.
+            </div>
+          )}
 
           <div
             className="sales-form-section"
@@ -2804,6 +2964,10 @@ const AssignedSalesmanForm = () => {
                 isAnyOfferApplied={isAnyOfferApplied}
                 // Pass the selected advance amount
                 selectedAdvanceReceiptAmount={selectedAdvanceReceiptAmount}
+                  // 🆕 NEW: Pass validation props
+                isAllProductsSelected={isAllProductsSelected}
+                selectedTransferItems={selectedTransferItems}
+                repairDetails={repairDetails}
               />
             </div>
           </div>

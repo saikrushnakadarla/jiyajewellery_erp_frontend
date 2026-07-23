@@ -515,7 +515,7 @@ const ProductDetails = ({
 
   return (
     <Col>
-      {/* First Row - All Fields in One Line */}
+      {/* First Row - Barcode and Action Buttons */}
       <Row>
         {/* Barcode/Rbarcode with Scan Button */}
         <Col xs={12} md={4}>
@@ -530,30 +530,6 @@ const ProductDetails = ({
                 options={uniqueBarcodeOptions}
                 autoFocus
               />
-              {/* Info messages */}
-              {/* {formData.salesman_id && (
-                <>
-                  {uniqueBarcodeOptions.length > 0 ? (
-                    <small style={{ color: '#28a745', display: 'block', marginTop: '2px' }}>
-                      ✅ Showing {uniqueBarcodeOptions.filter(opt => opt.type === 'tag').length} product(s) scheduled for {formData.salesman_name || 'selected salesman'}
-                    </small>
-                  ) : (
-                    <small style={{ color: '#dc3545', display: 'block', marginTop: '2px' }}>
-                      ❌ No products scheduled for {formData.salesman_name || 'selected salesman'}
-                    </small>
-                  )}
-                  {scheduledCount > 0 && uniqueBarcodeOptions.filter(opt => opt.type === 'tag').length === 0 && (
-                    <small style={{ color: '#ffc107', display: 'block', marginTop: '1px' }}>
-                      ⚠️ Products are scheduled but not in stock (add to stock first)
-                    </small>
-                  )}
-                </>
-              )}
-              {!formData.salesman_id && (
-                <small style={{ color: '#ffc107', display: 'block', marginTop: '2px' }}>
-                  📋 Showing all available stock. Select a salesman to see scheduled products.
-                </small>
-              )} */}
             </div>
             <Button
               variant="primary"
@@ -581,6 +557,8 @@ const ProductDetails = ({
           </div>
         </Col>
 
+        {/* Category - COMMENTED OUT */}
+        {/*
         <Col xs={12} md={2} className="d-flex align-items-center">
           <div style={{ flex: 1 }}>
             <InputField
@@ -610,7 +588,10 @@ const ProductDetails = ({
             }
           />
         </Col>
+        */}
 
+        {/* Metal Type - COMMENTED OUT */}
+        {/*
         <Col xs={12} md={2}>
           <InputField
             label="Metal Type"
@@ -621,7 +602,10 @@ const ProductDetails = ({
             options={metaltypeOptions}
           />
         </Col>
+        */}
 
+        {/* Sub Category - COMMENTED OUT */}
+        {/*
         <Col xs={12} md={2} className="d-flex align-items-center">
           <div style={{ flex: 1 }}>
             <InputField
@@ -652,7 +636,10 @@ const ProductDetails = ({
             }
           />
         </Col>
+        */}
 
+        {/* Product Design Name - COMMENTED OUT */}
+        {/*
         <Col xs={12} md={2}>
           <InputField
             label="Product Design Name"
@@ -663,46 +650,10 @@ const ProductDetails = ({
             options={designOptions}
           />
         </Col>
+        */}
 
-        {/* By Fixed Pricing Fields - Hidden/Commented */}
-        {isByFixed ? (
-          <>
-            <Col xs={12} md={2} style={{ display: 'none' }}>
-              <InputField
-                label="Printing Purity"
-                name="printing_purity"
-                value={formData.printing_purity || ""}
-                onChange={handleChange}
-              />
-            </Col>
-            <Col xs={12} md={2} style={{ display: 'none' }}>
-              <InputField
-                label="Piece Cost"
-                name="pieace_cost"
-                value={formData.pieace_cost}
-                onChange={handleChange}
-              />
-            </Col>
-            <Col xs={12} md={1} style={{ display: 'none' }}>
-              <InputField
-                label="Qty"
-                name="qty"
-                value={formData.qty}
-                onChange={handleChange}
-                readOnly={!isQtyEditable}
-              />
-            </Col>
-          </>
-        ) : (
-          <>
-            {/* All fields are commented out as per original code */}
-          </>
-        )}
-      </Row>
-
-      {/* Second Row - Action Buttons */}
-      <Row style={{ marginTop: '10px' }}>
-        <Col xs={12} md={12}>
+        {/* Action Buttons - Choose/Capture Image, Add, Clear */}
+        <Col xs={12} md={8}>
           <div className="d-flex align-items-center" style={{ gap: '10px', flexWrap: 'wrap' }}>
             <DropdownButton
               id="dropdown-basic-button"
@@ -752,65 +703,69 @@ const ProductDetails = ({
               Clear
             </Button>
           </div>
-
-          <input
-            type="file"
-            name="image"
-            accept="image/*"
-            ref={fileInputRef}
-            style={{ display: "none" }}
-            onChange={handleImageChange}
-          />
-
-          {showWebcam && (
-            <div>
-              <Webcam
-                audio={false}
-                ref={webcamRef}
-                screenshotFormat="image/jpeg"
-                width={150}
-                height={150}
-              />
-              <Button variant="success" size="sm" onClick={captureImage} style={{ marginRight: "5px" }}>
-                Capture
-              </Button>
-              <Button variant="secondary" size="sm" onClick={() => setShowWebcam(false)}>
-                Cancel
-              </Button>
-            </div>
-          )}
-          {formData.imagePreview && (
-            <div style={{ position: "relative", display: "inline-block", marginTop: "10px" }}>
-              <img
-                src={formData.imagePreview}
-                alt="Selected"
-                style={{
-                  width: "100px",
-                  height: "100px",
-                  borderRadius: "8px",
-                }}
-              />
-              <button
-                type="button"
-                onClick={clearImage}
-                style={{
-                  position: "absolute",
-                  top: "5px",
-                  right: "5px",
-                  background: "transparent",
-                  border: "none",
-                  color: "red",
-                  fontSize: "16px",
-                  cursor: "pointer",
-                  zIndex: 10,
-                }}
-              >
-                <FaTrash />
-              </button>
-            </div>
-          )}
         </Col>
       </Row>
+
+      {/* Hidden input for image upload */}
+      <input
+        type="file"
+        name="image"
+        accept="image/*"
+        ref={fileInputRef}
+        style={{ display: "none" }}
+        onChange={handleImageChange}
+      />
+
+      {/* Webcam capture section */}
+      {showWebcam && (
+        <div>
+          <Webcam
+            audio={false}
+            ref={webcamRef}
+            screenshotFormat="image/jpeg"
+            width={150}
+            height={150}
+          />
+          <Button variant="success" size="sm" onClick={captureImage} style={{ marginRight: "5px" }}>
+            Capture
+          </Button>
+          <Button variant="secondary" size="sm" onClick={() => setShowWebcam(false)}>
+            Cancel
+          </Button>
+        </div>
+      )}
+
+      {/* Image preview with delete option */}
+      {formData.imagePreview && (
+        <div style={{ position: "relative", display: "inline-block", marginTop: "10px" }}>
+          <img
+            src={formData.imagePreview}
+            alt="Selected"
+            style={{
+              width: "100px",
+              height: "100px",
+              borderRadius: "8px",
+            }}
+          />
+          <button
+            type="button"
+            onClick={clearImage}
+            style={{
+              position: "absolute",
+              top: "5px",
+              right: "5px",
+              background: "transparent",
+              border: "none",
+              color: "red",
+              fontSize: "16px",
+              cursor: "pointer",
+              zIndex: 10,
+            }}
+          >
+            <FaTrash />
+          </button>
+        </div>
+      )}
 
       {/* Barcode Scanner Modal */}
       <Modal show={showScanner} onHide={stopScanner} centered>
