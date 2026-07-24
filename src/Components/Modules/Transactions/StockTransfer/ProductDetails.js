@@ -69,6 +69,18 @@ const ProductDetails = ({
   const [isScannerInitialized, setIsScannerInitialized] = useState(false);
   const scannerRef = useRef(null);
 
+  // Calculate Packing Wt = Cover Wt + Card Wt
+  useEffect(() => {
+    const coverWt = parseFloat(formData.cover_wt) || 0;
+    const cardWt = parseFloat(formData.card_wt) || 0;
+    const packingWt = coverWt + cardWt;
+    
+    setFormData((prev) => ({
+      ...prev,
+      packing_wt: packingWt.toFixed(3)
+    }));
+  }, [formData.cover_wt, formData.card_wt]);
+
   // ============= BARCODE SCANNER FUNCTIONS =============
   const startScanner = () => setShowScanner(true);
 
@@ -283,6 +295,10 @@ const ProductDetails = ({
       imagePreview: null,
       sale_status: "Delivered",
       custom_purity: "",
+      // Reset new fields
+      cover_wt: "",
+      card_wt: "",
+      packing_wt: "",
     }));
   };
 
@@ -663,6 +679,35 @@ const ProductDetails = ({
                   onChange={handleChange}
                 />
               </Col>
+              {/* NEW FIELDS: Cover Wt, Card Wt, Packing Wt */}
+              <Col xs={12} md={1}>
+                <InputField
+                  label="Cover Wt"
+                  name="cover_wt"
+                  type='number'
+                  value={formData.cover_wt || ""}
+                  onChange={handleChange}
+                />
+              </Col>
+              <Col xs={12} md={1}>
+                <InputField
+                  label="Card Wt"
+                  name="card_wt"
+                  type='number'
+                  value={formData.card_wt || ""}
+                  onChange={handleChange}
+                />
+              </Col>
+              <Col xs={12} md={1}>
+                <InputField
+                  label="Packing Wt"
+                  name="packing_wt"
+                  value={formData.packing_wt || ""}
+                  onChange={handleChange}
+                  readOnly
+                />
+              </Col>
+              {/* END NEW FIELDS */}
               <Col xs={12} md={1}>
                 <InputField
                   label="Stone Wt"

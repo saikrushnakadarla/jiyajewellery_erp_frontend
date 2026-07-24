@@ -102,7 +102,11 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
         pcs: "1",
         MC_Per_Gram_Label: "",
         printing_purity: '',
-        source_from: "ERP"  // NEW: Source for ERP table
+        source_from: "ERP",
+        // NEW FIELDS for Sales section
+        Cover_Wt: "",
+        Card_Wt: "",
+        Packing_Wt: "",
     });
     const [show, setShow] = useState(false);
     const [showPurchase, setShowPurchase] = useState(false);
@@ -162,6 +166,18 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
 
         fetchCurrentRates();
     }, [formData.metal_type]);
+
+    // Calculate Packing Wt = Cover Wt + Card Wt
+    useEffect(() => {
+        const coverWt = parseFloat(formData.Cover_Wt) || 0;
+        const cardWt = parseFloat(formData.Card_Wt) || 0;
+        const packingWt = coverWt + cardWt;
+        
+        setFormData((prev) => ({
+            ...prev,
+            Packing_Wt: packingWt.toFixed(3)
+        }));
+    }, [formData.Cover_Wt, formData.Card_Wt]);
 
     const handleAddStone = () => {
         let newStoneList = [...stoneList];
@@ -776,6 +792,14 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
                 const pcs = parseFloat(prevData.pcs) || 0;
                 updatedData.total_pcs_cost = (pcs * pieaceCost).toFixed(2);
             }
+
+            // Handle Cover_Wt and Card_Wt changes - Packing_Wt is calculated in useEffect
+            if (field === "Cover_Wt" || field === "Card_Wt") {
+                const coverWt = parseFloat(updatedData.Cover_Wt) || 0;
+                const cardWt = parseFloat(updatedData.Card_Wt) || 0;
+                updatedData.Packing_Wt = (coverWt + cardWt).toFixed(3);
+            }
+
             return updatedData;
         });
 
@@ -1045,43 +1069,48 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
 
             // Prepare product data for Jewellery Application
             // IMPORTANT: source is set to "Order Management" for Jewellery App
-            const productDataForJewelleryApp = {
-                product_name: formData.sub_category || "",
-                category_id: formData.subcategory_id || "",
-                barcode: formData.PCode_BarCode || "",
-                metal_type_id: "",
-                metal_type: formData.metal_type || "",
-                purity_id: "",
-                purity: formData.Purity || "",
-                design_id: "",
-                design: formData.design_master || "",
-                gross_wt: formData.Gross_Weight || "0",
-                stone_wt: formData.Stones_Weight || "0",
-                net_wt: formData.Weight_BW || "0",
-                stone_price: formData.Stones_Price || "0",
-                pricing: formData.Pricing || "By Weight",
-                va_on: formData.Wastage_On || "Gross Weight",
-                va_percent: formData.Wastage_Percentage || "0",
-                wastage_weight: formData.WastageWeight || "0",
-                total_weight_av: formData.TotalWeight_AW || "0",
-                mc_on: formData.Making_Charges_On || "MC %",
-                mc_per_gram: formData.MC_Per_Gram || "0",
-                making_charges: formData.Making_Charges || "0",
-                rate: formData.rate || "0",
-                rate_amt: "",
-                hm_charges: "60.00",
-                tax_percent: formData.tax || "0.9% GST",
-                tax_amt: formData.tax_amt || "0",
-                total_price: formData.total_price || "0",
-                pieace_cost: formData.pieace_cost || "0",
-                disscount_percentage: "",
-                disscount: "",
-                qty: formData.pcs || "1",
-                huid_no: formData.HUID_No || "",
-                stock_point: formData.Stock_Point || "Display Floor1",
-                product_image: image || null,
-                source: "Order Management"  // KEY: Source set to "Order Management" for Jewellery App
-            };
+           const productDataForJewelleryApp = {
+    product_name: formData.sub_category || "",
+    category_id: formData.subcategory_id || "",
+    barcode: formData.PCode_BarCode || "",
+    metal_type_id: "",
+    metal_type: formData.metal_type || "",
+    purity_id: "",
+    purity: formData.Purity || "",
+    design_id: "",
+    design: formData.design_master || "",
+    gross_wt: formData.Gross_Weight || "0",
+    // NEW FIELDS
+    Cover_Wt: formData.Cover_Wt || "0",
+    Card_Wt: formData.Card_Wt || "0",
+    Packing_Wt: formData.Packing_Wt || "0",
+    // END NEW FIELDS
+    stone_wt: formData.Stones_Weight || "0",
+    net_wt: formData.Weight_BW || "0",
+    stone_price: formData.Stones_Price || "0",
+    pricing: formData.Pricing || "By Weight",
+    va_on: formData.Wastage_On || "Gross Weight",
+    va_percent: formData.Wastage_Percentage || "0",
+    wastage_weight: formData.WastageWeight || "0",
+    total_weight_av: formData.TotalWeight_AW || "0",
+    mc_on: formData.Making_Charges_On || "MC %",
+    mc_per_gram: formData.MC_Per_Gram || "0",
+    making_charges: formData.Making_Charges || "0",
+    rate: formData.rate || "0",
+    rate_amt: "",
+    hm_charges: "60.00",
+    tax_percent: formData.tax || "0.9% GST",
+    tax_amt: formData.tax_amt || "0",
+    total_price: formData.total_price || "0",
+    pieace_cost: formData.pieace_cost || "0",
+    disscount_percentage: "",
+    disscount: "",
+    qty: formData.pcs || "1",
+    huid_no: formData.HUID_No || "",
+    stock_point: formData.Stock_Point || "Display Floor1",
+    product_image: image || null,
+    source: "Order Management"
+};
 
             // Send data to both APIs
             [response1, response2] = await Promise.all([
@@ -1189,7 +1218,11 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
                         pieace_cost: "",
                         mrp_price: "",
                         total_pcs_cost: "",
-                        source_from: "ERP"
+                        source_from: "ERP",
+                        // Reset new fields
+                        Cover_Wt: "",
+                        Card_Wt: "",
+                        Packing_Wt: "",
                     }));
                     setImage(null);
                     fetchTagData();
@@ -1234,7 +1267,11 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
                         pieace_cost: "",
                         mrp_price: "",
                         total_pcs_cost: "",
-                        source_from: "ERP"
+                        source_from: "ERP",
+                        // Reset new fields
+                        Cover_Wt: "",
+                        Card_Wt: "",
+                        Packing_Wt: "",
                     }));
                     setImage(null);
                     fetchTagData();
@@ -1721,6 +1758,17 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
                                                         <Col xs={12} md={3}>
                                                             <InputField label="Gross Wt" name="Gross_Weight" value={formData.Gross_Weight} onChange={handleChange} />
                                                         </Col>
+                                                        {/* NEW FIELDS: Cover Wt, Card Wt, Packing Wt */}
+                                                        <Col xs={12} md={3}>
+                                                            <InputField label="Cover Wt" name="Cover_Wt" value={formData.Cover_Wt} onChange={handleChange} />
+                                                        </Col>
+                                                        <Col xs={12} md={3}>
+                                                            <InputField label="Card Wt" name="Card_Wt" value={formData.Card_Wt} onChange={handleChange} />
+                                                        </Col>
+                                                        <Col xs={12} md={3}>
+                                                            <InputField label="Packing Wt" name="Packing_Wt" value={formData.Packing_Wt} onChange={handleChange} readOnly />
+                                                        </Col>
+                                                        {/* END NEW FIELDS */}
                                                         <Col xs={12} md={3}>
                                                             <InputField label="Stones Wt" name="Stones_Weight" value={formData.Stones_Weight} onChange={handleChange} />
                                                         </Col>
@@ -1756,6 +1804,9 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
                                                         <Col xs={12} md={3}>
                                                             <InputField label="Rate" name="rate" value={formData.rate} onChange={handleChange} />
                                                         </Col>
+                                                        <Col xs={12} md={3}>
+                                                            <InputField label="Tax%" name="tax" value={formData.tax} onChange={handleChange} />
+                                                        </Col>
                                                         <Col xs={12} md={4}>
                                                             <InputField label="MC On" name="Making_Charges_On" type="select" value={formData.Making_Charges_On} onChange={handleChange} options={[{ value: "MC / Gram", label: "MC / Gram" }, { value: "MC / Piece", label: "MC / Piece" }, { value: "MC %", label: "MC %" }]} />
                                                         </Col>
@@ -1764,9 +1815,6 @@ const TagEntry = ({ handleCloseTagModal, selectedProduct, fetchBalance }) => {
                                                         </Col>
                                                         <Col xs={12} md={3}>
                                                             <InputField label="MC" name="Making_Charges" value={formData.Making_Charges} onChange={handleChange} />
-                                                        </Col>
-                                                        <Col xs={12} md={3}>
-                                                            <InputField label="Tax%" name="tax" value={formData.tax} onChange={handleChange} />
                                                         </Col>
                                                         <Col xs={12} md={3}>
                                                             <InputField label="Total Amt" name="total_price" value={formData.total_price} onChange={handleChange} />

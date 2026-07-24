@@ -25,6 +25,9 @@ const ProductTable = ({ repairDetails, onDelete, onEdit }) => {
             <th>Metal</th>
             <th>Purity</th>
             <th>Gr Wt</th>
+            <th>Cover Wt</th>
+            <th>Card Wt</th>
+            <th>Packing Wt</th>
             <th>St Wt</th>
             <th>VA%</th>
             <th>Total Wt</th>
@@ -49,6 +52,9 @@ const ProductTable = ({ repairDetails, onDelete, onEdit }) => {
                     : (detail.printing_purity !== undefined && detail.printing_purity !== '' ? detail.printing_purity : detail.purity)}
                 </td>
                 <td>{detail.gross_weight}</td>
+                <td>{detail.cover_wt || 0}</td>
+                <td>{detail.card_wt || 0}</td>
+                <td>{detail.packing_wt || 0}</td>
                 <td>{detail.stone_weight}</td>
                 <td>{detail.va_percent}</td>
                 <td>{detail.total_weight_av}</td>
@@ -89,7 +95,7 @@ const ProductTable = ({ repairDetails, onDelete, onEdit }) => {
             ))
           ) : (
             <tr>
-              <td colSpan="14" className="text-center">
+              <td colSpan="17" className="text-center">
                 No data available
               </td>
             </tr>
@@ -104,13 +110,22 @@ const ProductTable = ({ repairDetails, onDelete, onEdit }) => {
                 {repairDetails.reduce((sum, item) => sum + parseFloat(item.gross_weight || 0), 0).toFixed(3)}
               </td>
               <td>
+                {repairDetails.reduce((sum, item) => sum + parseFloat(item.cover_wt || 0), 0).toFixed(3)}
+              </td>
+              <td>
+                {repairDetails.reduce((sum, item) => sum + parseFloat(item.card_wt || 0), 0).toFixed(3)}
+              </td>
+              <td>
+                {repairDetails.reduce((sum, item) => sum + parseFloat(item.packing_wt || 0), 0).toFixed(3)}
+              </td>
+              <td>
                 {repairDetails.reduce((sum, item) => sum + parseFloat(item.stone_weight || 0), 0).toFixed(3)}
               </td>
               <td></td>
               <td>
                 {repairDetails.reduce((sum, item) => sum + parseFloat(item.total_weight_av || 0), 0).toFixed(3)}
               </td>
-              <td colSpan="8"></td>
+              <td colSpan="6"></td>
             </tr>
           </tfoot>
         )}
@@ -149,6 +164,9 @@ const ProductTable = ({ repairDetails, onDelete, onEdit }) => {
                 <p><strong>Wastage on:</strong> {selectedDetail.va_on}</p>
                 <p><strong>Total Weight:</strong> {selectedDetail.total_weight_av}</p>
                 <p><strong>MC On:</strong> {selectedDetail.mc_on}</p>
+                <p><strong>Cover Wt:</strong> {selectedDetail.cover_wt || 0}</p>
+                <p><strong>Card Wt:</strong> {selectedDetail.card_wt || 0}</p>
+                <p><strong>Packing Wt:</strong> {selectedDetail.packing_wt || 0}</p>
               </Col>
             </Row>
           )}

@@ -1258,52 +1258,54 @@ const StockTransferForm = () => {
   //   localStorage.setItem(`repairDetails_${tabId}`, JSON.stringify(updatedRepairDetails));
   // };
 
-  const handleAdd = () => {
-    const storedRepairDetails =
-      JSON.parse(localStorage.getItem(`repairDetails_${tabId}`)) || [];
+ const handleAdd = () => {
+  const storedRepairDetails =
+    JSON.parse(localStorage.getItem(`repairDetails_${tabId}`)) || [];
 
-    // Add new repair detail
-    const updatedRepairDetails = [
-      ...repairDetails,
-      {
-        ...formData,
-        pieace_cost:
-          formData.pieace_cost && parseFloat(formData.pieace_cost) > 0
-            ? parseFloat(formData.pieace_cost).toFixed(2)
-            : null,
-        rate:
-          formData.rate && parseFloat(formData.rate) > 0
-            ? parseFloat(formData.rate).toFixed(2)
-            : "",
-        imagePreview: formData.imagePreview,
-      },
-    ];
+  // Add new repair detail with all fields including cover_wt, card_wt, packing_wt
+  const updatedRepairDetails = [
+    ...repairDetails,
+    {
+      ...formData,
+      pieace_cost:
+        formData.pieace_cost && parseFloat(formData.pieace_cost) > 0
+          ? parseFloat(formData.pieace_cost).toFixed(2)
+          : null,
+      rate:
+        formData.rate && parseFloat(formData.rate) > 0
+          ? parseFloat(formData.rate).toFixed(2)
+          : "",
+      imagePreview: formData.imagePreview,
+      // Ensure these fields are saved
+      cover_wt: formData.cover_wt || "0",
+      card_wt: formData.card_wt || "0",
+      packing_wt: formData.packing_wt || "0",
+    },
+  ];
 
-    setRepairDetails(updatedRepairDetails);
-    localStorage.setItem(
-      `repairDetails_${tabId}`,
-      JSON.stringify(updatedRepairDetails),
-    );
+  setRepairDetails(updatedRepairDetails);
+  localStorage.setItem(
+    `repairDetails_${tabId}`,
+    JSON.stringify(updatedRepairDetails),
+  );
 
-    // Reset form data
-    setFormData((prevData) => ({
-      ...prevData,
-      disscount: "",
-      disscount_percentage: "",
-      pieace_cost: "",
-      imagePreview: null,
-      sale_status: "Delivered",
-      piece_taxable_amt: "",
-      festival_discount: "",
-    }));
+  // Reset form data
+  setFormData((prevData) => ({
+    ...prevData,
+    disscount: "",
+    disscount_percentage: "",
+    pieace_cost: "",
+    imagePreview: null,
+    sale_status: "Delivered",
+    piece_taxable_amt: "",
+    festival_discount: "",
+    // Don't reset cover_wt, card_wt, packing_wt here - they should be cleared by resetProductFields
+  }));
 
-    resetProductFields();
+  resetProductFields();
+};
 
-    // Automatically apply the first available offer every time (regardless of isAnyOfferApplied)
-    // if (offers.length > 0) {
-    //   handleApply(offers[0], 0); // Apply the first offer
-    // }
-  };
+
 
   const handleEdit = (index) => {
     setEditIndex(index);
@@ -1344,47 +1346,51 @@ const StockTransferForm = () => {
   };
 
   const resetProductFields = () => {
-    setFormData((prev) => ({
-      ...prev,
-      code: "",
-      product_id: "",
-      metal: "",
-      product_name: "",
-      metal_type: "",
-      design_name: "",
-      purity: "",
-      selling_purity: "",
-      printing_purity: "",
-      category: "",
-      sub_category: "",
-      gross_weight: "",
-      stone_weight: "",
-      weight_bw: "",
-      stone_price: "",
-      va_on: "Gross Weight",
-      va_percent: "",
-      wastage_weight: "",
-      total_weight_av: "",
-      mc_on: "MC %",
-      mc_per_gram: "",
-      making_charges: "",
-      disscount_percentage: "",
-      disscount: "",
-      rate: "",
-      rate_amt: "",
-      pricing: "By Weight",
-      tax_percent: "03% GST",
-      tax_amt: "",
-      hm_charges: "60.00",
-      total_price: "",
-      qty: "",
-      imagePreview: null,
-      remarks: "",
-      sale_status: "Delivered",
-      piece_taxable_amt: "",
-      festival_discount: "",
-    }));
-  };
+  setFormData((prev) => ({
+    ...prev,
+    code: "",
+    product_id: "",
+    metal: "",
+    product_name: "",
+    metal_type: "",
+    design_name: "",
+    purity: "",
+    selling_purity: "",
+    printing_purity: "",
+    category: "",
+    sub_category: "",
+    gross_weight: "",
+    stone_weight: "",
+    weight_bw: "",
+    stone_price: "",
+    va_on: "Gross Weight",
+    va_percent: "",
+    wastage_weight: "",
+    total_weight_av: "",
+    mc_on: "MC %",
+    mc_per_gram: "",
+    making_charges: "",
+    disscount_percentage: "",
+    disscount: "",
+    rate: "",
+    rate_amt: "",
+    pricing: "By Weight",
+    tax_percent: "03% GST",
+    tax_amt: "",
+    hm_charges: "60.00",
+    total_price: "",
+    qty: "",
+    imagePreview: null,
+    remarks: "",
+    sale_status: "Delivered",
+    piece_taxable_amt: "",
+    festival_discount: "",
+    // Reset new fields
+    cover_wt: "",
+    card_wt: "",
+    packing_wt: "",
+  }));
+};
 
   // Calculate totalPrice (sum of total_price from all repairDetails)
   const totalPrice = repairDetails.reduce(
@@ -2378,6 +2384,7 @@ const handleSave = async () => {
     console.log("📷 Capture Image present:", !!captureImage);
 
     // IMPORTANT: Include PCode_BarCode, image, and user_id from stock points
+    // FIX: Include cover_wt, card_wt, packing_wt from repairDetails
     const transferData = repairDetails.map(item => ({
       product_id: item.product_id || null,
       product_name: item.product_name || null,
@@ -2397,7 +2404,11 @@ const handleSave = async () => {
       remarks: item.remarks || null,
       PCode_BarCode: item.code,
       // Include image from each item (Product Details image)
-      image: item.imagePreview || item.image || null
+      image: item.imagePreview || item.image || null,
+      // NEW: Include Cover Wt, Card Wt, Packing Wt from repairDetails
+      cover_wt: parseFloat(item.cover_wt) || 0,
+      card_wt: parseFloat(item.card_wt) || 0,
+      packing_wt: parseFloat(item.packing_wt) || 0,
     }));
 
     const payload = {
@@ -2412,10 +2423,17 @@ const handleSave = async () => {
       created_by: formData.account_name || "system",
       from_user_id: activeStockPointDetails.user_id || null,
       to_user_id: otherStockPointDetails.user_id || null,
-      capture_image: captureImage  // <-- NEW: Add capture image from Customer Details
+      capture_image: captureImage
     };
 
-    console.log("📦 Sending Stock Transfer Payload with capture_image:", !!payload.capture_image);
+    console.log("📦 Sending Stock Transfer Payload with cover_wt, card_wt, packing_wt:", 
+      transferData.map(item => ({
+        code: item.PCode_BarCode,
+        cover_wt: item.cover_wt,
+        card_wt: item.card_wt,
+        packing_wt: item.packing_wt
+      }))
+    );
 
     const response = await axios.post(`${baseURL}/api/stock-transfer/save-stock-transfer`, payload);
 
@@ -2430,7 +2448,7 @@ const handleSave = async () => {
         active_stock_point_details: null,
         other_stock_point_details: null,
         transfer_number: "",
-        stock_point_image: null,  // Clear capture image
+        stock_point_image: null,
         stock_point_image_file: null
       });
       
@@ -2442,6 +2460,7 @@ const handleSave = async () => {
     alert("Error saving stock transfer: " + (error.response?.data?.message || error.message));
   }
 };
+
 
   const refreshSalesData = () => {
     setOldSalesData([]);

@@ -1058,11 +1058,11 @@ const ProductDetails = ({
                 options={uniqueBarcodeOptions}
               />
               {/* Display packet barcode if available */}
-              {formData.packet_barcode && (
+              {/* {formData.packet_barcode && (
                 <div style={{ fontSize: "12px", color: "#a36e29", marginTop: "2px", fontWeight: "bold" }}>
                   Packet: {formData.packet_barcode}
                 </div>
-              )}
+              )} */}
               {/* {formData.is_estimated && (
                 <div style={{ fontSize: "11px", color: "#28a745", marginTop: "2px" }}>
                   ✓ Estimated
@@ -1091,7 +1091,6 @@ const ProductDetails = ({
                 minWidth: '150px',
                 height: '38px',
                 marginBottom: '8px',
-               
               }}
               title="Scan Packet"
             >
@@ -1100,6 +1099,8 @@ const ProductDetails = ({
           </div>
         </Col>
 
+        {/* Commented out Category field */}
+        {/*
         <Col xs={12} md={2} className="d-flex align-items-center">
           <div style={{ flex: 1 }}>
             <InputField
@@ -1129,7 +1130,10 @@ const ProductDetails = ({
             }
           />
         </Col>
+        */}
 
+        {/* Commented out Metal Type field */}
+        {/*
         <Col xs={12} md={2}>
           <InputField
             label="Metal Type"
@@ -1141,7 +1145,10 @@ const ProductDetails = ({
             disabled={isPacketAdded}
           />
         </Col>
+        */}
 
+        {/* Commented out Sub Category field */}
+        {/*
         <Col xs={12} md={2} className="d-flex align-items-center">
           <div style={{ flex: 1 }}>
             <InputField
@@ -1172,7 +1179,10 @@ const ProductDetails = ({
             }
           />
         </Col>
+        */}
 
+        {/* Commented out Product Design Name field */}
+        {/*
         <Col xs={12} md={2}>
           <InputField
             label="Product Design Name"
@@ -1184,6 +1194,7 @@ const ProductDetails = ({
             disabled={isPacketAdded}
           />
         </Col>
+        */}
 
         {/* By Fixed Pricing Fields */}
         {isByFixed ? (
@@ -1217,7 +1228,7 @@ const ProductDetails = ({
               />
             </Col>
             <Col xs={12} md={5}>
-              {/* All buttons in one row - no wrapping */}
+              {/* All buttons in one row - Choose/Capture Image, Add, Clear beside Scan Packet */}
               <div style={{ 
                 display: 'flex', 
                 alignItems: 'center', 
@@ -1242,7 +1253,7 @@ const ProductDetails = ({
                   )}
                 </DropdownButton>
 
-                <Button
+                {/* <Button
                   variant="primary"
                   size="sm"
                   onClick={startScanner}
@@ -1255,7 +1266,7 @@ const ProductDetails = ({
                   }}
                 >
                   <FaQrcode /> Scan Barcode
-                </Button>
+                </Button> */}
 
                 <Button
                   onClick={isEditing ? handleUpdate : handleAdd}
@@ -1515,7 +1526,7 @@ const ProductDetails = ({
             */}
 
             <Col xs={12} md={5}>
-              {/* All buttons in one row - no wrapping */}
+              {/* All buttons in one row - Choose/Capture Image, Add, Clear beside Scan Packet */}
               <div style={{ 
                 display: 'flex', 
                 alignItems: 'center', 
@@ -1539,6 +1550,21 @@ const ProductDetails = ({
                     </>
                   )}
                 </DropdownButton>
+
+                {/* <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={startScanner}
+                  style={{ 
+                    backgroundColor: '#007bff',
+                    borderColor: '#007bff',
+                    whiteSpace: 'nowrap',
+                    minWidth: '105px',
+                    flexShrink: 0
+                  }}
+                >
+                  <FaQrcode /> Scan Barcode
+                </Button> */}
 
                 <Button
                   onClick={isEditing ? handleUpdate : handleAdd}

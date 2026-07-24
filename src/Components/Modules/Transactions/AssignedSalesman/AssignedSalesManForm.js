@@ -1406,79 +1406,83 @@ const AssignedSalesmanForm = () => {
 
   const handleAdd = () => {
   // Check if the selected product belongs to the logged-in user and is Available
-    const selectedStockItem = stock?.find(s => s.PCode_BarCode === formData.code);
-    
-    if (selectedStockItem) {
-      if (selectedStockItem.Status !== "Available") {
-        alert("This product is not available for transfer");
-        return;
-      }
-      if (loggedInUserId && selectedStockItem.user_id !== loggedInUserId) {
-        alert("This product does not belong to you. You can only transfer products assigned to you.");
-        return;
-      }
+  const selectedStockItem = stock?.find(s => s.PCode_BarCode === formData.code);
+  
+  if (selectedStockItem) {
+    if (selectedStockItem.Status !== "Available") {
+      alert("This product is not available for transfer");
+      return;
     }
+    if (loggedInUserId && selectedStockItem.user_id !== loggedInUserId) {
+      alert("This product does not belong to you. You can only transfer products assigned to you.");
+      return;
+    }
+  }
 
-    const storedRepairDetails = JSON.parse(localStorage.getItem(`repairDetails_${tabId}`)) || [];
+  const storedRepairDetails = JSON.parse(localStorage.getItem(`repairDetails_${tabId}`)) || [];
 
   // Check for duplicate
-    const isDuplicate = storedRepairDetails.some(
-      (item) => item.code === formData.code
-    );
+  const isDuplicate = storedRepairDetails.some(
+    (item) => item.code === formData.code
+  );
 
-    if (isDuplicate) {
-      alert("This product has already been added");
-      return;
-    }
+  if (isDuplicate) {
+    alert("This product has already been added");
+    return;
+  }
 
-  // 🆕 NEW: Check if the product is part of a stock transfer
-    const transferItem = selectedTransferItems.find(
-      item => item.PCode_BarCode === formData.code
-    );
+  // Check if the product is part of a stock transfer
+  const transferItem = selectedTransferItems.find(
+    item => item.PCode_BarCode === formData.code
+  );
 
-    if (!transferItem) {
-      alert("This product is not part of any completed stock transfer.");
-      return;
-    }
+  if (!transferItem) {
+    alert("This product is not part of any completed stock transfer.");
+    return;
+  }
 
-    const updatedRepairDetails = [
-      ...repairDetails,
-      {
-        ...formData,
-        pieace_cost:
-          formData.pieace_cost && parseFloat(formData.pieace_cost) > 0
-            ? parseFloat(formData.pieace_cost).toFixed(2)
-            : null,
-        rate:
-          formData.rate && parseFloat(formData.rate) > 0
-            ? parseFloat(formData.rate).toFixed(2)
-            : "",
-        imagePreview: formData.imagePreview,
-      image: formData.image, // Include image path from stock transfer
-      transfer_id: transferItem.transfer_id, // Add transfer_id for validation
-      },
-    ];
+  const updatedRepairDetails = [
+    ...repairDetails,
+    {
+      ...formData,
+      pieace_cost:
+        formData.pieace_cost && parseFloat(formData.pieace_cost) > 0
+          ? parseFloat(formData.pieace_cost).toFixed(2)
+          : null,
+      rate:
+        formData.rate && parseFloat(formData.rate) > 0
+          ? parseFloat(formData.rate).toFixed(2)
+          : "",
+      imagePreview: formData.imagePreview,
+      image: formData.image,
+      transfer_id: transferItem.transfer_id,
+      // Ensure new fields are preserved
+      cover_wt: formData.cover_wt || "0",
+      card_wt: formData.card_wt || "0",
+      packing_wt: formData.packing_wt || "0",
+    },
+  ];
 
-    setRepairDetails(updatedRepairDetails);
-    localStorage.setItem(
-      `repairDetails_${tabId}`,
-      JSON.stringify(updatedRepairDetails),
-    );
+  setRepairDetails(updatedRepairDetails);
+  localStorage.setItem(
+    `repairDetails_${tabId}`,
+    JSON.stringify(updatedRepairDetails),
+  );
 
-    setFormData((prevData) => ({
-      ...prevData,
-      disscount: "",
-      disscount_percentage: "",
-      pieace_cost: "",
-      imagePreview: null,
-      image: null,
-      sale_status: "Delivered",
-      piece_taxable_amt: "",
-      festival_discount: "",
-    }));
+  setFormData((prevData) => ({
+    ...prevData,
+    disscount: "",
+    disscount_percentage: "",
+    pieace_cost: "",
+    imagePreview: null,
+    image: null,
+    sale_status: "Delivered",
+    piece_taxable_amt: "",
+    festival_discount: "",
+  }));
 
-    resetProductFields();
-  };
+  resetProductFields();
+};
 
   const handleEdit = (index) => {
     setEditIndex(index);
@@ -1518,48 +1522,52 @@ const AssignedSalesmanForm = () => {
     }
   };
 
-  const resetProductFields = () => {
-    setFormData((prev) => ({
-      ...prev,
-      code: "",
-      product_id: "",
-      metal: "",
-      product_name: "",
-      metal_type: "",
-      design_name: "",
-      purity: "",
-      selling_purity: "",
-      printing_purity: "",
-      category: "",
-      sub_category: "",
-      gross_weight: "",
-      stone_weight: "",
-      weight_bw: "",
-      stone_price: "",
-      va_on: "Gross Weight",
-      va_percent: "",
-      wastage_weight: "",
-      total_weight_av: "",
-      mc_on: "MC %",
-      mc_per_gram: "",
-      making_charges: "",
-      disscount_percentage: "",
-      disscount: "",
-      rate: "",
-      rate_amt: "",
-      pricing: "By Weight",
-      tax_percent: "03% GST",
-      tax_amt: "",
-      hm_charges: "60.00",
-      total_price: "",
-      qty: "",
-      imagePreview: null,
-      remarks: "",
-      sale_status: "Delivered",
-      piece_taxable_amt: "",
-      festival_discount: "",
-    }));
-  };
+ const resetProductFields = () => {
+  setFormData((prev) => ({
+    ...prev,
+    code: "",
+    product_id: "",
+    metal: "",
+    product_name: "",
+    metal_type: "",
+    design_name: "",
+    purity: "",
+    selling_purity: "",
+    printing_purity: "",
+    category: "",
+    sub_category: "",
+    gross_weight: "",
+    stone_weight: "",
+    weight_bw: "",
+    stone_price: "",
+    va_on: "Gross Weight",
+    va_percent: "",
+    wastage_weight: "",
+    total_weight_av: "",
+    mc_on: "MC %",
+    mc_per_gram: "",
+    making_charges: "",
+    disscount_percentage: "",
+    disscount: "",
+    rate: "",
+    rate_amt: "",
+    pricing: "By Weight",
+    tax_percent: "03% GST",
+    tax_amt: "",
+    hm_charges: "60.00",
+    total_price: "",
+    qty: "",
+    imagePreview: null,
+    remarks: "",
+    sale_status: "Delivered",
+    piece_taxable_amt: "",
+    festival_discount: "",
+    // Reset new fields
+    cover_wt: "",
+    card_wt: "",
+    packing_wt: "",
+  }));
+};
 
   // Calculate totalPrice (sum of total_price from all repairDetails)
   const totalPrice = repairDetails.reduce(
@@ -2575,26 +2583,31 @@ const AssignedSalesmanForm = () => {
       const captureImage = formData.capture_image || null;
       console.log("📷 Capture Image present:", !!captureImage);
 
-      const transferData = repairDetails.map(item => ({
-        product_id: item.product_id || null,
-        product_name: item.product_name || null,
-        metal_type: item.metal_type || null,
-        purity: item.purity || item.selling_purity || null,
-        category: item.category || null,
-        sub_category: item.sub_category || item.product_name || null,
-        design_name: item.design_name || null,
-        qty: parseFloat(item.qty) || 1,
-        gross_weight: parseFloat(item.gross_weight) || 0,
-        stone_weight: parseFloat(item.stone_weight) || 0,
-        net_weight: parseFloat(item.total_weight_av) || parseFloat(item.weight_bw) || 0,
-        rate: parseFloat(item.rate) || 0,
-        making_charges: parseFloat(item.making_charges) || 0,
-        stone_price: parseFloat(item.stone_price) || 0,
-        total_price: parseFloat(item.total_price) || 0,
-      image: item.image || null, // Include image path
-        remarks: item.remarks || null,
-        PCode_BarCode: item.code
-      }));
+      // In the handleSave function, update the transferData mapping:
+const transferData = repairDetails.map(item => ({
+  product_id: item.product_id || null,
+  product_name: item.product_name || null,
+  metal_type: item.metal_type || null,
+  purity: item.purity || item.selling_purity || null,
+  category: item.category || null,
+  sub_category: item.sub_category || item.product_name || null,
+  design_name: item.design_name || null,
+  qty: parseFloat(item.qty) || 1,
+  gross_weight: parseFloat(item.gross_weight) || 0,
+  stone_weight: parseFloat(item.stone_weight) || 0,
+  net_weight: parseFloat(item.total_weight_av) || parseFloat(item.weight_bw) || 0,
+  rate: parseFloat(item.rate) || 0,
+  making_charges: parseFloat(item.making_charges) || 0,
+  stone_price: parseFloat(item.stone_price) || 0,
+  total_price: parseFloat(item.total_price) || 0,
+  image: item.image || null,
+  remarks: item.remarks || null,
+  PCode_BarCode: item.code,
+  // NEW: Include Cover Wt, Card Wt, Packing Wt
+  cover_wt: parseFloat(item.cover_wt) || 0,
+  card_wt: parseFloat(item.card_wt) || 0,
+  packing_wt: parseFloat(item.packing_wt) || 0,
+}));
 
       const payload = {
         transfer_data: transferData,

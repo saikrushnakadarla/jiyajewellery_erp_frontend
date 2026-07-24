@@ -68,7 +68,7 @@ const PaymentDetails = ({
           </Col>
         </Row>
         {/* Show validation message below buttons */}
-        {!isAllProductsSelected && selectedTransferItems?.length > 0 && (
+        {/* {!isAllProductsSelected && selectedTransferItems?.length > 0 && (
           <Row className="mt-2">
             <Col>
               <div style={{ 
@@ -89,7 +89,7 @@ const PaymentDetails = ({
               </div>
             </Col>
           </Row>
-        )}
+        )} */}
       </Col>
     </div>
   );

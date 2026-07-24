@@ -106,7 +106,11 @@ const useProductHandlers = () => {
     active_stock_point_id: "",
     other_stock_point_id: "",
     active_stock_point_details: null,
-    other_stock_point_details: null
+    other_stock_point_details: null,
+    // NEW FIELDS for Stock Transfer
+    cover_wt: "",
+    card_wt: "",
+    packing_wt: "",
   });
 
   const [formData, setFormData] = useState(() => {
@@ -767,6 +771,10 @@ const useProductHandlers = () => {
           piece_taxable_amt: "",
           festival_discount: "",
           custom_purity: "",
+           // Reset new fields
+          cover_wt: "",
+          card_wt: "",
+          packing_wt: "",
       }));
       setIsQtyEditable(true);
       return;
@@ -809,6 +817,10 @@ const useProductHandlers = () => {
         qty: 1,
         festival_discount: "",
         custom_purity: "",
+        // Reset new fields
+        cover_wt: "",
+        card_wt: "",
+        packing_wt: "",
       }));
       setIsQtyEditable(true);
       return;
@@ -896,6 +908,10 @@ const useProductHandlers = () => {
         tax_percent: productDetails?.tax_slab || tag.tax_percent || "03% GST",
         qty: 1,
         rate: rateValue,
+         // Load new fields from tag if they exist
+        cover_wt: tag.Cover_Wt || "",
+        card_wt: tag.Card_Wt || "",
+        packing_wt: tag.Packing_Wt || "",
       }));
       setIsQtyEditable(false);
       console.log("✅ Form updated with tag data");
@@ -937,6 +953,10 @@ const useProductHandlers = () => {
         sale_status: "Delivered",
         piece_taxable_amt: "",
         festival_discount: "",
+          // Reset new fields
+        cover_wt: "",
+        card_wt: "",
+        packing_wt: "",
       }));
       setIsQtyEditable(true);
     }

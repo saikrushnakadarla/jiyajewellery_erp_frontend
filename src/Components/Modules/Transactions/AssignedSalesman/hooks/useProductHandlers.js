@@ -109,7 +109,11 @@ const useProductHandlers = () => {
     active_stock_point_details: null,
     other_stock_point_details: null,
     salesman_id: "",
-    salesman_name: ""
+    salesman_name: "",
+    // NEW FIELDS for Cover Wt, Card Wt, Packing Wt
+    cover_wt: "",
+    card_wt: "",
+    packing_wt: "",
   });
 
   const [formData, setFormData] = useState(() => {
@@ -158,6 +162,18 @@ const useProductHandlers = () => {
     };
     fetchVisitLogs();
   }, []);
+
+  // Calculate Packing Wt = Cover Wt + Card Wt
+  useEffect(() => {
+    const coverWt = parseFloat(formData.cover_wt) || 0;
+    const cardWt = parseFloat(formData.card_wt) || 0;
+    const packingWt = coverWt + cardWt;
+    
+    setFormData((prev) => ({
+      ...prev,
+      packing_wt: packingWt.toFixed(3)
+    }));
+  }, [formData.cover_wt, formData.card_wt]);
 
   // NEW: Helper function to get barcodes scheduled by selected salesman
   const getScheduledBarcodesBySalesman = () => {
@@ -382,6 +398,10 @@ const useProductHandlers = () => {
         piece_taxable_amt: "",
         festival_discount: "",
         custom_purity: "",
+        // Reset new fields
+        cover_wt: "",
+        card_wt: "",
+        packing_wt: "",
       };
     }
 
@@ -481,6 +501,10 @@ const useProductHandlers = () => {
         piece_taxable_amt: "",
         festival_discount: "",
         custom_purity: "",
+        // Reset new fields
+        cover_wt: "",
+        card_wt: "",
+        packing_wt: "",
       }));
 
       setFilteredMetalTypes(metalTypes);
@@ -756,7 +780,7 @@ const useProductHandlers = () => {
     fetchPurity();
   }, [formData.metal_type]);
 
-  // UPDATED: handleBarcodeChange with salesman filter
+  // UPDATED: handleBarcodeChange with salesman filter and include cover_wt, card_wt, packing_wt
   const handleBarcodeChange = async (code) => {
     try {
       if (!code) {
@@ -801,6 +825,10 @@ const useProductHandlers = () => {
           custom_purity: "",
           image: null,
           imagePreview: null,
+          // Reset new fields
+          cover_wt: "",
+          card_wt: "",
+          packing_wt: "",
         }));
         setIsQtyEditable(true);
         return;
@@ -842,6 +870,10 @@ const useProductHandlers = () => {
           custom_purity: "",
           image: null,
           imagePreview: null,
+          // Reset new fields
+          cover_wt: "",
+          card_wt: "",
+          packing_wt: "",
         }));
         setIsQtyEditable(true);
       } else {
@@ -918,10 +950,8 @@ const useProductHandlers = () => {
           let imagePreview = null;
           
           try {
-            // First get all stock transfers
             const stockTransferResponse = await axios.get(`${baseURL}/api/stock-transfer/get-stock-transfers`);
             if (stockTransferResponse.data && Array.isArray(stockTransferResponse.data)) {
-              // Find any transfer that has this product
               for (const transfer of stockTransferResponse.data) {
                 try {
                   const transferDetailsResponse = await axios.get(`${baseURL}/api/stock-transfer/get-stock-transfer/${transfer.transfer_id}`);
@@ -931,7 +961,6 @@ const useProductHandlers = () => {
                     );
                     if (matchingItem && matchingItem.image) {
                       imagePath = matchingItem.image;
-                      // Create full URL for image preview
                       imagePreview = `${baseURL}${matchingItem.image}`;
                       console.log("Found image for barcode:", code, "imagePath:", imagePath);
                       break;
@@ -945,7 +974,6 @@ const useProductHandlers = () => {
             }
           } catch (imageError) {
             console.error("Error fetching image from stock transfer:", imageError);
-            // Continue without image if fetch fails
           }
 
           setFormData((prevData) => ({
@@ -978,8 +1006,12 @@ const useProductHandlers = () => {
             tax_percent: productDetails?.tax_slab || tag.tax_percent || "03% GST",
             qty: 1,
             rate: rateValue,
-            image: imagePath, // Store the relative path
-            imagePreview: imagePreview, // Store the full URL for preview
+            image: imagePath,
+            imagePreview: imagePreview,
+            // Load new fields from tag if they exist
+            cover_wt: tag.Cover_Wt || "",
+            card_wt: tag.Card_Wt || "",
+            packing_wt: tag.Packing_Wt || "",
           }));
           setIsQtyEditable(false);
         } else {
@@ -1020,6 +1052,10 @@ const useProductHandlers = () => {
             festival_discount: "",
             image: null,
             imagePreview: null,
+            // Reset new fields
+            cover_wt: "",
+            card_wt: "",
+            packing_wt: "",
           }));
           setIsQtyEditable(true);
         }

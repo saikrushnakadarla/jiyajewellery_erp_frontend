@@ -1091,6 +1091,8 @@ const ProductDetails = ({
           </div>
         </Col>
 
+        {/* Commented out Category field */}
+        {/* 
         <Col xs={12} md={2} className="d-flex align-items-center">
           <div style={{ flex: 1 }}>
             <InputField
@@ -1110,7 +1112,10 @@ const ProductDetails = ({
             onClick={() => navigate("/itemmaster", { state: { from: `/sales?tabId=${tabId}` } })}
           />
         </Col>
+        */}
 
+        {/* Commented out Metal Type field */}
+        {/* 
         <Col xs={12} md={2}>
           <InputField
             label="Metal Type"
@@ -1122,7 +1127,10 @@ const ProductDetails = ({
             disabled={isPacketAdded}
           />
         </Col>
+        */}
 
+        {/* Commented out Sub Category field */}
+        {/* 
         <Col xs={12} md={2} className="d-flex align-items-center">
           <div style={{ flex: 1 }}>
             <InputField
@@ -1142,7 +1150,10 @@ const ProductDetails = ({
             onClick={() => navigate("/subcategory", { state: { from: `/sales?tabId=${tabId}`, metal_type: formData.metal_type } })}
           />
         </Col>
+        */}
 
+        {/* Commented out Product Design Name field */}
+        {/* 
         <Col xs={12} md={2}>
           <InputField
             label="Product Design Name"
@@ -1154,6 +1165,7 @@ const ProductDetails = ({
             disabled={isPacketAdded}
           />
         </Col>
+        */}
 
         {isByFixed ? (
           <>
@@ -1167,6 +1179,7 @@ const ProductDetails = ({
               <InputField label="Qty" name="qty" value={formData.qty} onChange={handleChange} readOnly={!isQtyEditable} disabled={isPacketAdded} />
             </Col>
             <Col xs={12} md={5}>
+              {/* Choose/Capture Image, Add and Clear buttons moved beside Scan Packet */}
               <div style={{
                 display: 'flex',
                 alignItems: 'center',
