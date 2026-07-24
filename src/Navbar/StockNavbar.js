@@ -1,5 +1,5 @@
 // StockNavbar.js
-import React, { useState, useContext } from "react";
+import React, { useState, useContext, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
@@ -8,22 +8,185 @@ import {
   faChevronRight,
 } from "@fortawesome/free-solid-svg-icons";
 import { FaSignOutAlt } from "react-icons/fa";
+import { FiBell } from 'react-icons/fi';
 import { AuthContext } from "../Components/Pages/Login/Context";
 import Swal from "sweetalert2";
 import logo from "./jiya_logo.png";
-import "./StockNavbar.css"; // New unique CSS file
+import "./StockNavbar.css";
+import { Badge, Dropdown } from "react-bootstrap";
+// FIX: Only ONE base URL needed here — the ERP backend (port 5001).
+// /api/visit-logs-warehouse-schedule/* and /api/stockpoints both live there.
+// The previous code imported baseURL2 (port 5000) for the notifications call,
+// which is a different server that doesn't have this route — so the fetch
+// silently failed and the bell always showed 0 notifications.
+import baseURL from "../Url/NodeBaseURL";
 
 function StockNavbar() {
   const [isOpen, setIsOpen] = useState(false);
   const [stockManagementDropdownOpen, setStockManagementDropdownOpen] =
     useState(false);
-  // New state for sub-dropdowns
   const [inwardSubDropdownOpen, setInwardSubDropdownOpen] = useState(false);
   const [outwardSubDropdownOpen, setOutwardSubDropdownOpen] = useState(false);
 
-  const { userName } = useContext(AuthContext);
+  // Notification states
+  const [notifications, setNotifications] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [notificationDropdownOpen, setNotificationDropdownOpen] = useState(false);
+
+  const { userName, userId } = useContext(AuthContext);
   const location = useLocation();
   const navigate = useNavigate();
+
+  // Get current stock point name the same way the Dashboard does
+  const getCurrentStockPoint = () => {
+    const storedUserName = localStorage.getItem('userName');
+    return storedUserName || userName || '';
+  };
+
+  // FIX: Resolve the ACTUAL stock_point_id for this warehouse by matching
+  // stock_point_name against the logged-in user's name. The notifications
+  // table stores this same stock_point_id as `user_id` (user_type='warehouse')
+  // — the old code guessed at user.warehouse_id / user.stock_point_id / user.id
+  // from localStorage, which don't reliably exist for a warehouse login.
+  const resolveCurrentStockPointId = async () => {
+    try {
+      const currentStockPoint = getCurrentStockPoint();
+      const response = await fetch(`${baseURL}/api/stockpoints`);
+      const data = await response.json();
+
+      if (Array.isArray(data)) {
+        const match = data.find(
+          sp => sp.stock_point_name?.trim().toLowerCase() === currentStockPoint.trim().toLowerCase()
+        );
+        if (match) {
+          return match.stock_point_id;
+        }
+      }
+    } catch (error) {
+      console.error('Error resolving current stock point id for notifications:', error);
+    }
+    return null;
+  };
+
+  // Fetch notifications for warehouse
+  const fetchWarehouseNotifications = async (stockPointId) => {
+    try {
+      if (!stockPointId) return;
+
+      // FIX: baseURL (5001), not baseURL2 (5000)
+      const response = await fetch(`${baseURL}/api/visit-logs-warehouse-schedule/notifications/${stockPointId}?userType=warehouse&limit=50`);
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          const notifs = data.notifications || [];
+          setNotifications(notifs);
+          const unread = notifs.filter(n => !n.is_read).length;
+          setUnreadCount(unread);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching warehouse notifications:', error);
+    }
+  };
+
+  // Resolve stock point id once, then fetch + poll notifications using it
+  useEffect(() => {
+    let stockPointId = null;
+    let interval;
+
+    const init = async () => {
+      stockPointId = await resolveCurrentStockPointId();
+      await fetchWarehouseNotifications(stockPointId);
+
+      interval = setInterval(() => {
+        fetchWarehouseNotifications(stockPointId);
+      }, 30000);
+    };
+
+    init();
+
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Mark notification as read
+  const markAsRead = async (notificationId) => {
+    try {
+      // FIX: baseURL (5001), not baseURL2 (5000)
+      await fetch(`${baseURL}/api/visit-logs-warehouse-schedule/notifications/${notificationId}/read`, {
+        method: 'PUT'
+      });
+
+      setNotifications(prev =>
+        prev.map(notif =>
+          notif.id === notificationId ? { ...notif, is_read: true } : notif
+        )
+      );
+      setUnreadCount(prev => Math.max(0, prev - 1));
+    } catch (error) {
+      console.error('Error marking notification as read:', error);
+    }
+  };
+
+  // Mark all notifications as read
+  const markAllAsRead = async () => {
+    const stockPointId = await resolveCurrentStockPointId();
+    if (!stockPointId) return;
+
+    try {
+      // FIX: baseURL (5001), not baseURL2 (5000)
+      await fetch(`${baseURL}/api/visit-logs-warehouse-schedule/notifications/mark-all-read/${stockPointId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userType: 'warehouse' })
+      });
+
+      setNotifications(prev => prev.map(notif => ({ ...notif, is_read: true })));
+      setUnreadCount(0);
+
+      Swal.fire({
+        icon: 'success',
+        title: 'All notifications marked as read',
+        timer: 1500,
+        showConfirmButton: false
+      });
+    } catch (error) {
+      console.error('Error marking all as read:', error);
+    }
+  };
+
+  // Format relative time
+  const formatRelativeTime = (dateString) => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffSeconds = Math.floor((now - date) / 1000);
+    const diffMinutes = Math.floor(diffSeconds / 60);
+    const diffHours = Math.floor(diffMinutes / 60);
+    const diffDays = Math.floor(diffHours / 24);
+
+    if (diffSeconds < 60) return 'Just now';
+    if (diffMinutes < 60) return `${diffMinutes} min ago`;
+    if (diffHours < 24) return `${diffHours} hours ago`;
+    if (diffDays === 1) return 'Yesterday';
+    if (diffDays < 7) return `${diffDays} days ago`;
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  };
+
+  // Get notification icon
+  const getNotificationIcon = (notification) => {
+    const msg = notification.message || '';
+    const type = notification.type || '';
+    if (msg.includes('scheduled') || type === 'schedule') return '📅';
+    if (msg.includes('warehouse') || type === 'warehouse_schedule') return '📦';
+    if (msg.includes('assigned') || msg.includes('Assigned')) return '👤';
+    if (msg.includes('Completed')) return '✅';
+    if (msg.includes('Cancelled')) return '❌';
+    if (msg.includes('Updated')) return '🔄';
+    return '🔔';
+  };
 
   const toggleMenu = () => {
     setIsOpen(!isOpen);
@@ -41,7 +204,6 @@ function StockNavbar() {
     }
   };
 
-  // Handle sub-dropdown toggles for mobile
   const toggleInwardSubDropdown = () => {
     setInwardSubDropdownOpen(!inwardSubDropdownOpen);
   };
@@ -74,12 +236,10 @@ function StockNavbar() {
     });
   };
 
-  // Helper to check if a link is active
   const isActive = (path) => {
     return location.pathname === path ? "stock-navbar-active" : "";
   };
 
-  // Helper to check if any sub-link is active
   const isSubActive = (paths) => {
     return paths.includes(location.pathname) ? "stock-navbar-active" : "";
   };
@@ -138,7 +298,6 @@ function StockNavbar() {
           </span>
           {stockManagementDropdownOpen && (
             <div className="stock-navbar-dropdown-content">
-              {/* Stock Link - Direct */}
               <Link
                 to="/warehouse-stock-respective-items"
                 onClick={handleItemClick}
@@ -260,10 +419,9 @@ function StockNavbar() {
               </div>
             </div>
           )}
-        </div> 
+        </div>
 
-
-                {/* Day Book Link */}
+        {/* Day Book Link */}
         <div>
           <Link
             to="/day-book"
@@ -279,62 +437,211 @@ function StockNavbar() {
           </Link>
         </div>
 
-
-        {/* Page heading - shows the name of the currently selected stock item */}
+        {/* Page heading */}
         <div>
-          <span>
-            {/* {location.pathname === "/stock-dashboard" && (
-              <h1 className="stock-path-heading">DASHBOARD</h1>
-            )} */}
-            {location.pathname === "/warehouse-stock-respective-items" && (
-              <h1 className="stock-path-heading">STOCK</h1>
-            )}
-            {location.pathname === "/stock-inward" && (
-              <h1 className="stock-path-heading">INWARD FROM MAIN ADMIN</h1>
-            )}
-            {location.pathname === "/receive-from-salesman" && (
-              <h1 className="stock-path-heading">INWARD FROM SALESMAN</h1>
-            )}
-            {location.pathname === "/add-receive-from-salesman" && (
-              <h1 className="stock-path-heading">ADD INWARD FROM SALESMAN</h1>
-            )}
-            {location.pathname === "/return-to-main-stock" && (
-              <h1 className="stock-path-heading">OUTWARD TO MAIN ADMIN</h1>
-            )}
-             {location.pathname === "/add-return-to-main-stock" && (
-              <h1 className="stock-path-heading">ADD OUTWARD TO MAIN ADMIN</h1>
-            )}
-            {location.pathname === "/assign-to-salesman" && (
-              <h1 className="stock-path-heading">OUTWARD TO SALESMAN</h1>
-            )}
-             {location.pathname === "/add-assign-salesmantransfer" && (
-              <h1 className="stock-path-heading">ADD OUTWARD TO SALESMAN</h1>
-            )}
-            {/* {location.pathname === "/day-book" && (
-              <h1 className="stock-path-heading">DAY BOOK</h1>
-            )} */}
-            {/* {location.pathname === "/visit-logs-salesman-schedule" && (
-              <h1 className="stock-path-heading">VISIT LOGS SALESMAN</h1>
-            )} */}
-          </span>
+          {location.pathname === "/warehouse-stock-respective-items" && (
+            <h1 className="stock-path-heading">STOCK</h1>
+          )}
+          {location.pathname === "/stock-inward" && (
+            <h1 className="stock-path-heading">INWARD FROM MAIN ADMIN</h1>
+          )}
+          {location.pathname === "/receive-from-salesman" && (
+            <h1 className="stock-path-heading">INWARD FROM SALESMAN</h1>
+          )}
+          {location.pathname === "/add-receive-from-salesman" && (
+            <h1 className="stock-path-heading">ADD INWARD FROM SALESMAN</h1>
+          )}
+          {location.pathname === "/return-to-main-stock" && (
+            <h1 className="stock-path-heading">OUTWARD TO MAIN ADMIN</h1>
+          )}
+          {location.pathname === "/add-return-to-main-stock" && (
+            <h1 className="stock-path-heading">ADD OUTWARD TO MAIN ADMIN</h1>
+          )}
+          {location.pathname === "/assign-to-salesman" && (
+            <h1 className="stock-path-heading">OUTWARD TO SALESMAN</h1>
+          )}
+          {location.pathname === "/add-assign-salesmantransfer" && (
+            <h1 className="stock-path-heading">ADD OUTWARD TO SALESMAN</h1>
+          )}
         </div>
+      </nav>
 
-        {/* Removed separate ASSIGN and RECEIVE links since they're now nested */}
-        {/* Visit Logs Salesman Schedule Link */}
-        {/* <div>
-          <Link
-            to="/visit-logs-salesman-schedule"
-            onClick={handleItemClick}
+      {/* Notification Bell with Dropdown */}
+      <div className="stock-navbar-notification" style={{ position: 'relative', marginRight: '10px' }}>
+        <Dropdown
+          show={notificationDropdownOpen}
+          onToggle={setNotificationDropdownOpen}
+          align="end"
+        >
+          <Dropdown.Toggle as="div" style={{ cursor: 'pointer', padding: '4px' }}>
+            <div style={{ position: 'relative', display: 'inline-block' }}>
+              <FiBell size={22} color="#333" />
+              {unreadCount > 0 && (
+                <Badge
+                  pill
+                  bg="danger"
+                  style={{
+                    position: 'absolute',
+                    top: '-10px',
+                    right: '-12px',
+                    fontSize: '10px',
+                    padding: '2px 6px',
+                    animation: 'pulse 2s infinite',
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.3)',
+                    minWidth: '18px'
+                  }}
+                >
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </Badge>
+              )}
+            </div>
+          </Dropdown.Toggle>
+
+          <Dropdown.Menu
             style={{
-              color: location.pathname === "/visit-logs-salesman-schedule" ? "#a36e29" : "black",
-              backgroundColor: "transparent",
-              textDecoration: "none",
+              width: '380px',
+              maxHeight: '500px',
+              overflowY: 'auto',
+              padding: '0',
+              borderRadius: '12px',
+              boxShadow: '0 10px 40px rgba(0,0,0,0.15)',
+              border: '1px solid #e5e7eb',
+              position: 'absolute',
+              right: 0,
+              top: '100%',
+              zIndex: 9999
             }}
           >
-            VISIT LOGS SALESMAN
-          </Link>
-        </div> */}
-      </nav>
+            <div style={{
+              padding: '14px 18px',
+              borderBottom: '1px solid #e5e7eb',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              backgroundColor: '#f9fafb',
+              borderRadius: '12px 12px 0 0',
+              position: 'sticky',
+              top: 0,
+              zIndex: 1
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <FiBell size={18} color="#3b82f6" />
+                <strong style={{ fontSize: '15px' }}>Notifications</strong>
+              </div>
+              {unreadCount > 0 && (
+                <button
+                  onClick={markAllAsRead}
+                  style={{
+                    fontSize: '12px',
+                    textDecoration: 'none',
+                    color: '#3b82f6',
+                    fontWeight: 500,
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Mark all as read
+                </button>
+              )}
+            </div>
+
+            <div className="stock-notification-list" style={{ maxHeight: '400px', overflowY: 'auto' }}>
+              {notifications.length === 0 ? (
+                <div style={{
+                  padding: '50px 20px',
+                  textAlign: 'center',
+                  color: '#6b7280'
+                }}>
+                  <div style={{ marginBottom: '14px' }}>
+                    <FiBell size={40} style={{ opacity: 0.3 }} />
+                  </div>
+                  <p style={{ margin: 0, fontSize: '15px', fontWeight: 500, color: '#374151' }}>No notifications</p>
+                  <p style={{ margin: '6px 0 0 0', fontSize: '13px', color: '#9ca3af' }}>
+                    You'll be notified about new customer visits and updates here
+                  </p>
+                </div>
+              ) : (
+                notifications.map(notification => (
+                  <div
+                    key={notification.id}
+                    onClick={() => !notification.is_read && markAsRead(notification.id)}
+                    style={{
+                      padding: '14px 18px',
+                      backgroundColor: notification.is_read ? 'white' : '#eff6ff',
+                      borderBottom: '1px solid #f3f4f6',
+                      borderLeft: notification.is_read ? '4px solid transparent' : '4px solid #3b82f6',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = '#f8fafc';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = notification.is_read ? 'white' : '#eff6ff';
+                    }}
+                  >
+                    <div style={{ display: 'flex', gap: '12px', width: '100%' }}>
+                      <div style={{
+                        fontSize: '20px',
+                        width: '32px',
+                        height: '32px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0
+                      }}>
+                        {getNotificationIcon(notification)}
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{
+                          fontWeight: notification.is_read ? '500' : '600',
+                          marginBottom: '4px',
+                          fontSize: '13px',
+                          color: '#111827',
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'flex-start'
+                        }}>
+                          <span>{notification.title}</span>
+                          {!notification.is_read && (
+                            <span style={{
+                              width: '6px',
+                              height: '6px',
+                              backgroundColor: '#3b82f6',
+                              borderRadius: '50%',
+                              flexShrink: 0,
+                              marginTop: '4px'
+                            }}></span>
+                          )}
+                        </div>
+                        <div style={{
+                          fontSize: '12px',
+                          color: '#6b7280',
+                          marginBottom: '4px',
+                          lineHeight: '1.4'
+                        }}>
+                          {notification.message}
+                        </div>
+                        <div style={{
+                          fontSize: '10px',
+                          color: '#9ca3af',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px'
+                        }}>
+                          <span>🕐</span>
+                          {formatRelativeTime(notification.created_at)}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </Dropdown.Menu>
+        </Dropdown>
+      </div>
 
       <div className="stock-username">{userName}</div>
       <div className="stock-navbar-logout">
@@ -342,6 +649,36 @@ function StockNavbar() {
           <FaSignOutAlt size={18} /> Logout
         </button>
       </div>
+
+      {/* Add pulse animation style */}
+      <style>{`
+        @keyframes pulse {
+          0% { transform: scale(1); }
+          50% { transform: scale(1.1); }
+          100% { transform: scale(1); }
+        }
+
+        .stock-notification-list::-webkit-scrollbar {
+          width: 4px;
+        }
+
+        .stock-notification-list::-webkit-scrollbar-track {
+          background: #f1f1f1;
+        }
+
+        .stock-notification-list::-webkit-scrollbar-thumb {
+          background: #cbd5e1;
+          border-radius: 2px;
+        }
+
+        .stock-notification-list::-webkit-scrollbar-thumb:hover {
+          background: #94a3b8;
+        }
+
+        .dropdown-menu {
+          transform: translateY(8px) !important;
+        }
+      `}</style>
     </header>
   );
 }
