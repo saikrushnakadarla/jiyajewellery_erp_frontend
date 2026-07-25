@@ -182,7 +182,7 @@ const fetchAssignedProductsBySalesman = async (salesmanId, stockPointId) => {
   try {
     const params = { salesman_id: salesmanId };
     if (stockPointId) {
-      params.from_stock_point_id = stockPointId; // ✅ key fix
+      params.from_stock_point_id = stockPointId;
     }
 
     console.log("Fetching assigned products for salesman:", salesmanId, "stock point:", stockPointId);
@@ -204,6 +204,9 @@ const fetchAssignedProductsBySalesman = async (salesmanId, stockPointId) => {
         design_name: item.design_name,
         qty: item.qty,
         gross_weight: item.gross_weight,
+        cover_wt: item.cover_wt || 0,
+        card_wt: item.card_wt || 0,
+        packing_wt: item.packing_wt || 0,
         stone_weight: item.stone_weight,
         net_weight: item.net_weight,
         rate: item.rate,
@@ -225,6 +228,8 @@ const fetchAssignedProductsBySalesman = async (salesmanId, stockPointId) => {
     return [];
   }
 };
+
+
 
 // ===== CALL useProductHandlers HERE (before using formData in useEffect) =====
   const {
@@ -1596,9 +1601,13 @@ const handleAdd = () => {
           ? parseFloat(formData.rate).toFixed(2)
           : "",
       imagePreview: formData.imagePreview,
-      image: imageToSave, // Use the image from formData or assigned product
+      image: imageToSave,
       is_packet_selection: formData.is_packet_selection || false,
-      packet_barcode: formData.packet_barcode || null
+      packet_barcode: formData.packet_barcode || null,
+      // Ensure new fields are preserved
+      cover_wt: formData.cover_wt || "0",
+      card_wt: formData.card_wt || "0",
+      packing_wt: formData.packing_wt || "0",
     },
   ];
 
@@ -1660,48 +1669,53 @@ const handleAdd = () => {
     }
   };
 
-  const resetProductFields = () => {
-    setFormData((prev) => ({
-      ...prev,
-      code: "",
-      product_id: "",
-      metal: "",
-      product_name: "",
-      metal_type: "",
-      design_name: "",
-      purity: "",
-      selling_purity: "",
-      printing_purity: "",
-      category: "",
-      sub_category: "",
-      gross_weight: "",
-      stone_weight: "",
-      weight_bw: "",
-      stone_price: "",
-      va_on: "Gross Weight",
-      va_percent: "",
-      wastage_weight: "",
-      total_weight_av: "",
-      mc_on: "MC %",
-      mc_per_gram: "",
-      making_charges: "",
-      disscount_percentage: "",
-      disscount: "",
-      rate: "",
-      rate_amt: "",
-      pricing: "By Weight",
-      tax_percent: "03% GST",
-      tax_amt: "",
-      hm_charges: "60.00",
-      total_price: "",
-      qty: "",
-      imagePreview: null,
-      remarks: "",
-      sale_status: "Delivered",
-      piece_taxable_amt: "",
-      festival_discount: "",
-    }));
-  };
+ const resetProductFields = () => {
+  setFormData((prev) => ({
+    ...prev,
+    code: "",
+    product_id: "",
+    metal: "",
+    product_name: "",
+    metal_type: "",
+    design_name: "",
+    purity: "",
+    selling_purity: "",
+    printing_purity: "",
+    category: "",
+    sub_category: "",
+    gross_weight: "",
+    stone_weight: "",
+    weight_bw: "",
+    stone_price: "",
+    va_on: "Gross Weight",
+    va_percent: "",
+    wastage_weight: "",
+    total_weight_av: "",
+    mc_on: "MC %",
+    mc_per_gram: "",
+    making_charges: "",
+    disscount_percentage: "",
+    disscount: "",
+    rate: "",
+    rate_amt: "",
+    pricing: "By Weight",
+    tax_percent: "03% GST",
+    tax_amt: "",
+    hm_charges: "60.00",
+    total_price: "",
+    qty: "",
+    imagePreview: null,
+    remarks: "",
+    sale_status: "Delivered",
+    piece_taxable_amt: "",
+    festival_discount: "",
+    // Reset new fields
+    cover_wt: "",
+    card_wt: "",
+    packing_wt: "",
+  }));
+};
+
 
   // Calculate totalPrice (sum of total_price from all repairDetails)
   const totalPrice = repairDetails.reduce(
@@ -2716,30 +2730,35 @@ const handleSave = async () => {
     console.log("Has packet selection:", hasPacketSelection);
 
     // Prepare transfer data with proper fields for received salesman
-    const transferData = repairDetails.map(item => ({
-      item_id: item.item_id || null,
-      assigned_id: item.assigned_id || null,
-      product_id: item.product_id || null,
-      product_name: item.product_name || null,
-      metal_type: item.metal_type || null,
-      purity: item.purity || item.selling_purity || null,
-      category: item.category || null,
-      sub_category: item.sub_category || item.product_name || null,
-      design_name: item.design_name || null,
-      qty: parseFloat(item.qty) || 1,
-      gross_weight: parseFloat(item.gross_weight) || 0,
-      stone_weight: parseFloat(item.stone_weight) || 0,
-      net_weight: parseFloat(item.total_weight_av) || parseFloat(item.weight_bw) || 0,
-      rate: parseFloat(item.rate) || 0,
-      making_charges: parseFloat(item.making_charges) || 0,
-      stone_price: parseFloat(item.stone_price) || 0,
-      total_price: parseFloat(item.total_price) || 0,
-      remarks: item.remarks || null,
-      PCode_BarCode: item.code,
-      is_packet_selection: item.is_packet_selection || false,
-      packet_barcode: item.packet_barcode || null,
-      image: item.image || null
-    }));
+    // In the handleSave function, update the transferData mapping:
+const transferData = repairDetails.map(item => ({
+  item_id: item.item_id || null,
+  assigned_id: item.assigned_id || null,
+  product_id: item.product_id || null,
+  product_name: item.product_name || null,
+  metal_type: item.metal_type || null,
+  purity: item.purity || item.selling_purity || null,
+  category: item.category || null,
+  sub_category: item.sub_category || item.product_name || null,
+  design_name: item.design_name || null,
+  qty: parseFloat(item.qty) || 1,
+  gross_weight: parseFloat(item.gross_weight) || 0,
+  stone_weight: parseFloat(item.stone_weight) || 0,
+  net_weight: parseFloat(item.total_weight_av) || parseFloat(item.weight_bw) || 0,
+  rate: parseFloat(item.rate) || 0,
+  making_charges: parseFloat(item.making_charges) || 0,
+  stone_price: parseFloat(item.stone_price) || 0,
+  total_price: parseFloat(item.total_price) || 0,
+  remarks: item.remarks || null,
+  PCode_BarCode: item.code,
+  is_packet_selection: item.is_packet_selection || false,
+  packet_barcode: item.packet_barcode || null,
+  image: item.image || null,
+  // NEW: Include Cover Wt, Card Wt, Packing Wt
+  cover_wt: parseFloat(item.cover_wt) || 0,
+  card_wt: parseFloat(item.card_wt) || 0,
+  packing_wt: parseFloat(item.packing_wt) || 0,
+}));
 
     // Build payload for Received Salesman API
     const payload = {

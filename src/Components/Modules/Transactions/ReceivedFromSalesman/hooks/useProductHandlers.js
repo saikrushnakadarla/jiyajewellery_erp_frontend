@@ -41,85 +41,88 @@ const useProductHandlers = (selectedSalesmanProducts = []) => {
 
  // In useProductHandlers.js, update getFreshFormData function:
 
-const getFreshFormData = (mobile) => ({
-  id: '',
-  customer_id: "",
-  mobile: mobile,
-  account_name: "",
-  email: "",
-  address1: "",
-  address2: "",
-  city: "",
-  pincode: "",
-  state: "",
-  state_code: "",
-  aadhar_card: "",
-  gst_in: "",
-  pan_card: "",
-  terms: "Cash",
-  date: new Date().toISOString().split('T')[0],
-  transfer_number: transfer_number,
-  code: "",
-  product_id: "",
-  metal: "",
-  product_name: "",
-  metal_type: "",
-  design_name: "",
-  purity: "",
-  selling_purity: "",
-  printing_purity: "",
-  pricing: "By Weight",
-  category: "",
-  sub_category: "",
-  gross_weight: "",
-  stone_weight: "",
-  weight_bw: "",
-  stone_price: "",
-  va_on: "Gross Weight",
-  va_percent: "",
-  wastage_weight: "",
-  total_weight_av: "",
-  mc_on: "MC %",
-  disscount_percentage: "",
-  disscount: "",
-  mc_per_gram: "",
-  making_charges: "",
-  rate: "",
-  pieace_cost: "",
-  mrp_price: "",
-  rate_amt: "",
-  tax_percent: "03% GST",
-  tax_amt: "",
-  total_price: "",
-  transaction_status: "Stock Transfer",
-  qty: "1",
-  opentag_id: "",
-  product_image: null,
-  imagePreview: null,
-  image: null,
-  remarks: "",
-  sale_status: "Delivered",
-  piece_taxable_amt: "",
-  festival_discount: "",
-  custom_purity: "",
-  manual_price_update: false,
-  order_number: '',
-  receipts_amt: "",
-  bal_after_receipts: "",
-  active_stock_point_id: "",
-  other_stock_point_id: "",
-  active_stock_point_details: null,
-  other_stock_point_details: null,
-  is_packet_selection: false,
-  packet_barcode: null,
-  is_estimated: false,
-  // ===== ADD STOCK OUTWARD FIELDS =====
-  stock_outward_barcode: null,
-  stock_outward_gross_wt: null,
-  stock_outward_type: null,
-  stock_outward_packet_barcode: null
-});
-
+  const getFreshFormData = (mobile) => ({
+    id: '',
+    customer_id: "",
+    mobile: mobile,
+    account_name: "",
+    email: "",
+    address1: "",
+    address2: "",
+    city: "",
+    pincode: "",
+    state: "",
+    state_code: "",
+    aadhar_card: "",
+    gst_in: "",
+    pan_card: "",
+    terms: "Cash",
+    date: new Date().toISOString().split('T')[0],
+    transfer_number: transfer_number,
+    code: "",
+    product_id: "",
+    metal: "",
+    product_name: "",
+    metal_type: "",
+    design_name: "",
+    purity: "",
+    selling_purity: "",
+    printing_purity: "",
+    pricing: "By Weight",
+    category: "",
+    sub_category: "",
+    gross_weight: "",
+    stone_weight: "",
+    weight_bw: "",
+    stone_price: "",
+    va_on: "Gross Weight",
+    va_percent: "",
+    wastage_weight: "",
+    total_weight_av: "",
+    mc_on: "MC %",
+    disscount_percentage: "",
+    disscount: "",
+    mc_per_gram: "",
+    making_charges: "",
+    rate: "",
+    pieace_cost: "",
+    mrp_price: "",
+    rate_amt: "",
+    tax_percent: "03% GST",
+    tax_amt: "",
+    total_price: "",
+    transaction_status: "Stock Transfer",
+    qty: "1",
+    opentag_id: "",
+    product_image: null,
+    imagePreview: null,
+    image: null,
+    remarks: "",
+    sale_status: "Delivered",
+    piece_taxable_amt: "",
+    festival_discount: "",
+    custom_purity: "",
+    manual_price_update: false,
+    order_number: '',
+    receipts_amt: "",
+    bal_after_receipts: "",
+    active_stock_point_id: "",
+    other_stock_point_id: "",
+    active_stock_point_details: null,
+    other_stock_point_details: null,
+    is_packet_selection: false,
+    packet_barcode: null,
+    is_estimated: false,
+    // ===== ADD STOCK OUTWARD FIELDS =====
+    stock_outward_barcode: null,
+    stock_outward_gross_wt: null,
+    stock_outward_type: null,
+    stock_outward_packet_barcode: null,
+    // ===== NEW FIELDS for Cover Wt, Card Wt, Packing Wt =====
+    cover_wt: "",
+    card_wt: "",
+    packing_wt: "",
+  });
 
   const [formData, setFormData] = useState(() => {
     const savedData = localStorage.getItem(`saleFormData_${tabId}`);
@@ -132,6 +135,18 @@ const getFreshFormData = (mobile) => ({
   useEffect(() => {
     localStorage.setItem(`saleFormData_${tabId}`, JSON.stringify(formData));
   }, [formData, tabId]);
+
+  // Calculate Packing Wt = Cover Wt + Card Wt
+  useEffect(() => {
+    const coverWt = parseFloat(formData.cover_wt) || 0;
+    const cardWt = parseFloat(formData.card_wt) || 0;
+    const packingWt = coverWt + cardWt;
+    
+    setFormData((prev) => ({
+      ...prev,
+      packing_wt: packingWt.toFixed(3)
+    }));
+  }, [formData.cover_wt, formData.card_wt]);
 
   const [uniqueProducts, setUniqueProducts] = useState([]);
   const [metalTypes, setMetalTypes] = useState([]);
@@ -361,6 +376,10 @@ const getFreshFormData = (mobile) => ({
         piece_taxable_amt: "",
         festival_discount: "",
         custom_purity: "",
+        // Reset new fields
+        cover_wt: "",
+        card_wt: "",
+        packing_wt: "",
       };
     }
 
@@ -403,6 +422,7 @@ const getFreshFormData = (mobile) => ({
 
     setFormData(updatedFormData);
   };
+
 
   const handleProductNameChange = (productName) => {
     const productEntries = data.filter((prod) => prod.sub_category === productName);
@@ -460,6 +480,10 @@ const getFreshFormData = (mobile) => ({
         piece_taxable_amt: "",
         festival_discount: "",
         custom_purity: "",
+        // Reset new fields
+        cover_wt: "",
+        card_wt: "",
+        packing_wt: "",
       }));
 
       setFilteredMetalTypes(metalTypes);
@@ -779,6 +803,10 @@ const getFreshFormData = (mobile) => ({
         custom_purity: "",
         image: null,
         imagePreview: null,
+        // Reset new fields
+        cover_wt: "",
+        card_wt: "",
+        packing_wt: "",
       }));
       setIsQtyEditable(true);
       return;
@@ -853,6 +881,10 @@ const getFreshFormData = (mobile) => ({
         item_id: assignedProduct.item_id,
         image: imagePath,
         imagePreview: imagePreview,
+        // Load cover_wt, card_wt, packing_wt from assigned product if available
+        cover_wt: assignedProduct.cover_wt || "",
+        card_wt: assignedProduct.card_wt || "",
+        packing_wt: assignedProduct.packing_wt || "",
       }));
       setIsQtyEditable(false);
       return;
@@ -894,6 +926,9 @@ const getFreshFormData = (mobile) => ({
         custom_purity: "",
         image: null,
         imagePreview: null,
+        cover_wt: "",
+        card_wt: "",
+        packing_wt: "",
       }));
       setIsQtyEditable(true);
       return;
@@ -1026,6 +1061,10 @@ const getFreshFormData = (mobile) => ({
         rate: rateValue,
         image: imagePath,
         imagePreview: imagePreview,
+        // Load cover_wt, card_wt, packing_wt from tag if available
+        cover_wt: tag.Cover_Wt || "",
+        card_wt: tag.Card_Wt || "",
+        packing_wt: tag.Packing_Wt || "",
       }));
       setIsQtyEditable(false);
       return;
@@ -1069,6 +1108,9 @@ const getFreshFormData = (mobile) => ({
       festival_discount: "",
       image: null,
       imagePreview: null,
+      cover_wt: "",
+      card_wt: "",
+      packing_wt: "",
     }));
     setIsQtyEditable(true);
     

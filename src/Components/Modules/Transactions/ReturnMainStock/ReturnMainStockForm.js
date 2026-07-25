@@ -133,6 +133,8 @@ const fetchImageForBarcode = async (barcode) => {
 
 // Also modify the existing stock fetch to include estimate data
 // Update the useEffect that fetches stock to combine with estimate data
+// Also modify the existing stock fetch to include estimate data
+// Update the useEffect that fetches stock to combine with estimate data
 useEffect(() => {
   const fetchStockWithEstimates = async () => {
     try {
@@ -237,6 +239,7 @@ useEffect(() => {
       console.log("Combined stock with estimate data and images:", productsWithImages);
       
       // Extract unique barcodes for dropdown - only show items with Status = "Selected"
+      // FIXED: Include cover_wt, card_wt, packing_wt in the uniqueBarcodes mapping
       const uniqueBarcodes = [...new Map(productsWithImages.map(item => 
         [item.PCode_BarCode, { 
           PCode_BarCode: item.PCode_BarCode, 
@@ -262,11 +265,21 @@ useEffect(() => {
           user_id: item.user_id,
           packetBarcode: estMap[item.PCode_BarCode]?.packetBarcode || null,
           isEstimated: !!estMap[item.PCode_BarCode]?.packetBarcode,
-          image: item.image || null // Include image
+          image: item.image || null,
+          // FIXED: Include cover_wt, card_wt, packing_wt from stock item
+          cover_wt: item.Cover_Wt || 0,
+          card_wt: item.Card_Wt || 0,
+          packing_wt: item.Packing_Wt || 0,
         }
       ])).values()];
       
-      console.log("Unique Barcodes for dropdown:", uniqueBarcodes.length, uniqueBarcodes.map(b => ({ code: b.PCode_BarCode, hasImage: !!b.image })));
+      console.log("Unique Barcodes for dropdown:", uniqueBarcodes.length, uniqueBarcodes.map(b => ({ 
+        code: b.PCode_BarCode, 
+        hasImage: !!b.image,
+        cover_wt: b.cover_wt,
+        card_wt: b.card_wt,
+        packing_wt: b.packing_wt
+      })));
       setSelectedSalesmanProducts(uniqueBarcodes);
       setStock(productsWithImages);
       console.log("========== END DEBUG ==========");
@@ -1736,7 +1749,11 @@ const handleAdd = () => {
       imagePreview: imagePreviewToSave || formData.imagePreview,
       image: imageToSave || formData.image,
       is_packet_selection: formData.is_packet_selection || false,
-      packet_barcode: formData.packet_barcode || null
+      packet_barcode: formData.packet_barcode || null,
+      // NEW: Preserve cover_wt, card_wt, packing_wt from formData
+      cover_wt: formData.cover_wt || "0",
+      card_wt: formData.card_wt || "0",
+      packing_wt: formData.packing_wt || "0",
     },
   ];
 
@@ -1798,50 +1815,54 @@ const handleAdd = () => {
     }
   };
 
-  const resetProductFields = () => {
-    setFormData((prev) => ({
-      ...prev,
-      code: "",
-      product_id: "",
-      metal: "",
-      product_name: "",
-      metal_type: "",
-      design_name: "",
-      purity: "",
-      selling_purity: "",
-      printing_purity: "",
-      category: "",
-      sub_category: "",
-      gross_weight: "",
-      stone_weight: "",
-      weight_bw: "",
-      stone_price: "",
-      va_on: "Gross Weight",
-      va_percent: "",
-      wastage_weight: "",
-      total_weight_av: "",
-      mc_on: "MC %",
-      mc_per_gram: "",
-      making_charges: "",
-      disscount_percentage: "",
-      disscount: "",
-      rate: "",
-      rate_amt: "",
-      pricing: "By Weight",
-      tax_percent: "03% GST",
-      tax_amt: "",
-      hm_charges: "60.00",
-      total_price: "",
-      qty: "",
-      imagePreview: null,
-      remarks: "",
-      sale_status: "Delivered",
-      piece_taxable_amt: "",
-      festival_discount: "",
-      is_packet_selection: false,
-      packet_barcode: null,
-    }));
-  };
+ const resetProductFields = () => {
+  setFormData((prev) => ({
+    ...prev,
+    code: "",
+    product_id: "",
+    metal: "",
+    product_name: "",
+    metal_type: "",
+    design_name: "",
+    purity: "",
+    selling_purity: "",
+    printing_purity: "",
+    category: "",
+    sub_category: "",
+    gross_weight: "",
+    stone_weight: "",
+    weight_bw: "",
+    stone_price: "",
+    va_on: "Gross Weight",
+    va_percent: "",
+    wastage_weight: "",
+    total_weight_av: "",
+    mc_on: "MC %",
+    mc_per_gram: "",
+    making_charges: "",
+    disscount_percentage: "",
+    disscount: "",
+    rate: "",
+    rate_amt: "",
+    pricing: "By Weight",
+    tax_percent: "03% GST",
+    tax_amt: "",
+    hm_charges: "60.00",
+    total_price: "",
+    qty: "",
+    imagePreview: null,
+    remarks: "",
+    sale_status: "Delivered",
+    piece_taxable_amt: "",
+    festival_discount: "",
+    is_packet_selection: false,
+    packet_barcode: null,
+    // Reset new fields
+    cover_wt: "",
+    card_wt: "",
+    packing_wt: "",
+  }));
+};
 
   // Calculate totalPrice (sum of total_price from all repairDetails)
   const totalPrice = repairDetails.reduce(
@@ -2784,31 +2805,35 @@ const handleSave = async () => {
       console.log("Has packet selection:", hasPacketSelection);
 
       // Prepare return data with proper fields
-      const returnData = repairDetails.map(item => ({
-        item_id: item.item_id || null,
-        assigned_id: item.assigned_id || null,
-        product_id: item.product_id || null,
-        PCode_BarCode: item.code,
-        packet_barcode: item.packet_barcode || null,  // <-- Ensure this is included
-        product_name: item.product_name || null,
-        metal_type: item.metal_type || null,
-        purity: item.purity || item.selling_purity || null,
-        category: item.category || null,
-        sub_category: item.sub_category || item.product_name || null,
-        design_name: item.design_name || null,
-        qty: parseFloat(item.qty) || 1,
-        gross_weight: parseFloat(item.gross_weight) || 0,
-        stone_weight: parseFloat(item.stone_weight) || 0,
-        net_weight: parseFloat(item.total_weight_av) || parseFloat(item.weight_bw) || 0,
-        rate: parseFloat(item.rate) || 0,
-        making_charges: parseFloat(item.making_charges) || 0,
-        stone_price: parseFloat(item.stone_price) || 0,
-        total_price: parseFloat(item.total_price) || 0,
-        remarks: item.remarks || null,
-        is_packet_selection: item.is_packet_selection || false,
-        packet_barcode: item.packet_barcode || null,
-        image: item.image || null
-      }));
+    // In the handleSave function, update the returnData mapping:
+const returnData = repairDetails.map(item => ({
+  item_id: item.item_id || null,
+  assigned_id: item.assigned_id || null,
+  product_id: item.product_id || null,
+  PCode_BarCode: item.code,
+  packet_barcode: item.packet_barcode || null,
+  product_name: item.product_name || null,
+  metal_type: item.metal_type || null,
+  purity: item.purity || item.selling_purity || null,
+  category: item.category || null,
+  sub_category: item.sub_category || item.product_name || null,
+  design_name: item.design_name || null,
+  qty: parseFloat(item.qty) || 1,
+  gross_weight: parseFloat(item.gross_weight) || 0,
+  stone_weight: parseFloat(item.stone_weight) || 0,
+  net_weight: parseFloat(item.total_weight_av) || parseFloat(item.weight_bw) || 0,
+  rate: parseFloat(item.rate) || 0,
+  making_charges: parseFloat(item.making_charges) || 0,
+  stone_price: parseFloat(item.stone_price) || 0,
+  total_price: parseFloat(item.total_price) || 0,
+  remarks: item.remarks || null,
+  is_packet_selection: item.is_packet_selection || false,
+  image: item.image || null,
+  // NEW: Include Cover Wt, Card Wt, Packing Wt
+  cover_wt: parseFloat(item.cover_wt) || 0,
+  card_wt: parseFloat(item.card_wt) || 0,
+  packing_wt: parseFloat(item.packing_wt) || 0,
+}));
 
       // Collect assigned IDs to delete from assigned_salesman tables
       const assignedIds = repairDetails
