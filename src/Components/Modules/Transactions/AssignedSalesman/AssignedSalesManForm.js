@@ -965,39 +965,45 @@ const AssignedSalesmanForm = () => {
   }, []);
 
 // In AssignedSalesmanForm.js - this is already correct (no Stock_Point filter)
-  useEffect(() => {
-    const fetchStock = async () => {
-      try {
-        const response = await fetch(`${baseURL}/get/opening-tags-entry`);
-        if (!response.ok) {
-          throw new Error("Failed to fetch stock entries");
-        }
-        const data = await response.json();
-        
-        let stockData = data.result || [];
-        
-      // Filter based on logged-in user ID
-        if (loggedInUserId) {
-          stockData = stockData.filter(item => 
-            item.Status === "Available" && 
-            item.user_id === loggedInUserId
-          // Removed Stock_Point filter - now fetch from all stock points
-          );
-        } else {
-        // If no logged-in user, only show Available items
-          stockData = stockData.filter(item => item.Status === "Available");
-        }
-        
-        console.log("Filtered Stock Data by user_id (all stock points):", stockData);
-        setStock(stockData);
-      } catch (error) {
-        console.error("Error fetching stock entries:", error);
-        setStock([]);
+  // In AssignedSalesmanForm.jsx - inside the component
+
+useEffect(() => {
+  const fetchStock = async () => {
+    try {
+      const response = await fetch(`${baseURL}/get/opening-tags-entry`);
+      if (!response.ok) {
+        throw new Error("Failed to fetch stock entries");
       }
-    };
-    
-    fetchStock();
-  }, [loggedInUserId]);
+      const data = await response.json();
+      
+      let stockData = data.result || [];
+      
+      // FIX: Filter based on logged-in user ID AND exclude MAIN STOCK ROOM
+      if (loggedInUserId) {
+        stockData = stockData.filter(item => 
+          item.Status === "Available" && 
+          item.user_id === loggedInUserId &&
+          // CRITICAL FIX: Exclude products in MAIN STOCK ROOM
+          item.Stock_Point !== 'MAIN STOCK ROOM' 
+        );
+      } else {
+        // If no logged-in user, only show Available items and exclude MAIN STOCK ROOM
+        stockData = stockData.filter(item => 
+          item.Status === "Available" &&
+          item.Stock_Point !== 'MAIN STOCK ROOM'
+        );
+      }
+      
+      console.log("✅ Filtered Stock Data (excludes MAIN STOCK ROOM):", stockData);
+      setStock(stockData);
+    } catch (error) {
+      console.error("❌ Error fetching stock entries:", error);
+      setStock([]);
+    }
+  };
+  
+  fetchStock();
+}, [loggedInUserId]);
 
   const fetchEstimateDetails = async (estimate_number) => {
     if (!estimate_number) return;

@@ -210,6 +210,18 @@ const ProductDetails = ({
             return;
           }
 
+          // FIX: Check Stock_Point - EXCLUDE MAIN STOCK ROOM
+          if (tag.Stock_Point === "MAIN STOCK ROOM") {
+            Swal.close();
+            Swal.fire({
+              icon: 'error',
+              title: 'Product Not Assigned',
+              text: 'This product is still in MAIN STOCK ROOM and cannot be assigned to a salesman.',
+              confirmButtonText: 'OK'
+            });
+            return;
+          }
+
           if (loggedInUserId && tag.user_id !== loggedInUserId) {
             Swal.close();
             Swal.fire({
@@ -273,85 +285,99 @@ const ProductDetails = ({
 
   const scheduledBarcodes = getScheduledBarcodes();
 
+  // ============= FIXED: Build barcode options with proper filtering =============
+  const buildBarcodeOptions = () => {
+    const options = [];
+
+    // 1. Product master options (only when no salesman selected)
+    if (!formData.salesman_id) {
+      const productOptions = products
+        .filter((product) => (formData.category ? product.product_name === formData.category : true))
+        .map((product) => ({
+          value: product.rbarcode,
+          label: product.rbarcode,
+          type: "product"
+        }));
+      options.push(...productOptions);
+    }
+
+    // 2. When salesman is selected, ONLY show scheduled products
+    if (formData.salesman_id) {
+      const scheduledSet = new Set(scheduledBarcodes);
+      
+      // Filter tags: include ONLY if:
+      // - Scheduled for the salesman
+      // - Status is "Available"
+      // - NOT in MAIN STOCK ROOM
+      // - user_id matches the salesman (if logged in)
+      const scheduledTags = data.filter((tag) => {
+        if (formData.category && tag.category !== formData.category) return false;
+        if (!scheduledSet.has(tag.PCode_BarCode)) return false;
+        if (tag.Status !== 'Available') return false;
+        if (tag.Stock_Point === 'MAIN STOCK ROOM') return false;
+        if (loggedInUserId && tag.user_id !== loggedInUserId) return false;
+        return true;
+      });
+
+      options.push(
+        ...scheduledTags.map((tag) => ({
+          value: tag.PCode_BarCode,
+          label: tag.PCode_BarCode,
+          type: 'tag',
+          tagData: tag,
+          isScheduled: true
+        }))
+      );
+    } else {
+      // No salesman selected: show all available stock that is NOT in MAIN STOCK ROOM
+      const stockTags = data.filter((tag) => {
+        if (formData.category && tag.category !== formData.category) return false;
+        if (tag.Status !== 'Available') return false;
+        if (tag.Stock_Point === 'MAIN STOCK ROOM') return false;
+        if (tag.user_id === null || tag.user_id === undefined) return false;
+        if (loggedInUserId && tag.user_id !== loggedInUserId) return false;
+        return true;
+      });
+
+      options.push(
+        ...stockTags.map((tag) => ({
+          value: tag.PCode_BarCode,
+          label: tag.PCode_BarCode,
+          type: 'tag',
+          tagData: tag
+        }))
+      );
+    }
+
+    // Add placeholder if no options
+    if (options.length === 0) {
+      options.push({
+        value: '',
+        label: formData.salesman_id ? 'No products scheduled for this salesman' : 'No products available',
+        disabled: true
+      });
+    }
+
+    // Remove duplicate options (keep first occurrence)
+    const uniqueOptions = [];
+    const seenValues = new Set();
+    for (const option of options) {
+      if (!seenValues.has(option.value) && option.value !== '') {
+        seenValues.add(option.value);
+        uniqueOptions.push(option);
+      }
+    }
+
+    return uniqueOptions;
+  };
+
+  const uniqueBarcodeOptions = buildBarcodeOptions();
+
+  // ============= END FIXED =============
+
   const defaultBarcode = formData.category
     ? products.find((product) => product.product_name === formData.category)?.rbarcode || ""
     : "";
-
-  // Build barcode options
-  const barcodeOptions = [];
-
-  // 1. Product master options (only when no salesman selected)
-  if (!formData.salesman_id) {
-    const productOptions = products
-      .filter((product) => (formData.category ? product.product_name === formData.category : true))
-      .map((product) => ({
-        value: product.rbarcode,
-        label: product.rbarcode,
-        type: "product"
-      }));
-    barcodeOptions.push(...productOptions);
-  }
-
-  // 2. FIXED: When salesman is selected, ONLY show scheduled products
-  if (formData.salesman_id) {
-    // Only show products that are scheduled for this salesman
-    const scheduledSet = new Set(scheduledBarcodes);
-    
-    // Filter tags: include ONLY if scheduled for the salesman
-    const scheduledTags = data.filter((tag) => {
-      if (formData.category && tag.category !== formData.category) return false;
-      // Only include if scheduled
-      return scheduledSet.has(tag.PCode_BarCode);
-    });
-
-    // Add scheduled tags to barcode options
-    barcodeOptions.push(
-      ...scheduledTags.map((tag) => ({
-        value: tag.PCode_BarCode,
-        label: tag.PCode_BarCode,
-        type: 'tag',
-        tagData: tag,
-        isScheduled: true
-      }))
-    );
-  } else {
-    // No salesman selected: show all available stock
-    const stockTags = data.filter((tag) => {
-      if (formData.category && tag.category !== formData.category) return false;
-      if (tag.Status !== 'Available') return false;
-      if (tag.user_id === null || tag.user_id === undefined) return false;
-      if (loggedInUserId && tag.user_id !== loggedInUserId) return false;
-      return true;
-    });
-
-    barcodeOptions.push(
-      ...stockTags.map((tag) => ({
-        value: tag.PCode_BarCode,
-        label: tag.PCode_BarCode,
-        type: 'tag',
-        tagData: tag
-      }))
-    );
-  }
-
-  // Add placeholder if no options
-  if (barcodeOptions.length === 0) {
-    barcodeOptions.push({
-      value: '',
-      label: formData.salesman_id ? 'No products scheduled for this salesman' : 'No products available',
-      disabled: true
-    });
-  }
-
-  // Remove duplicate options (keep first occurrence)
-  const uniqueBarcodeOptions = [];
-  const seenValues = new Set();
-  for (const option of barcodeOptions) {
-    if (!seenValues.has(option.value) && option.value !== '') {
-      seenValues.add(option.value);
-      uniqueBarcodeOptions.push(option);
-    }
-  }
 
   useEffect(() => {
     if (!formData.code && defaultBarcode && !formData.salesman_id) {

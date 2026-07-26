@@ -110,7 +110,6 @@ const useProductHandlers = () => {
     other_stock_point_details: null,
     salesman_id: "",
     salesman_name: "",
-    // NEW FIELDS for Cover Wt, Card Wt, Packing Wt
     cover_wt: "",
     card_wt: "",
     packing_wt: "",
@@ -146,10 +145,19 @@ const useProductHandlers = () => {
   const webcamRef = useRef(null);
   const fileInputRef = useRef(null);
   
-  // NEW: State for visit logs warehouse schedule data
+  // State for visit logs warehouse schedule data
   const [visitLogsData, setVisitLogsData] = useState([]);
+  const [loggedInUserId, setLoggedInUserId] = useState(null);
 
-  // NEW: Fetch visit logs warehouse schedule data
+  // Get logged in user ID
+  useEffect(() => {
+    const userId = localStorage.getItem('userId');
+    if (userId) {
+      setLoggedInUserId(parseInt(userId));
+    }
+  }, []);
+
+  // Fetch visit logs warehouse schedule data
   useEffect(() => {
     const fetchVisitLogs = async () => {
       try {
@@ -175,7 +183,7 @@ const useProductHandlers = () => {
     }));
   }, [formData.cover_wt, formData.card_wt]);
 
-  // NEW: Helper function to get barcodes scheduled by selected salesman
+  // Helper function to get barcodes scheduled by selected salesman
   const getScheduledBarcodesBySalesman = () => {
     if (!formData.salesman_id) return [];
     
@@ -398,7 +406,6 @@ const useProductHandlers = () => {
         piece_taxable_amt: "",
         festival_discount: "",
         custom_purity: "",
-        // Reset new fields
         cover_wt: "",
         card_wt: "",
         packing_wt: "",
@@ -501,7 +508,6 @@ const useProductHandlers = () => {
         piece_taxable_amt: "",
         festival_discount: "",
         custom_purity: "",
-        // Reset new fields
         cover_wt: "",
         card_wt: "",
         packing_wt: "",
@@ -780,7 +786,7 @@ const useProductHandlers = () => {
     fetchPurity();
   }, [formData.metal_type]);
 
-  // UPDATED: handleBarcodeChange with salesman filter and include cover_wt, card_wt, packing_wt
+  // FIXED: handleBarcodeChange with proper filtering for MAIN STOCK ROOM
   const handleBarcodeChange = async (code) => {
     try {
       if (!code) {
@@ -825,7 +831,6 @@ const useProductHandlers = () => {
           custom_purity: "",
           image: null,
           imagePreview: null,
-          // Reset new fields
           cover_wt: "",
           card_wt: "",
           packing_wt: "",
@@ -870,7 +875,6 @@ const useProductHandlers = () => {
           custom_purity: "",
           image: null,
           imagePreview: null,
-          // Reset new fields
           cover_wt: "",
           card_wt: "",
           packing_wt: "",
@@ -880,7 +884,7 @@ const useProductHandlers = () => {
         // Check if it's a tag from opening_tags_entry
         const tag = data.find((tag) => String(tag.PCode_BarCode) === String(code));
         if (tag) {
-          // CHECK CONDITIONS: Status must be Available
+          // CHECK: Status must be Available
           if (tag.Status !== "Available") {
             alert("This product is not available (Status: " + tag.Status + ")");
             setFormData((prevData) => ({
@@ -891,9 +895,19 @@ const useProductHandlers = () => {
             return;
           }
 
+          // FIX: CHECK: Product must NOT be in MAIN STOCK ROOM
+          if (tag.Stock_Point === "MAIN STOCK ROOM") {
+            alert("This product is still in MAIN STOCK ROOM and cannot be assigned to a salesman.");
+            setFormData((prevData) => ({
+              ...prevData,
+              code: "",
+            }));
+            setIsQtyEditable(true);
+            return;
+          }
+
           // Check user_id matches logged-in user
-          const loggedInUserId = localStorage.getItem('userId');
-          if (loggedInUserId && tag.user_id !== parseInt(loggedInUserId)) {
+          if (loggedInUserId && tag.user_id !== loggedInUserId) {
             alert("This product does not belong to you. You can only transfer products assigned to you.");
             setFormData((prevData) => ({
               ...prevData,
@@ -903,7 +917,7 @@ const useProductHandlers = () => {
             return;
           }
 
-          // NEW: Check if the product is scheduled for the selected salesman
+          // Check if the product is scheduled for the selected salesman
           if (formData.salesman_id) {
             const salesmanId = parseInt(formData.salesman_id);
             const isScheduledForSalesman = visitLogsData.some(
@@ -1008,7 +1022,6 @@ const useProductHandlers = () => {
             rate: rateValue,
             image: imagePath,
             imagePreview: imagePreview,
-            // Load new fields from tag if they exist
             cover_wt: tag.Cover_Wt || "",
             card_wt: tag.Card_Wt || "",
             packing_wt: tag.Packing_Wt || "",
@@ -1052,7 +1065,6 @@ const useProductHandlers = () => {
             festival_discount: "",
             image: null,
             imagePreview: null,
-            // Reset new fields
             cover_wt: "",
             card_wt: "",
             packing_wt: "",
