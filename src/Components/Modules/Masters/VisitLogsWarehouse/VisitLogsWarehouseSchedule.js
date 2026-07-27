@@ -9,7 +9,7 @@ import {
   FaBoxes, FaList, FaEye, FaCheckCircle, FaMinusCircle,
   FaUserTie, FaUserCheck, FaUserPlus, FaMapMarkerAlt,
   FaCity, FaMapPin, FaChevronDown, FaChevronRight,
-  FaBuilding, FaLocationDot
+  FaBuilding, FaLocationDot, FaCamera, FaImage
 } from 'react-icons/fa';
 import './VisitLogsWarehouseSchedule.css';
 import Swal from 'sweetalert2';
@@ -21,13 +21,15 @@ const VisitLogsWarehouseSchedule = () => {
     customer_id: '',
     warehouse_id: '',
     barcodes: [],
-    salesman_id: ''  // Added salesman_id
+    salesman_id: '',
+    salesman_photo: null,
+    salesman_photo_preview: null
   });
 
   // State for dropdown data
   const [customers, setCustomers] = useState([]);
   const [stockPoints, setStockPoints] = useState([]);
-  const [salesmen, setSalesmen] = useState([]);  // Added salesmen state
+  const [salesmen, setSalesmen] = useState([]);
   
   // State for scheduled visits list
   const [scheduledVisits, setScheduledVisits] = useState([]);
@@ -56,8 +58,22 @@ const VisitLogsWarehouseSchedule = () => {
   const [expandedCities, setExpandedCities] = useState({});
   const dropdownRef = useRef(null);
 
+  // File input ref
+  const fileInputRef = useRef(null);
+
   // Get today's date for min date validation
   const today = new Date().toISOString().split('T')[0];
+
+  // ========== NOTIFICATION REFRESH FUNCTION ==========
+  const refreshNotifications = () => {
+    if (window.refreshWarehouseNotifications) {
+      console.log('🔄 Refreshing notifications after form submission...');
+      window.refreshWarehouseNotifications();
+    } else {
+      console.log('⚠️ refreshWarehouseNotifications not available yet');
+    }
+  };
+  // ==================================================
 
   // Fetch customers, stock points, and salesmen on component mount
   useEffect(() => {
@@ -236,6 +252,55 @@ const VisitLogsWarehouseSchedule = () => {
     }));
   };
 
+  // Handle salesman photo upload
+  const handlePhotoChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      // Validate file type
+      const validTypes = ['image/jpeg', 'image/png', 'image/jpg', 'image/gif'];
+      if (!validTypes.includes(file.type)) {
+        Swal.fire({
+          icon: 'warning',
+          title: 'Invalid File Type',
+          text: 'Please upload only image files (JPEG, PNG, JPG, GIF)'
+        });
+        return;
+      }
+
+      // Validate file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        Swal.fire({
+          icon: 'warning',
+          title: 'File Too Large',
+          text: 'Please upload an image less than 5MB'
+        });
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        setFormData(prev => ({
+          ...prev,
+          salesman_photo: file,
+          salesman_photo_preview: event.target.result
+        }));
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  // Remove photo
+  const removePhoto = () => {
+    setFormData(prev => ({
+      ...prev,
+      salesman_photo: null,
+      salesman_photo_preview: null
+    }));
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
   // Handle barcode selection toggle in modal
   const handleBarcodeToggle = (barcodeItem) => {
     const barcode = barcodeItem.barcode;
@@ -297,6 +362,13 @@ const VisitLogsWarehouseSchedule = () => {
     return salesman ? salesman.account_name : 'Unknown Salesman';
   };
 
+  // Get salesman photo URL
+  const getSalesmanPhotoUrl = (photoPath) => {
+    if (!photoPath) return null;
+    if (photoPath.startsWith('http')) return photoPath;
+    return `${baseURL}${photoPath}`;
+  };
+
   // Handle form submission
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -339,19 +411,26 @@ const VisitLogsWarehouseSchedule = () => {
       return;
     }
 
-    // Prepare data for API including salesman
+    // Prepare data for API including salesman and photo
     const selectedSalesman = salesmen.find(s => s.account_id === parseInt(formData.salesman_id));
     
-    const submitData = {
-      scheduled_date: formData.scheduled_date,
-      customer_id: parseInt(formData.customer_id),
-      warehouse_id: parseInt(formData.warehouse_id),
-      barcodes: formData.barcodes,
-      salesman_id: formData.salesman_id ? parseInt(formData.salesman_id) : null,
-      salesman_name: selectedSalesman ? selectedSalesman.account_name : ''
-    };
+    const submitData = new FormData();
+    submitData.append('scheduled_date', formData.scheduled_date);
+    submitData.append('customer_id', parseInt(formData.customer_id));
+    submitData.append('warehouse_id', parseInt(formData.warehouse_id));
+    submitData.append('barcodes', JSON.stringify(formData.barcodes));
     
-    console.log('📤 Sending data to API:', submitData);
+    if (formData.salesman_id) {
+      submitData.append('salesman_id', parseInt(formData.salesman_id));
+    }
+    if (selectedSalesman) {
+      submitData.append('salesman_name', selectedSalesman.account_name);
+    }
+    if (formData.salesman_photo) {
+      submitData.append('salesman_photo', formData.salesman_photo);
+    }
+    
+    console.log('📤 Sending data to API...');
     
     try {
       setLoading(true);
@@ -359,10 +438,19 @@ const VisitLogsWarehouseSchedule = () => {
       let response;
       if (isEditing) {
         console.log(`📝 Updating schedule ${editingId}...`);
-        response = await axios.put(`${baseURL}/api/visit-logs-warehouse-schedule/${editingId}`, submitData);
+        submitData.append('_method', 'PUT');
+        response = await axios.post(`${baseURL}/api/visit-logs-warehouse-schedule/${editingId}`, submitData, {
+          headers: {
+            'Content-Type': 'multipart/form-data'
+          }
+        });
       } else {
         console.log('📝 Creating new schedule...');
-        response = await axios.post(`${baseURL}/api/visit-logs-warehouse-schedule`, submitData);
+        response = await axios.post(`${baseURL}/api/visit-logs-warehouse-schedule`, submitData, {
+          headers: {
+            'Content-Type': 'multipart/form-data'
+          }
+        });
       }
       
       console.log('📥 API Response:', response.data);
@@ -378,6 +466,7 @@ const VisitLogsWarehouseSchedule = () => {
         
         resetForm();
         fetchScheduledVisits();
+        refreshNotifications();
       }
     } catch (error) {
       console.error('❌ Error submitting form:', error);
@@ -400,7 +489,9 @@ const VisitLogsWarehouseSchedule = () => {
       customer_id: '',
       warehouse_id: '',
       barcodes: [],
-      salesman_id: ''  // Reset salesman
+      salesman_id: '',
+      salesman_photo: null,
+      salesman_photo_preview: null
     });
     setIsEditing(false);
     setEditingId(null);
@@ -411,6 +502,9 @@ const VisitLogsWarehouseSchedule = () => {
     setExpandedStates({});
     setExpandedDistricts({});
     setExpandedCities({});
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
   };
 
   // Handle edit
@@ -425,7 +519,9 @@ const VisitLogsWarehouseSchedule = () => {
       customer_id: schedule.customer_account_id || schedule.customer_id,
       warehouse_id: schedule.warehouse_id || '',
       barcodes: schedule.barcode ? [schedule.barcode] : [],
-      salesman_id: schedule.salesman_id || ''  // Set salesman if exists
+      salesman_id: schedule.salesman_id || '',
+      salesman_photo: null,
+      salesman_photo_preview: schedule.salesman_photo ? `${baseURL}${schedule.salesman_photo}` : null
     });
     
     setIsEditing(true);
@@ -472,6 +568,7 @@ const VisitLogsWarehouseSchedule = () => {
           }
           
           fetchScheduledVisits();
+          refreshNotifications();
         }
       } catch (error) {
         console.error('❌ Error deleting schedule:', error);
@@ -858,10 +955,6 @@ const VisitLogsWarehouseSchedule = () => {
                             </div>
                           )}
                         </div>
-                        {/* <small className="text-muted mt-1 d-block">
-                          <FaMapMarkerAlt className="me-1" />
-                          Grouped by State → District → City
-                        </small> */}
                       </Form.Group>
                     </Col>
 
@@ -912,6 +1005,51 @@ const VisitLogsWarehouseSchedule = () => {
                             No salesmen available. You can assign later.
                           </small>
                         )}
+                      </Form.Group>
+                    </Col>
+                  </Row>
+
+                  {/* Salesman Photo Upload */}
+                  <Row className="mt-2">
+                    <Col md={12}>
+                      <Form.Group>
+                        <Form.Label className="vlws-label">
+                          <FaCamera className="me-1" /> Salesman Photo (Optional)
+                        </Form.Label>
+                        <div className="vlws-photo-upload-container">
+                          <div className="vlws-photo-upload-area">
+                            <input
+                              type="file"
+                              ref={fileInputRef}
+                              accept="image/*"
+                              onChange={handlePhotoChange}
+                              className="vlws-photo-input"
+                              id="salesman-photo-upload"
+                            />
+                            <label htmlFor="salesman-photo-upload" className="vlws-photo-upload-label">
+                              <FaImage className="vlws-upload-icon" />
+                              <span>Click to upload photo</span>
+                              <small className="text-muted">JPG, PNG, GIF (Max 5MB)</small>
+                            </label>
+                          </div>
+                          
+                          {formData.salesman_photo_preview && (
+                            <div className="vlws-photo-preview">
+                              <img 
+                                src={formData.salesman_photo_preview} 
+                                alt="Salesman" 
+                                className="vlws-photo-preview-img"
+                              />
+                              <button
+                                type="button"
+                                className="vlws-photo-remove-btn"
+                                onClick={removePhoto}
+                              >
+                                <FaTimes />
+                              </button>
+                            </div>
+                          )}
+                        </div>
                       </Form.Group>
                     </Col>
                   </Row>
@@ -1065,7 +1203,7 @@ const VisitLogsWarehouseSchedule = () => {
             <Col md={12}>
               <Alert variant="info" className="vlws-info-alert">
                 <FaClock className="me-2" />
-                <strong>Schedule Management:</strong> Select a stock point to see available barcodes, then choose multiple barcodes to associate with the customer visit. You can optionally assign a salesman to this visit.
+                <strong>Schedule Management:</strong> Select a stock point to see available barcodes, then choose multiple barcodes to associate with the customer visit. You can optionally assign a salesman and upload their photo.
                 <br />
                 <small className="text-muted">
                   Note: The customer is identified by their account_id (e.g., 56, 53) which is stored in the schedule.
@@ -1095,6 +1233,7 @@ const VisitLogsWarehouseSchedule = () => {
                         <th>Stock Point</th>
                         <th>Barcode</th>
                         <th>Salesman</th>
+                        <th>Photo</th>
                         <th>Status</th>
                         <th>Created At</th>
                         <th>Actions</th>
@@ -1103,7 +1242,7 @@ const VisitLogsWarehouseSchedule = () => {
                     <tbody>
                       {fetchLoading ? (
                         <tr>
-                          <td colSpan="10" className="text-center py-4">
+                          <td colSpan="11" className="text-center py-4">
                             <div className="spinner-border text-primary" role="status">
                               <span className="visually-hidden">Loading...</span>
                             </div>
@@ -1146,6 +1285,17 @@ const VisitLogsWarehouseSchedule = () => {
                                 <Badge bg="secondary">Not Assigned</Badge>
                               )}
                             </td>
+                            <td>
+                              {schedule.salesman_photo ? (
+                                <img 
+                                  src={getSalesmanPhotoUrl(schedule.salesman_photo)} 
+                                  alt="Salesman" 
+                                  style={{ width: '40px', height: '40px', borderRadius: '50%', objectFit: 'cover' }}
+                                />
+                              ) : (
+                                <span className="text-muted">No Photo</span>
+                              )}
+                            </td>
                             <td>{getVisitStatusBadge(schedule.status)}</td>
                             <td>{formatDateTime(schedule.created_at)}</td>
                             <td>
@@ -1173,7 +1323,7 @@ const VisitLogsWarehouseSchedule = () => {
                         ))
                       ) : (
                         <tr>
-                          <td colSpan="10" className="text-center py-4 text-muted">
+                          <td colSpan="11" className="text-center py-4 text-muted">
                             No scheduled visits found
                           </td>
                         </tr>

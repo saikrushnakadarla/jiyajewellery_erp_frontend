@@ -1,5 +1,5 @@
 // StockNavbar.js
-import React, { useState, useContext, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
@@ -9,22 +9,15 @@ import {
 } from "@fortawesome/free-solid-svg-icons";
 import { FaSignOutAlt } from "react-icons/fa";
 import { FiBell } from 'react-icons/fi';
-import { AuthContext } from "../Components/Pages/Login/Context";
 import Swal from "sweetalert2";
 import logo from "./jiya_logo.png";
 import "./StockNavbar.css";
 import { Badge, Dropdown } from "react-bootstrap";
-// FIX: Only ONE base URL needed here — the ERP backend (port 5001).
-// /api/visit-logs-warehouse-schedule/* and /api/stockpoints both live there.
-// The previous code imported baseURL2 (port 5000) for the notifications call,
-// which is a different server that doesn't have this route — so the fetch
-// silently failed and the bell always showed 0 notifications.
 import baseURL from "../Url/NodeBaseURL";
 
 function StockNavbar() {
   const [isOpen, setIsOpen] = useState(false);
-  const [stockManagementDropdownOpen, setStockManagementDropdownOpen] =
-    useState(false);
+  const [stockManagementDropdownOpen, setStockManagementDropdownOpen] = useState(false);
   const [inwardSubDropdownOpen, setInwardSubDropdownOpen] = useState(false);
   const [outwardSubDropdownOpen, setOutwardSubDropdownOpen] = useState(false);
 
@@ -33,47 +26,94 @@ function StockNavbar() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [notificationDropdownOpen, setNotificationDropdownOpen] = useState(false);
 
-  const { userName, userId } = useContext(AuthContext);
+  // ==========================================================
+  // NO AuthContext — this module reads userId / userName
+  // directly from localStorage (set at warehouse login time).
+  // ==========================================================
+  const [displayName, setDisplayName] = useState('');
+
   const location = useLocation();
   const navigate = useNavigate();
 
-  // Get current stock point name the same way the Dashboard does
-  const getCurrentStockPoint = () => {
-    const storedUserName = localStorage.getItem('userName');
-    return storedUserName || userName || '';
+  // Ref to store the RESOLVED stock_point_id used for notifications
+  const currentStockPointIdRef = useRef(null);
+  // Ref to store interval ID
+  const intervalRef = useRef(null);
+
+  // Read the raw auth values straight from localStorage
+  const getStoredAuth = () => {
+    const userId = localStorage.getItem('userId');
+    const userName = localStorage.getItem('userName');
+    return { userId, userName };
   };
 
-  // FIX: Resolve the ACTUAL stock_point_id for this warehouse by matching
-  // stock_point_name against the logged-in user's name. The notifications
-  // table stores this same stock_point_id as `user_id` (user_type='warehouse')
-  // — the old code guessed at user.warehouse_id / user.stock_point_id / user.id
-  // from localStorage, which don't reliably exist for a warehouse login.
+  // Get current stock point display name
+  const getCurrentStockPoint = () => {
+    const { userName } = getStoredAuth();
+    return userName || '';
+  };
+
+  // ==========================================================
+  // Resolve the ACTUAL stock_point_id for this logged-in warehouse.
+  //
+  // Priority 1: Match localStorage `userId` directly against
+  //             stock_points.stock_point_id (fast + exact, no
+  //             string/case issues).
+  // Priority 2: Fallback to matching localStorage `userName`
+  //             against stock_points.stock_point_name (in case
+  //             userId doesn't correspond 1:1 with stock_point_id
+  //             for some accounts).
+  // ==========================================================
   const resolveCurrentStockPointId = async () => {
     try {
-      const currentStockPoint = getCurrentStockPoint();
+      const { userId: storedUserId, userName: storedUserName } = getStoredAuth();
+
       const response = await fetch(`${baseURL}/api/stockpoints`);
       const data = await response.json();
 
-      if (Array.isArray(data)) {
-        const match = data.find(
-          sp => sp.stock_point_name?.trim().toLowerCase() === currentStockPoint.trim().toLowerCase()
+      if (!Array.isArray(data)) {
+        console.warn('⚠️ /api/stockpoints did not return an array');
+        return null;
+      }
+
+      // Priority 1: match by userId === stock_point_id
+      if (storedUserId) {
+        const idMatch = data.find(
+          sp => String(sp.stock_point_id) === String(storedUserId)
         );
-        if (match) {
-          return match.stock_point_id;
+        if (idMatch) {
+          console.log(`✅ Resolved stock point by userId (${storedUserId}): ${idMatch.stock_point_name} (ID: ${idMatch.stock_point_id})`);
+          return idMatch.stock_point_id;
         }
       }
+
+      // Priority 2: match by userName === stock_point_name
+      if (storedUserName) {
+        const nameMatch = data.find(
+          sp => sp.stock_point_name?.trim().toLowerCase() === storedUserName.trim().toLowerCase()
+        );
+        if (nameMatch) {
+          console.log(`✅ Resolved stock point by userName ("${storedUserName}"): ${nameMatch.stock_point_name} (ID: ${nameMatch.stock_point_id})`);
+          return nameMatch.stock_point_id;
+        }
+      }
+
+      console.warn(`⚠️ Could not resolve stock point for userId="${storedUserId}", userName="${storedUserName}". Available stock points:`, data.map(sp => ({ id: sp.stock_point_id, name: sp.stock_point_name })));
+      return null;
     } catch (error) {
-      console.error('Error resolving current stock point id for notifications:', error);
+      console.error('❌ Error resolving current stock point id for notifications:', error);
+      return null;
     }
-    return null;
   };
 
   // Fetch notifications for warehouse
   const fetchWarehouseNotifications = async (stockPointId) => {
     try {
-      if (!stockPointId) return;
+      if (!stockPointId) {
+        console.warn('⚠️ Skipping notification fetch — no stockPointId resolved yet');
+        return;
+      }
 
-      // FIX: baseURL (5001), not baseURL2 (5000)
       const response = await fetch(`${baseURL}/api/visit-logs-warehouse-schedule/notifications/${stockPointId}?userType=warehouse&limit=50`);
       if (response.ok) {
         const data = await response.json();
@@ -82,31 +122,67 @@ function StockNavbar() {
           setNotifications(notifs);
           const unread = notifs.filter(n => !n.is_read).length;
           setUnreadCount(unread);
+          console.log(`🔄 Notifications fetched for stockPointId ${stockPointId}: ${notifs.length}, unread: ${unread}`);
         }
+      } else {
+        console.warn(`⚠️ Notification fetch responded with status ${response.status}`);
       }
     } catch (error) {
-      console.error('Error fetching warehouse notifications:', error);
+      console.error('❌ Error fetching warehouse notifications:', error);
     }
   };
 
-  // Resolve stock point id once, then fetch + poll notifications using it
-  useEffect(() => {
-    let stockPointId = null;
-    let interval;
-
-    const init = async () => {
+  // Refresh notifications function that can be called externally
+  const refreshNotifications = async () => {
+    let stockPointId = currentStockPointIdRef.current;
+    if (!stockPointId) {
+      // Try resolving again in case it wasn't ready the first time
       stockPointId = await resolveCurrentStockPointId();
+      currentStockPointIdRef.current = stockPointId;
+    }
+    if (stockPointId) {
+      console.log('🔄 Manually refreshing notifications...');
+      await fetchWarehouseNotifications(stockPointId);
+    }
+  };
+
+  // Expose refresh function to window for other components to call
+  useEffect(() => {
+    window.refreshWarehouseNotifications = refreshNotifications;
+    return () => {
+      delete window.refreshWarehouseNotifications;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Set the display name from localStorage on mount
+  useEffect(() => {
+    setDisplayName(getCurrentStockPoint());
+  }, []);
+
+  // Resolve stock point id once, then fetch + poll notifications
+  useEffect(() => {
+    const init = async () => {
+      const stockPointId = await resolveCurrentStockPointId();
+      currentStockPointIdRef.current = stockPointId;
       await fetchWarehouseNotifications(stockPointId);
 
-      interval = setInterval(() => {
-        fetchWarehouseNotifications(stockPointId);
+      // Clear any existing interval
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+      }
+
+      intervalRef.current = setInterval(() => {
+        fetchWarehouseNotifications(currentStockPointIdRef.current);
       }, 30000);
     };
 
     init();
 
     return () => {
-      if (interval) clearInterval(interval);
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+      }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -114,7 +190,6 @@ function StockNavbar() {
   // Mark notification as read
   const markAsRead = async (notificationId) => {
     try {
-      // FIX: baseURL (5001), not baseURL2 (5000)
       await fetch(`${baseURL}/api/visit-logs-warehouse-schedule/notifications/${notificationId}/read`, {
         method: 'PUT'
       });
@@ -132,11 +207,10 @@ function StockNavbar() {
 
   // Mark all notifications as read
   const markAllAsRead = async () => {
-    const stockPointId = await resolveCurrentStockPointId();
+    const stockPointId = currentStockPointIdRef.current;
     if (!stockPointId) return;
 
     try {
-      // FIX: baseURL (5001), not baseURL2 (5000)
       await fetch(`${baseURL}/api/visit-logs-warehouse-schedule/notifications/mark-all-read/${stockPointId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -231,6 +305,9 @@ function StockNavbar() {
       cancelButtonText: "Cancel",
     }).then((result) => {
       if (result.isConfirmed) {
+        // Clean up localStorage on logout
+        localStorage.removeItem('userId');
+        localStorage.removeItem('userName');
         navigate("/");
       }
     });
@@ -643,7 +720,7 @@ function StockNavbar() {
         </Dropdown>
       </div>
 
-      <div className="stock-username">{userName}</div>
+      <div className="stock-username">{displayName}</div>
       <div className="stock-navbar-logout">
         <button className="stock-logout-button" onClick={handleLogout}>
           <FaSignOutAlt size={18} /> Logout
