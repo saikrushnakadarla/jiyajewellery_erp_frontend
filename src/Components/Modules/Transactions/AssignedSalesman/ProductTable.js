@@ -128,6 +128,7 @@ const ProductTable = ({ repairDetails, onDelete, onEdit }) => {
         </tbody>
         {repairDetails.length > 0 && (
           <tfoot style={{ fontSize: "12px" }}>
+            {/* Only the totals row */}
             <tr style={{ fontWeight: 'bold', background: '#f8f9fa' }}>
               <td>{repairDetails.length}</td>
               <td colSpan="4"></td>

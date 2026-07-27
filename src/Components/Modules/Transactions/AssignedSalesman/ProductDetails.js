@@ -60,7 +60,12 @@ const ProductDetails = ({
   handleOrderChange,
   selectedOrder,
   orderData,
-  visitLogsData
+  visitLogsData,
+  // NEW: Weight totals props from parent
+  itemGrossTotal,
+  packetGrossTotal,
+  totalWeightWithBag,
+  onTotalWeightWithBagChange
 }) => {
 
   const [showModal, setShowModal] = useState(false);
@@ -426,6 +431,9 @@ const ProductDetails = ({
       imagePreview: null,
       sale_status: "Delivered",
       custom_purity: "",
+      cover_wt: "",
+      card_wt: "",
+      packing_wt: "",
     }));
   };
 
@@ -731,6 +739,59 @@ const ProductDetails = ({
           </div>
         </Col>
       </Row>
+
+      {/* NEW: Second Row - Weight Totals Display */}
+      {/* Show weight totals only when there are items (itemGrossTotal > 0) */}
+      {itemGrossTotal > 0 && (
+        <Row style={{ marginTop: '10px' }}>
+          <Col xs={12}>
+            <div style={{ 
+              display: 'flex', 
+              gap: '30px', 
+              flexWrap: 'wrap',
+              padding: '8px 12px',
+              backgroundColor: '#f8f9fa',
+              borderRadius: '6px',
+              border: '1px solid #dee2e6',
+              alignItems: 'center'
+            }}>
+              <div>
+                <span style={{ fontWeight: 'bold', color: '#a36e29' }}>Item Gross Total:</span>
+                <span style={{ marginLeft: '8px', fontWeight: 'bold' }}>{itemGrossTotal?.toFixed(3) || '0.000'} g</span>
+              </div>
+              <div>
+                <span style={{ fontWeight: 'bold', color: '#a36e29' }}>Packet Gross Total:</span>
+                <span style={{ marginLeft: '8px', fontWeight: 'bold' }}>{packetGrossTotal?.toFixed(3) || '0.000'} g</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontWeight: 'bold', color: '#a36e29' }}>Total Weight with Bag:</span>
+                <input
+                  type="number"
+                  step="0.001"
+                  placeholder="Enter weight"
+                  style={{
+                    width: '120px',
+                    padding: '4px 8px',
+                    border: '2px solid #a36e29',
+                    borderRadius: '4px',
+                    fontWeight: 'bold',
+                    color: '#a36e29',
+                    backgroundColor: 'white'
+                  }}
+                  value={totalWeightWithBag || ''}
+                  onChange={(e) => {
+                    const value = parseFloat(e.target.value) || 0;
+                    if (onTotalWeightWithBagChange) {
+                      onTotalWeightWithBagChange(value);
+                    }
+                  }}
+                />
+                <span style={{ fontSize: '12px', color: '#6c757d' }}>g</span>
+              </div>
+            </div>
+          </Col>
+        </Row>
+      )}
 
       {/* Hidden input for image upload */}
       <input

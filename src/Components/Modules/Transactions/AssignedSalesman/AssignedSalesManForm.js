@@ -44,6 +44,11 @@ const AssignedSalesmanForm = () => {
     JSON.parse(localStorage.getItem("schemeSalesData")) || [],
   );
 
+  // Weight totals state
+  const [itemGrossTotal, setItemGrossTotal] = useState(0);
+  const [packetGrossTotal, setPacketGrossTotal] = useState(0);
+  const [totalWeightWithBag, setTotalWeightWithBag] = useState(0);
+
   // Save to localStorage whenever data changes
   useEffect(() => {
     localStorage.setItem("oldSalesData", JSON.stringify(oldSalesData));
@@ -119,6 +124,42 @@ const AssignedSalesmanForm = () => {
     const savedData = localStorage.getItem(`repairDetails_${tabId}`);
     return savedData ? JSON.parse(savedData) : [];
   });
+
+  // Calculate weight totals whenever repairDetails changes
+ // Calculate weight totals whenever repairDetails changes
+useEffect(() => {
+  if (!repairDetails || repairDetails.length === 0) {
+    setItemGrossTotal(0);
+    setPacketGrossTotal(0);
+    // Reset totalWeightWithBag to 0 when no items
+    setTotalWeightWithBag(0);
+    return;
+  }
+
+  // Calculate Item Gross Total (sum of gross_weight)
+  const itemGross = repairDetails.reduce(
+    (sum, item) => sum + parseFloat(item.gross_weight || 0), 
+    0
+  );
+  setItemGrossTotal(itemGross);
+
+  // Calculate Packet Gross Total (sum of gross_weight + packing_wt)
+  const packetGross = repairDetails.reduce(
+    (sum, item) => sum + parseFloat(item.gross_weight || 0) + parseFloat(item.packing_wt || 0),
+    0
+  );
+  setPacketGrossTotal(packetGross);
+
+  // IMPORTANT: Do NOT auto-populate totalWeightWithBag
+  // It should start at 0 and only be set by user input
+  // Only reset to 0 if user hasn't entered a value
+  // We keep the existing value if user has manually entered something
+}, [repairDetails]);
+
+  // Handler for Total Weight with Bag change
+  const handleTotalWeightWithBagChange = (value) => {
+    setTotalWeightWithBag(value);
+  };
 
   useEffect(() => {
     localStorage.setItem(
@@ -881,7 +922,8 @@ const AssignedSalesmanForm = () => {
       const weightBasedDiscount = (rateDiscount / 10) * grossWeight;
       const totalDiscountValue =
         pricingType === "By fixed"
-          ? fixedPercentageDiscount          : percentageDiscount + weightBasedDiscount;
+          ? fixedPercentageDiscount
+          : percentageDiscount + weightBasedDiscount;
 
       if (pricingType === "By fixed") {
         const pieceTaxableAmt = pieceCost * qty;
@@ -967,43 +1009,43 @@ const AssignedSalesmanForm = () => {
 // In AssignedSalesmanForm.js - this is already correct (no Stock_Point filter)
   // In AssignedSalesmanForm.jsx - inside the component
 
-useEffect(() => {
-  const fetchStock = async () => {
-    try {
-      const response = await fetch(`${baseURL}/get/opening-tags-entry`);
-      if (!response.ok) {
-        throw new Error("Failed to fetch stock entries");
-      }
-      const data = await response.json();
-      
-      let stockData = data.result || [];
-      
+  useEffect(() => {
+    const fetchStock = async () => {
+      try {
+        const response = await fetch(`${baseURL}/get/opening-tags-entry`);
+        if (!response.ok) {
+          throw new Error("Failed to fetch stock entries");
+        }
+        const data = await response.json();
+        
+        let stockData = data.result || [];
+        
       // FIX: Filter based on logged-in user ID AND exclude MAIN STOCK ROOM
-      if (loggedInUserId) {
-        stockData = stockData.filter(item => 
-          item.Status === "Available" && 
-          item.user_id === loggedInUserId &&
+        if (loggedInUserId) {
+          stockData = stockData.filter(item => 
+            item.Status === "Available" && 
+            item.user_id === loggedInUserId &&
           // CRITICAL FIX: Exclude products in MAIN STOCK ROOM
-          item.Stock_Point !== 'MAIN STOCK ROOM' 
-        );
-      } else {
+            item.Stock_Point !== 'MAIN STOCK ROOM' 
+          );
+        } else {
         // If no logged-in user, only show Available items and exclude MAIN STOCK ROOM
-        stockData = stockData.filter(item => 
-          item.Status === "Available" &&
-          item.Stock_Point !== 'MAIN STOCK ROOM'
-        );
+          stockData = stockData.filter(item => 
+            item.Status === "Available" &&
+            item.Stock_Point !== 'MAIN STOCK ROOM'
+          );
+        }
+        
+        console.log("✅ Filtered Stock Data (excludes MAIN STOCK ROOM):", stockData);
+        setStock(stockData);
+      } catch (error) {
+        console.error("❌ Error fetching stock entries:", error);
+        setStock([]);
       }
-      
-      console.log("✅ Filtered Stock Data (excludes MAIN STOCK ROOM):", stockData);
-      setStock(stockData);
-    } catch (error) {
-      console.error("❌ Error fetching stock entries:", error);
-      setStock([]);
-    }
-  };
-  
-  fetchStock();
-}, [loggedInUserId]);
+    };
+    
+    fetchStock();
+  }, [loggedInUserId]);
 
   const fetchEstimateDetails = async (estimate_number) => {
     if (!estimate_number) return;
@@ -1412,83 +1454,83 @@ useEffect(() => {
 
   const handleAdd = () => {
   // Check if the selected product belongs to the logged-in user and is Available
-  const selectedStockItem = stock?.find(s => s.PCode_BarCode === formData.code);
-  
-  if (selectedStockItem) {
-    if (selectedStockItem.Status !== "Available") {
-      alert("This product is not available for transfer");
-      return;
+    const selectedStockItem = stock?.find(s => s.PCode_BarCode === formData.code);
+    
+    if (selectedStockItem) {
+      if (selectedStockItem.Status !== "Available") {
+        alert("This product is not available for transfer");
+        return;
+      }
+      if (loggedInUserId && selectedStockItem.user_id !== loggedInUserId) {
+        alert("This product does not belong to you. You can only transfer products assigned to you.");
+        return;
+      }
     }
-    if (loggedInUserId && selectedStockItem.user_id !== loggedInUserId) {
-      alert("This product does not belong to you. You can only transfer products assigned to you.");
-      return;
-    }
-  }
 
-  const storedRepairDetails = JSON.parse(localStorage.getItem(`repairDetails_${tabId}`)) || [];
+    const storedRepairDetails = JSON.parse(localStorage.getItem(`repairDetails_${tabId}`)) || [];
 
   // Check for duplicate
-  const isDuplicate = storedRepairDetails.some(
-    (item) => item.code === formData.code
-  );
+    const isDuplicate = storedRepairDetails.some(
+      (item) => item.code === formData.code
+    );
 
-  if (isDuplicate) {
-    alert("This product has already been added");
-    return;
-  }
+    if (isDuplicate) {
+      alert("This product has already been added");
+      return;
+    }
 
   // Check if the product is part of a stock transfer
-  const transferItem = selectedTransferItems.find(
-    item => item.PCode_BarCode === formData.code
-  );
+    const transferItem = selectedTransferItems.find(
+      item => item.PCode_BarCode === formData.code
+    );
 
-  if (!transferItem) {
-    alert("This product is not part of any completed stock transfer.");
-    return;
-  }
+    if (!transferItem) {
+      alert("This product is not part of any completed stock transfer.");
+      return;
+    }
 
-  const updatedRepairDetails = [
-    ...repairDetails,
-    {
-      ...formData,
-      pieace_cost:
-        formData.pieace_cost && parseFloat(formData.pieace_cost) > 0
-          ? parseFloat(formData.pieace_cost).toFixed(2)
-          : null,
-      rate:
-        formData.rate && parseFloat(formData.rate) > 0
-          ? parseFloat(formData.rate).toFixed(2)
-          : "",
-      imagePreview: formData.imagePreview,
-      image: formData.image,
-      transfer_id: transferItem.transfer_id,
+    const updatedRepairDetails = [
+      ...repairDetails,
+      {
+        ...formData,
+        pieace_cost:
+          formData.pieace_cost && parseFloat(formData.pieace_cost) > 0
+            ? parseFloat(formData.pieace_cost).toFixed(2)
+            : null,
+        rate:
+          formData.rate && parseFloat(formData.rate) > 0
+            ? parseFloat(formData.rate).toFixed(2)
+            : "",
+        imagePreview: formData.imagePreview,
+        image: formData.image,
+        transfer_id: transferItem.transfer_id,
       // Ensure new fields are preserved
-      cover_wt: formData.cover_wt || "0",
-      card_wt: formData.card_wt || "0",
-      packing_wt: formData.packing_wt || "0",
-    },
-  ];
+        cover_wt: formData.cover_wt || "0",
+        card_wt: formData.card_wt || "0",
+        packing_wt: formData.packing_wt || "0",
+      },
+    ];
 
-  setRepairDetails(updatedRepairDetails);
-  localStorage.setItem(
-    `repairDetails_${tabId}`,
-    JSON.stringify(updatedRepairDetails),
-  );
+    setRepairDetails(updatedRepairDetails);
+    localStorage.setItem(
+      `repairDetails_${tabId}`,
+      JSON.stringify(updatedRepairDetails),
+    );
 
-  setFormData((prevData) => ({
-    ...prevData,
-    disscount: "",
-    disscount_percentage: "",
-    pieace_cost: "",
-    imagePreview: null,
-    image: null,
-    sale_status: "Delivered",
-    piece_taxable_amt: "",
-    festival_discount: "",
-  }));
+    setFormData((prevData) => ({
+      ...prevData,
+      disscount: "",
+      disscount_percentage: "",
+      pieace_cost: "",
+      imagePreview: null,
+      image: null,
+      sale_status: "Delivered",
+      piece_taxable_amt: "",
+      festival_discount: "",
+    }));
 
-  resetProductFields();
-};
+    resetProductFields();
+  };
 
   const handleEdit = (index) => {
     setEditIndex(index);
@@ -1528,52 +1570,52 @@ useEffect(() => {
     }
   };
 
- const resetProductFields = () => {
-  setFormData((prev) => ({
-    ...prev,
-    code: "",
-    product_id: "",
-    metal: "",
-    product_name: "",
-    metal_type: "",
-    design_name: "",
-    purity: "",
-    selling_purity: "",
-    printing_purity: "",
-    category: "",
-    sub_category: "",
-    gross_weight: "",
-    stone_weight: "",
-    weight_bw: "",
-    stone_price: "",
-    va_on: "Gross Weight",
-    va_percent: "",
-    wastage_weight: "",
-    total_weight_av: "",
-    mc_on: "MC %",
-    mc_per_gram: "",
-    making_charges: "",
-    disscount_percentage: "",
-    disscount: "",
-    rate: "",
-    rate_amt: "",
-    pricing: "By Weight",
-    tax_percent: "03% GST",
-    tax_amt: "",
-    hm_charges: "60.00",
-    total_price: "",
-    qty: "",
-    imagePreview: null,
-    remarks: "",
-    sale_status: "Delivered",
-    piece_taxable_amt: "",
-    festival_discount: "",
+  const resetProductFields = () => {
+    setFormData((prev) => ({
+      ...prev,
+      code: "",
+      product_id: "",
+      metal: "",
+      product_name: "",
+      metal_type: "",
+      design_name: "",
+      purity: "",
+      selling_purity: "",
+      printing_purity: "",
+      category: "",
+      sub_category: "",
+      gross_weight: "",
+      stone_weight: "",
+      weight_bw: "",
+      stone_price: "",
+      va_on: "Gross Weight",
+      va_percent: "",
+      wastage_weight: "",
+      total_weight_av: "",
+      mc_on: "MC %",
+      mc_per_gram: "",
+      making_charges: "",
+      disscount_percentage: "",
+      disscount: "",
+      rate: "",
+      rate_amt: "",
+      pricing: "By Weight",
+      tax_percent: "03% GST",
+      tax_amt: "",
+      hm_charges: "60.00",
+      total_price: "",
+      qty: "",
+      imagePreview: null,
+      remarks: "",
+      sale_status: "Delivered",
+      piece_taxable_amt: "",
+      festival_discount: "",
     // Reset new fields
-    cover_wt: "",
-    card_wt: "",
-    packing_wt: "",
-  }));
-};
+      cover_wt: "",
+      card_wt: "",
+      packing_wt: "",
+    }));
+  };
 
   // Calculate totalPrice (sum of total_price from all repairDetails)
   const totalPrice = repairDetails.reduce(
@@ -2203,6 +2245,7 @@ useEffect(() => {
   const [product, setProduct] = useState([]); // State to store table data
   const [company, setCompany] = useState(null);
   const [error, setError] = useState(null);
+  
   const fetchProducts = async () => {
     try {
       const response = await fetch(`${baseURL}/get/products`);
@@ -2527,153 +2570,172 @@ useEffect(() => {
   // };
 
   // 🆕 UPDATED: handleSave with validation for all products
-  const handleSave = async () => {
-    try {
-      const activeStockPointDetails = formData.active_stock_point_details;
-      const selectedSalesman = formData.salesman_id ? {
-        salesman_id: formData.salesman_id,
-        salesman_name: formData.salesman_name
-      } : null;
+ // 🆕 UPDATED: handleSave with validation for all products
+const handleSave = async () => {
+  try {
+    const activeStockPointDetails = formData.active_stock_point_details;
+    const selectedSalesman = formData.salesman_id ? {
+      salesman_id: formData.salesman_id,
+      salesman_name: formData.salesman_name
+    } : null;
 
-      if (!activeStockPointDetails) {
-        alert("Please select an Active Stock Point");
-        return;
-      }
-
-      if (!selectedSalesman) {
-        alert("Please select a Salesman");
-        return;
-      }
-
-      if (!repairDetails || repairDetails.length === 0) {
-        alert("Please add items to transfer");
-        return;
-      }
-
-      // 🆕 NEW: Check if ALL products from a transfer are selected
-      const selectedBarcodes = repairDetails.map(item => item.code).filter(Boolean);
-      const allSelected = checkAllProductsSelected(selectedBarcodes);
-
-      if (!allSelected) {
-        alert("⚠️ You must select ALL products from a stock transfer before assigning to a salesman. Please add all products from the same transfer.");
-        return;
-      }
-
-      // 🆕 NEW: Check if all selected products belong to the same transfer
-      const transferIds = repairDetails
-        .map(item => item.transfer_id)
-        .filter(Boolean);
-      
-      const uniqueTransferIds = [...new Set(transferIds)];
-      if (uniqueTransferIds.length > 1) {
-        alert("⚠️ All products must belong to the same stock transfer. Please select products from only one transfer.");
-        return;
-      }
-
-      // Use assigned_number instead of transfer_number
-      let nextAssignedNumber = formData.assigned_number || formData.transfer_number;
-      
-      if (!nextAssignedNumber) {
-        try {
-          const response = await axios.get(`${baseURL}/api/assigned-salesman/lastAssignedNumber`);
-          nextAssignedNumber = response.data.lastAssignedNumber;
-        } catch (error) {
-          console.error("Error fetching next assigned number:", error);
-          nextAssignedNumber = `ASN001`;
-        }
-      }
-
-      console.log("Saving with Assigned Number:", nextAssignedNumber);
-
-      // Get the capture image from formData (from Customer Details)
-      const captureImage = formData.capture_image || null;
-      console.log("📷 Capture Image present:", !!captureImage);
-
-      // In the handleSave function, update the transferData mapping:
-const transferData = repairDetails.map(item => ({
-  product_id: item.product_id || null,
-  product_name: item.product_name || null,
-  metal_type: item.metal_type || null,
-  purity: item.purity || item.selling_purity || null,
-  category: item.category || null,
-  sub_category: item.sub_category || item.product_name || null,
-  design_name: item.design_name || null,
-  qty: parseFloat(item.qty) || 1,
-  gross_weight: parseFloat(item.gross_weight) || 0,
-  stone_weight: parseFloat(item.stone_weight) || 0,
-  net_weight: parseFloat(item.total_weight_av) || parseFloat(item.weight_bw) || 0,
-  rate: parseFloat(item.rate) || 0,
-  making_charges: parseFloat(item.making_charges) || 0,
-  stone_price: parseFloat(item.stone_price) || 0,
-  total_price: parseFloat(item.total_price) || 0,
-  image: item.image || null,
-  remarks: item.remarks || null,
-  PCode_BarCode: item.code,
-  // NEW: Include Cover Wt, Card Wt, Packing Wt
-  cover_wt: parseFloat(item.cover_wt) || 0,
-  card_wt: parseFloat(item.card_wt) || 0,
-  packing_wt: parseFloat(item.packing_wt) || 0,
-}));
-
-      const payload = {
-        transfer_data: transferData,
-        from_stock_point_id: parseInt(formData.active_stock_point_id),
-        to_salesman_id: parseInt(selectedSalesman.salesman_id),
-        transfer_date: formData.date || new Date().toISOString().split('T')[0],
-        reference_number: nextAssignedNumber,
-        remarks: `Assigned to ${selectedSalesman.salesman_name} from ${activeStockPointDetails.stock_point_name}`,
-        created_by: formData.account_name || "system",
-        from_user_id: activeStockPointDetails.user_id || null,
-        to_user_id: null,
-      capture_image: captureImage  // <-- NEW: Add capture image from Customer Details
-      };
-
-      console.log("📦 Sending Assigned Salesman Payload with capture_image:", !!payload.capture_image);
-
-      const response = await axios.post(`${baseURL}/api/assigned-salesman/save-assigned-salesman`, payload);
-     
-      if (response.status === 200 || response.status === 201) {
-        alert(`✅ All products assigned to Salesman successfully! Assigned Number: ${nextAssignedNumber}`);
-        
-      // Clear data
-        setOldSalesData([]);
-        setSchemeSalesData([]);
-        setRepairDetails([]);
-        setPaymentDetails({
-          cash_amount: 0,
-          card_amt: 0,
-          chq: "",
-          chq_amt: 0,
-          online: "",
-          online_amt: 0,
-        });
-        setOldTableData([]);
-        setSchemeTableData([]);
-        setDiscount(0);
-        setIsAllProductsSelected(false);
-        
-      // Reset form data
-        setFormData({
-          ...formData,
-          active_stock_point_id: "",
-          salesman_id: "",
-          salesman_name: "",
-          active_stock_point_details: null,
-          assigned_number: "",
-          transfer_number: "",
-        capture_image: null,  // Clear capture image
-          capture_image_file: null
-        });
-        
-        navigate("/assign-to-salesman");
-      }
-    } catch (error) {
-      console.error("Error saving assigned salesman:", error);
-      alert("Error saving assigned salesman: " + (error.response?.data?.message || error.message));
+    if (!activeStockPointDetails) {
+      alert("Please select an Active Stock Point");
+      return;
     }
-  };
 
+    if (!selectedSalesman) {
+      alert("Please select a Salesman");
+      return;
+    }
 
+    if (!repairDetails || repairDetails.length === 0) {
+      alert("Please add items to transfer");
+      return;
+    }
+
+    // 🆕 NEW: Check if ALL products from a transfer are selected
+    const selectedBarcodes = repairDetails.map(item => item.code).filter(Boolean);
+    const allSelected = checkAllProductsSelected(selectedBarcodes);
+
+    if (!allSelected) {
+      alert("⚠️ You must select ALL products from a stock transfer before assigning to a salesman. Please add all products from the same transfer.");
+      return;
+    }
+
+    // 🆕 NEW: Check if all selected products belong to the same transfer
+    const transferIds = repairDetails
+      .map(item => item.transfer_id)
+      .filter(Boolean);
+    
+    const uniqueTransferIds = [...new Set(transferIds)];
+    if (uniqueTransferIds.length > 1) {
+      alert("⚠️ All products must belong to the same stock transfer. Please select products from only one transfer.");
+      return;
+    }
+
+    // Use assigned_number instead of transfer_number
+    let nextAssignedNumber = formData.assigned_number || formData.transfer_number;
+    
+    if (!nextAssignedNumber) {
+      try {
+        const response = await axios.get(`${baseURL}/api/assigned-salesman/lastAssignedNumber`);
+        nextAssignedNumber = response.data.lastAssignedNumber;
+      } catch (error) {
+        console.error("Error fetching next assigned number:", error);
+        nextAssignedNumber = `ASN001`;
+      }
+    }
+
+    console.log("Saving with Assigned Number:", nextAssignedNumber);
+
+    // Get the capture image from formData (from Customer Details)
+    const captureImage = formData.capture_image || null;
+    console.log("📷 Capture Image present:", !!captureImage);
+
+    // Calculate weight totals
+    const calculatedItemGrossTotal = repairDetails.reduce(
+      (sum, item) => sum + parseFloat(item.gross_weight || 0), 
+      0
+    );
+    
+    const calculatedPacketGrossTotal = repairDetails.reduce(
+      (sum, item) => sum + parseFloat(item.gross_weight || 0) + parseFloat(item.packing_wt || 0),
+      0
+    );
+
+    const transferData = repairDetails.map(item => ({
+      product_id: item.product_id || null,
+      product_name: item.product_name || null,
+      metal_type: item.metal_type || null,
+      purity: item.purity || item.selling_purity || null,
+      category: item.category || null,
+      sub_category: item.sub_category || item.product_name || null,
+      design_name: item.design_name || null,
+      qty: parseFloat(item.qty) || 1,
+      gross_weight: parseFloat(item.gross_weight) || 0,
+      stone_weight: parseFloat(item.stone_weight) || 0,
+      net_weight: parseFloat(item.total_weight_av) || parseFloat(item.weight_bw) || 0,
+      rate: parseFloat(item.rate) || 0,
+      making_charges: parseFloat(item.making_charges) || 0,
+      stone_price: parseFloat(item.stone_price) || 0,
+      total_price: parseFloat(item.total_price) || 0,
+      image: item.image || null,
+      remarks: item.remarks || null,
+      PCode_BarCode: item.code,
+      cover_wt: parseFloat(item.cover_wt) || 0,
+      card_wt: parseFloat(item.card_wt) || 0,
+      packing_wt: parseFloat(item.packing_wt) || 0,
+    }));
+
+    const payload = {
+      transfer_data: transferData,
+      from_stock_point_id: parseInt(formData.active_stock_point_id),
+      to_salesman_id: parseInt(selectedSalesman.salesman_id),
+      transfer_date: formData.date || new Date().toISOString().split('T')[0],
+      reference_number: nextAssignedNumber,
+      remarks: `Assigned to ${selectedSalesman.salesman_name} from ${activeStockPointDetails.stock_point_name}`,
+      created_by: formData.account_name || "system",
+      from_user_id: activeStockPointDetails.user_id || null,
+      to_user_id: null,
+      capture_image: captureImage,
+      // NEW: Add weight totals to payload
+      item_gross_total: calculatedItemGrossTotal,
+      packet_gross_total: calculatedPacketGrossTotal,
+      total_weight_with_bag: totalWeightWithBag || 0
+    };
+
+    console.log("📦 Sending Assigned Salesman Payload with weight totals:", {
+      item_gross_total: calculatedItemGrossTotal,
+      packet_gross_total: calculatedPacketGrossTotal,
+      total_weight_with_bag: totalWeightWithBag
+    });
+
+    const response = await axios.post(`${baseURL}/api/assigned-salesman/save-assigned-salesman`, payload);
+   
+    if (response.status === 200 || response.status === 201) {
+      alert(`✅ All products assigned to Salesman successfully! Assigned Number: ${nextAssignedNumber}`);
+      
+      // Clear data
+      setOldSalesData([]);
+      setSchemeSalesData([]);
+      setRepairDetails([]);
+      setPaymentDetails({
+        cash_amount: 0,
+        card_amt: 0,
+        chq: "",
+        chq_amt: 0,
+        online: "",
+        online_amt: 0,
+      });
+      setOldTableData([]);
+      setSchemeTableData([]);
+      setDiscount(0);
+      setIsAllProductsSelected(false);
+      setTotalWeightWithBag(0);
+      setItemGrossTotal(0);
+      setPacketGrossTotal(0);
+      
+      // Reset form data
+      setFormData({
+        ...formData,
+        active_stock_point_id: "",
+        salesman_id: "",
+        salesman_name: "",
+        active_stock_point_details: null,
+        assigned_number: "",
+        transfer_number: "",
+        capture_image: null,
+        capture_image_file: null
+      });
+      
+      navigate("/assign-to-salesman");
+    }
+  } catch (error) {
+    console.error("Error saving assigned salesman:", error);
+    alert("Error saving assigned salesman: " + (error.response?.data?.message || error.message));
+  }
+};
 
   const refreshSalesData = () => {
     setOldSalesData([]);
@@ -2690,6 +2752,9 @@ const transferData = repairDetails.map(item => ({
     setOldTableData([]); // Clear the oldTableData state
     setSchemeTableData([]);
     setDiscount(0);
+    setTotalWeightWithBag(0);
+    setItemGrossTotal(0);
+    setPacketGrossTotal(0);
     localStorage.removeItem("oldSalesData");
     localStorage.removeItem("schemeSalesData");
     localStorage.removeItem(`repairDetails_${tabId}`);
@@ -2737,7 +2802,7 @@ const transferData = repairDetails.map(item => ({
               <InvoiceDetails formData={formData} setFormData={setFormData} />
             </div>
           </div>
-          
+
           {/* Stock Points Selection Section - COMMENTED OUT */}
           {/* <div className="sales-form" style={{ marginTop: "15px", marginBottom: "15px" }}>
             <div className="sales-form-left">
@@ -2871,6 +2936,10 @@ const transferData = repairDetails.map(item => ({
               selectedOrder={selectedOrder}
               orderData={orderData}
               visitLogsData={visitLogsData} // <-- ADD THIS: Pass visitLogsData to ProductDetails
+              itemGrossTotal={itemGrossTotal}
+              packetGrossTotal={packetGrossTotal}
+              totalWeightWithBag={totalWeightWithBag}
+              onTotalWeightWithBagChange={handleTotalWeightWithBagChange}
             />
           </div>
 
@@ -2879,8 +2948,13 @@ const transferData = repairDetails.map(item => ({
               repairDetails={repairDetails}
               onEdit={handleEdit}
               onDelete={handleDelete}
+              itemGrossTotal={itemGrossTotal}
+              packetGrossTotal={packetGrossTotal}
+              totalWeightWithBag={totalWeightWithBag}
+              onTotalWeightWithBagChange={handleTotalWeightWithBagChange}
             />
           </div>
+
           <div className="sales-form">
             {/* <div className="sales-form-third">
               <SalesFormSection
@@ -2987,6 +3061,11 @@ const transferData = repairDetails.map(item => ({
                 isAllProductsSelected={isAllProductsSelected}
                 selectedTransferItems={selectedTransferItems}
                 repairDetails={repairDetails}
+                // NEW: Weight totals props
+                itemGrossTotal={itemGrossTotal}
+                packetGrossTotal={packetGrossTotal}
+                totalWeightWithBag={totalWeightWithBag}
+                onTotalWeightWithBagChange={handleTotalWeightWithBagChange}
               />
             </div>
           </div>
