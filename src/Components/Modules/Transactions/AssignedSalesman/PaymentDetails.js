@@ -34,9 +34,9 @@ const PaymentDetails = ({
                 marginRight: "10px",
                 cursor: isSaveDisabled ? "not-allowed" : "pointer",
               }}
-              title={isSaveDisabled ? "Please add ALL products from the stock transfer first" : "Save"}
+              title={isSaveDisabled ? "Please add ALL products from the stock transfer first" : "Save & Send for Approval"}
             >
-              Save
+              Save & Send for Approval
             </Button>
           </Col>
           <Col xs="auto">
@@ -67,29 +67,23 @@ const PaymentDetails = ({
             </Button>
           </Col>
         </Row>
-        {/* Show validation message below buttons */}
-        {/* {!isAllProductsSelected && selectedTransferItems?.length > 0 && (
+        {/* Show info message */}
+        {!isSaveDisabled && (
           <Row className="mt-2">
             <Col>
               <div style={{ 
-                color: "#856404", 
-                backgroundColor: "#fff3cd", 
+                color: "#0c5460", 
+                backgroundColor: "#d1ecf1", 
                 padding: "8px 12px", 
                 borderRadius: "4px",
                 fontSize: "13px",
-                border: "1px solid #ffc107"
+                border: "1px solid #bee5eb"
               }}>
-                <strong>⚠️ Note:</strong> You must add <strong>ALL</strong> products from the stock transfer before saving.
-                {repairDetails?.length > 0 && selectedTransferItems?.length > 0 && (
-                  <span> Added: {repairDetails.length} of {selectedTransferItems.length} products.</span>
-                )}
-                {(!repairDetails || repairDetails.length === 0) && (
-                  <span> Please add products first.</span>
-                )}
+                <strong>ℹ️ Info:</strong> The assigned salesman will receive a notification to accept or reject this assignment.
               </div>
             </Col>
           </Row>
-        )} */}
+        )}
       </Col>
     </div>
   );
