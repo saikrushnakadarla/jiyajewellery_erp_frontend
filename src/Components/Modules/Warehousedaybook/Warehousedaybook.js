@@ -690,7 +690,7 @@ export default function DayBook() {
                   </div>
                 </div>
 
-                {/* Table Body - All entries in one table */}
+                {/* Table Body - All entries in one table */} 
                 {allEntries.map((entry) => {
                   if (entry.isOpening) {
                     return (

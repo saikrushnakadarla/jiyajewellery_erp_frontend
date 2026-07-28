@@ -18,7 +18,22 @@ const RepairsTable = () => {
   const { authToken, userId, userName, role } = useContext(AuthContext);
   // Extract mobile from location state
   const { mobile } = location.state || {};
-  const initialSearchValue = location.state?.mobile || '';
+  const initialSearchValue = location.state?.mobile || ''; 
+
+
+// Add this helper function after your imports and before the component
+const generateUUID = () => {
+  // Check if crypto.randomUUID is available
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID(); // <- Fixed: removed the function call to itself
+  }
+  // Fallback for older browsers or HTTP contexts
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0;
+    const v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+};
 
   const getTabId = () => {
     // First try to get from URL
@@ -32,7 +47,7 @@ const RepairsTable = () => {
 
     // If still not found, generate new ID
     if (!tabId) {
-      tabId = crypto.randomUUID();
+      tabId = generateUUID();
       sessionStorage.setItem('tabId', tabId);
 
       // Update URL without page reload
@@ -262,7 +277,7 @@ const RepairsTable = () => {
       cancelButtonText: 'No, cancel',
     });
 
-    const tabId = crypto.randomUUID();
+    const tabId = generateUUID();
 
     if (result.isConfirmed) {
       try {
@@ -402,7 +417,7 @@ const RepairsTable = () => {
   };
   
   const handleCreate = () => {
-    const tabId = crypto.randomUUID();
+    const tabId = generateUUID();
     navigate(`/sales?tabId=${tabId}`);
   };
 
