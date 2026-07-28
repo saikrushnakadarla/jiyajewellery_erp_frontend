@@ -391,7 +391,7 @@ function StockPointDashboard() {
           ) : todayVisits.length > 0 ? (
             <Row className="g-4">
               {todayVisits.map((customer, index) => (
-                <Col key={index} lg={4} md={6} sm={12}>
+                <Col key={index} lg={12} md={6} sm={12}>
                   <Card className="today-visit-card" style={{
                     border: 'none',
                     borderRadius: '16px',
@@ -439,7 +439,7 @@ function StockPointDashboard() {
                           display: 'grid',
                           gridTemplateColumns: '1fr 1fr',
                           gap: '6px 16px',
-                          fontSize: '13px'
+                          fontSize: '18px'
                         }}>
                           <div>
                             <span style={{ color: '#94a3b8' }}>📞</span>

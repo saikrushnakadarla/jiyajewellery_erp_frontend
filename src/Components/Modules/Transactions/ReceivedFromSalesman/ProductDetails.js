@@ -70,7 +70,9 @@ const ProductDetails = ({
   const [estimatesData, setEstimatesData] = useState([]);
   const [loggedInUserId, setLoggedInUserId] = useState(null);
   const [groupedPacketProducts, setGroupedPacketProducts] = useState({});
-  const [isPacketAdded, setIsPacketAdded] = useState(false);
+  const [isPacketAdded, setIsPacketAdded] = useState(false); 
+
+  const [packetImage, setPacketImage] = useState(null);
 
   // Barcode scanner states
   const [showScanner, setShowScanner] = useState(false);
@@ -548,84 +550,104 @@ const ProductDetails = ({
   // ================================================================
   // FIXED: Fetch estimates and filter by Status = "Assigned"
   // ================================================================
-  useEffect(() => {
-    const fetchEstimates = async () => {
-      try {
-        const response = await axios.get(`${baseURL2}/get/estimates`);
-        setEstimatesData(response.data);
+useEffect(() => {
+  const fetchEstimates = async () => {
+    try {
+      const response = await axios.get(`${baseURL2}/get/estimates`);
+      setEstimatesData(response.data);
 
-        const grouped = {};
-        response.data.forEach(est => {
-          if (est.code && est.packet_barcode) {
-            // Check if this product is assigned to the salesman
-            const isAssignedToSalesman = selectedSalesmanProducts.some(
-              assigned => assigned.PCode_BarCode === est.code
-            );
+      const grouped = {};
+      const packetImages = {}; // Store packet images separately
+      
+      response.data.forEach(est => {
+        if (est.code && est.packet_barcode) {
+          // Check if this product is assigned to the salesman
+          const isAssignedToSalesman = selectedSalesmanProducts.some(
+            assigned => assigned.PCode_BarCode === est.code
+          );
 
-            // Check status from opening_tags_entry (data prop)
-            const tag = data.find(t => t.PCode_BarCode === est.code);
-            const isStatusAssigned = tag && tag.Status === "Assigned";
+          // Check status from opening_tags_entry (data prop)
+          const tag = data.find(t => t.PCode_BarCode === est.code);
+          const isStatusAssigned = tag && tag.Status === "Assigned";
 
-            // Only include products that are assigned AND have status "Assigned"
-            if (isAssignedToSalesman && isStatusAssigned) {
-              if (!grouped[est.packet_barcode]) {
-                grouped[est.packet_barcode] = [];
+          // Only include products that are assigned AND have status "Assigned"
+          if (isAssignedToSalesman && isStatusAssigned) {
+            if (!grouped[est.packet_barcode]) {
+              grouped[est.packet_barcode] = [];
+            }
+            grouped[est.packet_barcode].push({
+              code: est.code,
+              product_name: est.product_name,
+              metal_type: est.metal_type,
+              purity: est.purity,
+              category: est.category,
+              sub_category: est.sub_category,
+              gross_weight: est.gross_weight,
+              stone_weight: est.stone_weight,
+              stone_price: est.stone_price,
+              weight_bw: est.weight_bw,
+              va_on: est.va_on,
+              va_percent: est.va_percent,
+              wastage_weight: est.wastage_weight,
+              total_weight_av: est.total_weight_av,
+              mc_on: est.mc_on,
+              mc_per_gram: est.mc_per_gram,
+              making_charges: est.making_charges,
+              rate: est.rate,
+              rate_amt: est.rate_amt,
+              tax_percent: est.tax_percent,
+              tax_amt: est.tax_amt,
+              total_price: est.total_price,
+              pricing: est.pricing,
+              qty: est.qty || 1,
+              packet_barcode: est.packet_barcode,
+              is_estimated: true,
+              design_name: est.design_name,
+              stone_price_per_carat: est.stone_price_per_carat,
+              deduct_st_Wt: est.deduct_st_Wt,
+              pur_Gross_Weight: est.pur_Gross_Weight,
+              pur_Stones_Weight: est.pur_Stones_Weight,
+              pur_deduct_st_Wt: est.pur_deduct_st_Wt,
+              pur_stone_price_per_carat: est.pur_stone_price_per_carat,
+              pur_Stones_Price: est.pur_Stones_Price,
+              pur_Weight_BW: est.pur_Weight_BW,
+              pur_Making_Charges_On: est.pur_Making_Charges_On,
+              pur_MC_Per_Gram: est.pur_MC_Per_Gram,
+              pur_Making_Charges: est.pur_Making_Charges,
+              pur_Wastage_On: est.pur_Wastage_On,
+              pur_Wastage_Percentage: est.pur_Wastage_Percentage,
+              pur_WastageWeight: est.pur_WastageWeight,
+              pur_TotalWeight_AW: est.pur_TotalWeight_AW
+            });
+            
+            // Store packet image
+            if (est.pack_images) {
+              try {
+                const images = JSON.parse(est.pack_images);
+                if (images && images.length > 0) {
+                  packetImages[est.packet_barcode] = images[0]; // Get first image
+                }
+              } catch (e) {
+                // If not JSON, treat as single string
+                packetImages[est.packet_barcode] = est.pack_images;
               }
-              grouped[est.packet_barcode].push({
-                code: est.code,
-                product_name: est.product_name,
-                metal_type: est.metal_type,
-                purity: est.purity,
-                category: est.category,
-                sub_category: est.sub_category,
-                gross_weight: est.gross_weight,
-                stone_weight: est.stone_weight,
-                stone_price: est.stone_price,
-                weight_bw: est.weight_bw,
-                va_on: est.va_on,
-                va_percent: est.va_percent,
-                wastage_weight: est.wastage_weight,
-                total_weight_av: est.total_weight_av,
-                mc_on: est.mc_on,
-                mc_per_gram: est.mc_per_gram,
-                making_charges: est.making_charges,
-                rate: est.rate,
-                rate_amt: est.rate_amt,
-                tax_percent: est.tax_percent,
-                tax_amt: est.tax_amt,
-                total_price: est.total_price,
-                pricing: est.pricing,
-                qty: est.qty || 1,
-                packet_barcode: est.packet_barcode,
-                is_estimated: true,
-                design_name: est.design_name,
-                stone_price_per_carat: est.stone_price_per_carat,
-                deduct_st_Wt: est.deduct_st_Wt,
-                pur_Gross_Weight: est.pur_Gross_Weight,
-                pur_Stones_Weight: est.pur_Stones_Weight,
-                pur_deduct_st_Wt: est.pur_deduct_st_Wt,
-                pur_stone_price_per_carat: est.pur_stone_price_per_carat,
-                pur_Stones_Price: est.pur_Stones_Price,
-                pur_Weight_BW: est.pur_Weight_BW,
-                pur_Making_Charges_On: est.pur_Making_Charges_On,
-                pur_MC_Per_Gram: est.pur_MC_Per_Gram,
-                pur_Making_Charges: est.pur_Making_Charges,
-                pur_Wastage_On: est.pur_Wastage_On,
-                pur_Wastage_Percentage: est.pur_Wastage_Percentage,
-                pur_WastageWeight: est.pur_WastageWeight,
-                pur_TotalWeight_AW: est.pur_TotalWeight_AW
-              });
             }
           }
-        });
-        setGroupedPacketProducts(grouped);
-        console.log("Grouped packet products with Status=Assigned:", grouped);
-      } catch (error) {
-        console.error("Error fetching estimates:", error);
-      }
-    };
-    fetchEstimates();
-  }, [selectedSalesmanProducts, data]); // Added 'data' as dependency
+        }
+      });
+      setGroupedPacketProducts(grouped);
+      
+      // Store packet images in state or ref for later use
+      window.packetImages = packetImages;
+      
+      console.log("Grouped packet products with Status=Assigned:", grouped);
+      console.log("Packet images:", packetImages);
+    } catch (error) {
+      console.error("Error fetching estimates:", error);
+    }
+  };
+  fetchEstimates();
+}, [selectedSalesmanProducts, data]); // Added 'data' as dependency
 
   const getPacketBarcode = (productCode) => {
     if (!estimatesData || !productCode) return null;
@@ -718,10 +740,23 @@ const ProductDetails = ({
     }
   }, [formData.category, defaultBarcode]);
 
- const handleBarcodeSelect = (selectedValue) => {
+const handleBarcodeSelect = (selectedValue) => {
   const selectedOption = uniqueBarcodeOptions.find(opt => opt.value === selectedValue);
 
   if (selectedOption) {
+    // Set packet image if available
+    let packetImageUrl = null;
+    if (selectedOption.type === "packet" && selectedOption.packetBarcode) {
+      const imageFileName = window.packetImages?.[selectedOption.packetBarcode];
+      if (imageFileName) {
+        // Construct image URL - adjust the path as per your server configuration
+        packetImageUrl = `${baseURL2}/uploads/pack-images/${imageFileName}`;
+        // Or if images are stored elsewhere, adjust accordingly
+        // packetImageUrl = `${baseURL2}/uploads/${imageFileName}`;
+      }
+    }
+    setPacketImage(packetImageUrl);
+
     if (selectedOption.type === "packet" && selectedOption.products && selectedOption.products.length > 0) {
       console.log("Packet selected with products:", selectedOption.products);
 
@@ -805,7 +840,6 @@ const ProductDetails = ({
           is_packet_selection: true,
           assigned_id: assignedProduct?.assigned_id || null,
           item_id: assignedProduct?.item_id || null,
-          // NEW: Add cover_wt, card_wt, packing_wt
           cover_wt: product.cover_wt || assignedProduct?.cover_wt || "",
           card_wt: product.card_wt || assignedProduct?.card_wt || "",
           packing_wt: product.packing_wt || assignedProduct?.packing_wt || "",
@@ -869,6 +903,7 @@ const ProductDetails = ({
 
     } else {
       setIsPacketAdded(false);
+      setPacketImage(null); // Clear packet image if not a packet
       if (selectedOption.packetBarcode) {
         setFormData(prev => ({
           ...prev,
@@ -1055,7 +1090,7 @@ const ProductDetails = ({
     <Col>
       <Row>
         {/* Barcode with Scan Buttons */}
-        <Col xs={12} md={4}>
+        <Col xs={12} md={5}>
           <div style={{ display: 'flex', alignItems: 'flex-end', gap: '6px' }}>
             <div style={{ flex: 1, minWidth: '80px' }}>
               <InputField
@@ -1110,7 +1145,33 @@ const ProductDetails = ({
               title="Scan Packet"
             >
               <FaBarcode size={13} /> Scan Packet
-            </Button>
+            </Button> 
+
+{/* Display Packet Image */}
+{packetImage && (
+  <Col xs={12} md={2} style={{ marginTop: '5px' }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+      <img 
+        src={packetImage} 
+        alt="Packet" 
+        style={{ 
+          width: '80px', 
+          height: '80px', 
+          borderRadius: '8px',
+          border: '1px solid #ddd',
+          padding: '5px',
+          objectFit: 'cover'
+        }} 
+        onError={(e) => {
+          e.target.style.display = 'none';
+          setPacketImage(null);
+        }}
+      />
+      <span style={{ fontSize: '12px', color: '#666' }}>Packet Image</span>
+    </div>
+  </Col>
+)}
+
           </div>
         </Col>
 
