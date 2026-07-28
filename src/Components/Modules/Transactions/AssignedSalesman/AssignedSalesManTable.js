@@ -60,6 +60,30 @@ const AssignedSalesmanTable = () => {
     ).padStart(2, '0')}-${date.getFullYear()}`;
   };
 
+  // Updated to show Salesman Status badge instead of regular status
+  const getSalesmanStatusBadge = (status) => {
+    const statusColors = {
+      'pending': { color: '#ffc107', text: 'Pending' },
+      'accepted': { color: '#28a745', text: 'Accepted' },
+      'rejected': { color: '#dc3545', text: 'Rejected' },
+      'completed': { color: '#17a2b8', text: 'Completed' }
+    };
+    const statusInfo = statusColors[status] || { color: '#6c757d', text: status || 'N/A' };
+    return (
+      <span style={{
+        backgroundColor: statusInfo.color,
+        color: 'white',
+        padding: '3px 8px',
+        borderRadius: '4px',
+        fontSize: '11px',
+        fontWeight: 'bold'
+      }}>
+        {statusInfo.text}
+      </span>
+    );
+  };
+
+  // Keep the old status badge for cases where we might need it
   const getStatusBadge = (status) => {
     const statusColors = {
       'pending': { color: '#ffc107', text: 'Pending' },
@@ -129,9 +153,9 @@ const AssignedSalesmanTable = () => {
         accessor: 'total_net_weight',
       },
       {
-        Header: 'Status',
-        accessor: 'status',
-        Cell: ({ value }) => getStatusBadge(value),
+        Header: 'Salesman Status', // Changed from 'Status' to 'Salesman Status'
+        accessor: 'salesman_status',
+        Cell: ({ value }) => getSalesmanStatusBadge(value),
       },
       {
         Header: 'Actions',
@@ -329,8 +353,8 @@ const AssignedSalesmanTable = () => {
                     <td>{transferDetails.transfer_details.salesman_mobile || 'N/A'}</td>
                   </tr>
                   <tr>
-                    <td><strong>Status</strong></td>
-                    <td>{getStatusBadge(transferDetails.transfer_details.status)}</td>
+                    <td><strong>Salesman Status</strong></td>
+                    <td>{getSalesmanStatusBadge(transferDetails.transfer_details.salesman_status)}</td>
                   </tr>
                   <tr>
                     <td><strong>Remarks</strong></td>

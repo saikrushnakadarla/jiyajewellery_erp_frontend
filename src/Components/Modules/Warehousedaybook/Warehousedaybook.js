@@ -384,7 +384,8 @@ export default function DayBook() {
     };
   }, [records]);
 
-  // Calendar grid
+  // Calendar grid - COMMENTED OUT
+  /*
   const calendarDays = useMemo(() => {
     const { year, month } = viewMonth;
     const firstOfMonth = new Date(Date.UTC(year, month, 1));
@@ -398,6 +399,7 @@ export default function DayBook() {
     }
     return cells;
   }, [viewMonth]);
+  */
 
   const monthLabel = useMemo(() => {
     const dt = new Date(Date.UTC(viewMonth.year, viewMonth.month, 1));
@@ -570,7 +572,8 @@ export default function DayBook() {
       </section>
 
       <main style={styles.mainGrid}>
-        {/* CALENDAR */}
+        {/* CALENDAR - COMMENTED OUT */}
+        {/*
         <section style={styles.calendarCard}>
           <div style={styles.calHeaderRow}>
             <button className="db-navbtn" style={styles.navBtn} onClick={() => changeMonth(-1)} aria-label="Previous month">‹</button>
@@ -630,9 +633,10 @@ export default function DayBook() {
             <span style={styles.legendItem}><span style={{ ...styles.dot, background: "#6E3B28" }} /> Outward day</span>
           </div>
         </section>
+        */}
 
-        {/* SELECTED DAY LEDGER - SINGLE UNIFIED TABLE */}
-        <section style={styles.ledgerCard}>
+        {/* SELECTED DAY LEDGER - SINGLE UNIFIED TABLE - FULL WIDTH */}
+        <section style={styles.ledgerCardFullWidth}>
           <div style={styles.ledgerHeaderRow}>
             <div>
               <div style={styles.eyebrow}>Entry for</div>
@@ -945,7 +949,7 @@ const styles = {
   totalSub: { fontSize: "13px", color: "#5B5442", marginTop: "6px", fontFamily: "'IBM Plex Mono', monospace", fontWeight: 700 },
   mainGrid: {
     display: "grid",
-    gridTemplateColumns: "320px 1fr",
+    gridTemplateColumns: "1fr", // Changed from "320px 1fr" to full width
     gap: "20px",
     alignItems: "start",
   },
@@ -1012,6 +1016,14 @@ const styles = {
     borderRadius: "6px",
     padding: "22px",
     minHeight: "300px",
+  },
+  ledgerCardFullWidth: {
+    background: "#FFFDF8",
+    border: "1px solid #D9CFB4",
+    borderRadius: "6px",
+    padding: "22px",
+    minHeight: "300px",
+    width: "100%", // Full width
   },
   ledgerHeaderRow: {
     display: "flex",
