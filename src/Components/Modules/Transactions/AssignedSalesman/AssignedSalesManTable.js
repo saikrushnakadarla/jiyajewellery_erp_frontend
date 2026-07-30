@@ -163,7 +163,7 @@ const AssignedSalesmanTable = () => {
         Cell: ({ row }) => {
           const isAdmin = userName === "ADMIN";
           const canEdit = row.original.status === 'pending';
-          
+
           return (
             <div>
               <FaEye
@@ -200,12 +200,12 @@ const AssignedSalesmanTable = () => {
 
   const handleEdit = (transfer) => {
     const tabId = crypto.randomUUID();
-    navigate("/add-assign-salesmantransfer", { 
-      state: { 
+    navigate("/add-assign-salesmantransfer", {
+      state: {
         tabId,
         editData: transfer,
-        isEdit: true 
-      } 
+        isEdit: true
+      }
     });
   };
 
@@ -244,21 +244,21 @@ const AssignedSalesmanTable = () => {
       setLoading(true);
       const response = await axios.get(`${baseURL}/api/assigned-salesman/get-assigned-transfers`);
       console.log("Assigned Transfers Response: ", response.data);
-      
+
       // Get logged-in user ID from localStorage
       const loggedInUserId = getLoggedInUserId();
       console.log("Logged in User ID from localStorage:", loggedInUserId);
-      
+
       // Filter data where BOTH from_user_id AND from_stock_point_id match the logged-in user
       let filteredTransfers = response.data;
       if (loggedInUserId) {
         filteredTransfers = response.data.filter(
-          transfer => transfer.from_user_id === loggedInUserId && 
-                     transfer.from_stock_point_id === loggedInUserId
+          transfer => transfer.from_user_id === loggedInUserId &&
+            transfer.from_stock_point_id === loggedInUserId
         );
         console.log("Filtered Transfers (from_user_id and from_stock_point_id match):", filteredTransfers);
       }
-      
+
       setData(filteredTransfers);
       setFilteredData(filteredTransfers);
       setLoading(false);
@@ -272,7 +272,7 @@ const AssignedSalesmanTable = () => {
     try {
       const response = await axios.get(`${baseURL}/api/assigned-salesman/get-assigned-transfer/${assigned_id}`);
       console.log("Fetched assigned details: ", response.data);
-      
+
       // Verify that the user has access to view this transfer
       const loggedInUserId = getLoggedInUserId();
       if (loggedInUserId) {
@@ -282,7 +282,7 @@ const AssignedSalesmanTable = () => {
           return;
         }
       }
-      
+
       setTransferDetails(response.data);
       setShowModal(true);
     } catch (error) {
@@ -386,12 +386,13 @@ const AssignedSalesmanTable = () => {
                       <th>Design Name</th>
                       <th>Qty</th>
                       <th>Gross Wt</th>
-                      <th>Stone Wt</th>
+                      <th>Packing Wt</th>
+                      {/* <th>Stone Wt</th>
                       <th>Net Wt</th>
                       <th>Rate</th>
                       <th>MC</th>
                       <th>Stone Price</th>
-                      <th>Total Price</th>
+                      <th>Total Price</th> */}
                     </tr>
                   </thead>
                   <tbody style={{ whiteSpace: 'nowrap', fontSize: '13px' }}>
@@ -408,12 +409,13 @@ const AssignedSalesmanTable = () => {
                           <td>{item.design_name || 'N/A'}</td>
                           <td>{item.qty}</td>
                           <td>{item.gross_weight}</td>
-                          <td>{item.stone_weight}</td>
+                          <td>{parseFloat(item.packing_wt || 0) + parseFloat(item.gross_weight || 0)}</td>
+                          {/* <td>{item.stone_weight}</td>
                           <td>{item.net_weight}</td>
                           <td>{item.rate}</td>
                           <td>{item.making_charges}</td>
                           <td>{item.stone_price}</td>
-                          <td><strong>{item.total_price}</strong></td>
+                          <td><strong>{item.total_price}</strong></td> */}
                         </tr>
                       ))
                     ) : (
@@ -426,11 +428,19 @@ const AssignedSalesmanTable = () => {
                         <td colSpan="8" className="text-end"><strong>Totals:</strong></td>
                         <td><strong>{transferDetails.transfer_items.reduce((sum, item) => sum + parseFloat(item.qty || 0), 0).toFixed(3)}</strong></td>
                         <td><strong>{transferDetails.transfer_items.reduce((sum, item) => sum + parseFloat(item.gross_weight || 0), 0).toFixed(3)}</strong></td>
-                        <td><strong>{transferDetails.transfer_items.reduce((sum, item) => sum + parseFloat(item.stone_weight || 0), 0).toFixed(3)}</strong></td>
+                        <td>
+                          <strong>
+                            {(transferDetails.transfer_items || []).reduce((sum, item) => {
+                              const total = parseFloat(item.packing_wt || 0) + parseFloat(item.gross_weight || 0);
+                              return sum + total;
+                            }, 0).toFixed(3)}
+                          </strong>
+                        </td>
+                        {/* <td><strong>{transferDetails.transfer_items.reduce((sum, item) => sum + parseFloat(item.stone_weight || 0), 0).toFixed(3)}</strong></td>
                         <td><strong>{transferDetails.transfer_items.reduce((sum, item) => sum + parseFloat(item.net_weight || 0), 0).toFixed(3)}</strong></td>
                         <td colSpan="2"></td>
                         <td></td>
-                        <td><strong>{transferDetails.transfer_items.reduce((sum, item) => sum + parseFloat(item.total_price || 0), 0).toFixed(2)}</strong></td>
+                        <td><strong>{transferDetails.transfer_items.reduce((sum, item) => sum + parseFloat(item.total_price || 0), 0).toFixed(2)}</strong></td> */}
                       </tr>
                     )}
                   </tbody>

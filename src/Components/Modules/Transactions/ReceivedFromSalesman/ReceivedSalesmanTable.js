@@ -422,7 +422,8 @@ const ReceivedSalesmanTable = () => {
                       <th>Sub Category</th>
                       <th>Design Name</th>
                       <th>Qty</th>
-                      <th>Gross Wt</th>
+                      <th>Gross Wt</th> 
+                      <th>Packing Wt</th>
                       {/* <th>Stone Wt</th>
                       <th>Net Wt</th>
                       <th>Rate</th>
@@ -466,7 +467,8 @@ const ReceivedSalesmanTable = () => {
                           <td>{item.sub_category || 'N/A'}</td>
                           <td>{item.design_name || 'N/A'}</td>
                           <td>{item.qty}</td>
-                          <td>{item.gross_weight}</td>
+                          <td>{item.gross_weight}</td> 
+                          <td>{parseFloat(item.packing_wt || 0) + parseFloat(item.gross_weight || 0)}</td>
                           {/* <td>{item.stone_weight}</td>
                           <td>{item.net_weight}</td>
                           <td>{item.rate}</td>
@@ -484,7 +486,15 @@ const ReceivedSalesmanTable = () => {
                       <tr style={{ fontWeight: 'bold', backgroundColor: '#f8f9fa' }}>
                         <td colSpan="9" className="text-end"><strong>Totals:</strong></td>
                         <td><strong>{transferDetails.transfer_items.reduce((sum, item) => sum + parseFloat(item.qty || 0), 0).toFixed(3)}</strong></td>
-                        <td><strong>{transferDetails.transfer_items.reduce((sum, item) => sum + parseFloat(item.gross_weight || 0), 0).toFixed(3)}</strong></td>
+                        <td><strong>{transferDetails.transfer_items.reduce((sum, item) => sum + parseFloat(item.gross_weight || 0), 0).toFixed(3)}</strong></td> 
+                        <td>
+  <strong>
+    {(transferDetails.transfer_items || []).reduce((sum, item) => {
+      const total = parseFloat(item.packing_wt || 0) + parseFloat(item.gross_weight || 0);
+      return sum + total;
+    }, 0).toFixed(3)}
+  </strong>
+</td>
                         {/* <td><strong>{transferDetails.transfer_items.reduce((sum, item) => sum + parseFloat(item.stone_weight || 0), 0).toFixed(3)}</strong></td>
                         <td><strong>{transferDetails.transfer_items.reduce((sum, item) => sum + parseFloat(item.net_weight || 0), 0).toFixed(3)}</strong></td>
                         <td colSpan="2"></td>

@@ -474,13 +474,14 @@ const ReturnMainStockTable = () => {
                       <th>Sub Category</th>
                       <th>Design Name</th>
                       <th>Qty</th>
-                      <th>Gross Wt</th>
-                      <th>Stone Wt</th>
+                      <th>Gross Wt</th> 
+                       <th>Packing Wt</th>
+                      {/* <th>Stone Wt</th>
                       <th>Net Wt</th>
                       <th>Rate</th>
                       <th>MC</th>
                       <th>Stone Price</th>
-                      <th>Total Price</th>
+                      <th>Total Price</th> */}
                     </tr>
                   </thead>
                   <tbody style={{ whiteSpace: 'nowrap', fontSize: '13px' }}>
@@ -519,13 +520,14 @@ const ReturnMainStockTable = () => {
                           <td>{item.sub_category || 'N/A'}</td>
                           <td>{item.design_name || 'N/A'}</td>
                           <td>{item.qty}</td>
-                          <td>{item.gross_weight}</td>
-                          <td>{item.stone_weight}</td>
+                          <td>{item.gross_weight}</td> 
+                          <td>{parseFloat(item.packing_wt || 0) + parseFloat(item.gross_weight || 0)}</td>
+                          {/* <td>{item.stone_weight}</td>
                           <td>{item.net_weight}</td>
                           <td>{item.rate}</td>
                           <td>{item.making_charges}</td>
                           <td>{item.stone_price}</td>
-                          <td><strong>{item.total_price}</strong></td>
+                          <td><strong>{item.total_price}</strong></td> */}
                         </tr>
                       ))
                     ) : (
@@ -537,12 +539,20 @@ const ReturnMainStockTable = () => {
                       <tr style={{ fontWeight: 'bold', backgroundColor: '#f8f9fa' }}>
                         <td colSpan="10" className="text-end"><strong>Totals:</strong></td>
                         <td><strong>{transferDetails.return_items.reduce((sum, item) => sum + parseFloat(item.qty || 0), 0).toFixed(3)}</strong></td>
-                        <td><strong>{transferDetails.return_items.reduce((sum, item) => sum + parseFloat(item.gross_weight || 0), 0).toFixed(3)}</strong></td>
-                        <td><strong>{transferDetails.return_items.reduce((sum, item) => sum + parseFloat(item.stone_weight || 0), 0).toFixed(3)}</strong></td>
-                        <td><strong>{transferDetails.return_items.reduce((sum, item) => sum + parseFloat(item.net_weight || 0), 0).toFixed(3)}</strong></td>
-                        <td colSpan="2"></td>
-                        <td></td>
-                        <td><strong>{transferDetails.return_items.reduce((sum, item) => sum + parseFloat(item.total_price || 0), 0).toFixed(2)}</strong></td>
+                        <td><strong>{transferDetails.return_items.reduce((sum, item) => sum + parseFloat(item.gross_weight || 0), 0).toFixed(3)}</strong></td> 
+                        <td>
+  <strong>
+    {transferDetails.return_items.reduce((sum, item) => {
+      const total = parseFloat(item.packing_wt || 0) + parseFloat(item.gross_weight || 0);
+      return sum + total;
+    }, 0).toFixed(3)}
+  </strong>
+</td>
+                        {/* <td><strong>{transferDetails.return_items.reduce((sum, item) => sum + parseFloat(item.stone_weight || 0), 0).toFixed(3)}</strong></td> */}
+                        {/* <td><strong>{transferDetails.return_items.reduce((sum, item) => sum + parseFloat(item.net_weight || 0), 0).toFixed(3)}</strong></td> */}
+                        {/* <td colSpan="2"></td>
+                        <td></td> */}
+                        {/* <td><strong>{transferDetails.return_items.reduce((sum, item) => sum + parseFloat(item.total_price || 0), 0).toFixed(2)}</strong></td> */}
                       </tr>
                     )}
                   </tbody>

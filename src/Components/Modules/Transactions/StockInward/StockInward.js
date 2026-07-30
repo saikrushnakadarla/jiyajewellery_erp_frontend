@@ -99,8 +99,8 @@ const StockInward = () => {
    */
   const handleImageClick = (imagePath, itemName) => {
     if (imagePath) {
-      const imageUrl = imagePath.startsWith('http') 
-        ? imagePath 
+      const imageUrl = imagePath.startsWith('http')
+        ? imagePath
         : `${baseURL}${imagePath}`;
       setSelectedImage(imageUrl);
       setSelectedItemName(itemName || 'Product Image');
@@ -147,12 +147,12 @@ const StockInward = () => {
       );
     }
 
-    const imageUrl = imagePath.startsWith('http') 
-      ? imagePath 
+    const imageUrl = imagePath.startsWith('http')
+      ? imagePath
       : `${baseURL}${imagePath}`;
 
     return (
-      <div 
+      <div
         style={{
           width: size,
           height: size,
@@ -165,9 +165,9 @@ const StockInward = () => {
         }}
         onClick={() => handleImageClick(imageUrl, itemName)}
       >
-        <img 
-          src={imageUrl} 
-          alt={itemName || 'Product'} 
+        <img
+          src={imageUrl}
+          alt={itemName || 'Product'}
           style={{
             width: '100%',
             height: '100%',
@@ -193,7 +193,7 @@ const StockInward = () => {
    */
   const renderTransferImages = (transfer, maxDisplay = 3) => {
     const images = getTransferImages(transfer);
-    
+
     if (images.length === 0) {
       return (
         <span className="text-muted" style={{ fontSize: '12px' }}>No image</span>
@@ -255,7 +255,7 @@ const StockInward = () => {
    * Fetch items for all transfers in the list
    */
   const fetchAllTransferItems = async (transfers) => {
-    const fetchPromises = transfers.map(transfer => 
+    const fetchPromises = transfers.map(transfer =>
       fetchTransferItems(transfer.transfer_id)
     );
     await Promise.allSettled(fetchPromises);
@@ -337,32 +337,32 @@ const StockInward = () => {
       setLoading(true);
       const response = await axios.get(`${baseURL}/api/stock-transfer/get-stock-transfers`);
       console.log("All Stock Transfers Response: ", response.data);
-      
+
       // Filter data based on logged-in user's stock name matching to_stock_point_name
       const filtered = response.data.filter(transfer => {
         const toStockPoint = transfer.to_stock_point_name?.toUpperCase().trim();
         const loggedStock = loggedInStockName?.toUpperCase().trim();
-        
+
         const isMatch = toStockPoint === loggedStock;
-        
+
         if (isMatch) {
           console.log(`Matched: Transfer ${transfer.transfer_number} -> To Stock Point: ${transfer.to_stock_point_name}`);
         }
-        
+
         return isMatch;
       });
-      
+
       console.log("Filtered Stock Inward Data: ", filtered);
       console.log(`Total Transfers: ${response.data.length}, Filtered: ${filtered.length}`);
-      
+
       setData(response.data);
       setFilteredData(filtered);
-      
+
       // Fetch items for filtered transfers
       if (filtered && filtered.length > 0) {
         await fetchAllTransferItems(filtered);
       }
-      
+
       setLoading(false);
     } catch (error) {
       console.error('Error fetching stock transfers:', error);
@@ -431,16 +431,16 @@ const StockInward = () => {
             </div>
           </Col>
         </Row>
-        
+
         {filteredData.length === 0 ? (
           <div className="text-center p-5">
             <p>No stock inward transfers found for <strong>{loggedInStockName}</strong></p>
           </div>
         ) : (
-          <DataTable 
-            columns={columns} 
-            data={[...filteredData].reverse()} 
-            initialSearchValue={initialSearchValue} 
+          <DataTable
+            columns={columns}
+            data={[...filteredData].reverse()}
+            initialSearchValue={initialSearchValue}
           />
         )}
       </div>
@@ -519,12 +519,13 @@ const StockInward = () => {
                       <th>Design Name</th>
                       <th>Qty</th>
                       <th>Gross Wt</th>
-                      <th>Stone Wt</th>
+                      <th>Packing Wt</th>
+                      {/* <th>Stone Wt</th>
                       <th>Net Wt</th>
                       <th>Rate</th>
                       <th>MC</th>
                       <th>Stone Price</th>
-                      <th>Total Price</th>
+                      <th>Total Price</th> */}
                     </tr>
                   </thead>
                   <tbody style={{ whiteSpace: 'nowrap', fontSize: '13px' }}>
@@ -542,22 +543,31 @@ const StockInward = () => {
                         <td>{item.design_name || 'N/A'}</td>
                         <td>{item.qty}</td>
                         <td>{item.gross_weight}</td>
-                        <td>{item.stone_weight}</td>
+                        <td>{parseFloat(item.packing_wt || 0) + parseFloat(item.gross_weight || 0)}</td>
+                        {/* <td>{item.stone_weight}</td>
                         <td>{item.net_weight}</td>
                         <td>{item.rate}</td>
                         <td>{item.making_charges}</td>
                         <td>{item.stone_price}</td>
-                        <td><strong>{item.total_price}</strong></td>
+                        <td><strong>{item.total_price}</strong></td> */}
                       </tr>
                     ))}
                     <tr style={{ fontWeight: 'bold', backgroundColor: '#f8f9fa' }}>
                       <td colSpan="8" className="text-end"><strong>Totals:</strong></td>
                       <td><strong>{transferDetails.transfer_items.reduce((sum, item) => sum + parseFloat(item.qty || 0), 0).toFixed(3)}</strong></td>
                       <td><strong>{transferDetails.transfer_items.reduce((sum, item) => sum + parseFloat(item.gross_weight || 0), 0).toFixed(3)}</strong></td>
-                      <td><strong>{transferDetails.transfer_items.reduce((sum, item) => sum + parseFloat(item.stone_weight || 0), 0).toFixed(3)}</strong></td>
-                      <td><strong>{transferDetails.transfer_items.reduce((sum, item) => sum + parseFloat(item.net_weight || 0), 0).toFixed(3)}</strong></td>
-                      <td colSpan="3"></td>
-                      <td><strong>{transferDetails.transfer_items.reduce((sum, item) => sum + parseFloat(item.total_price || 0), 0).toFixed(2)}</strong></td>
+                     <td>
+  <strong>
+    {(transferDetails.transfer_items || []).reduce((sum, item) => {
+      const total = parseFloat(item.packing_wt || 0) + parseFloat(item.gross_weight || 0);
+      return sum + total;
+    }, 0).toFixed(3)}
+  </strong>
+</td>
+                      {/* <td><strong>{transferDetails.transfer_items.reduce((sum, item) => sum + parseFloat(item.stone_weight || 0), 0).toFixed(3)}</strong></td> */}
+                      {/* <td><strong>{transferDetails.transfer_items.reduce((sum, item) => sum + parseFloat(item.net_weight || 0), 0).toFixed(3)}</strong></td> */}
+                      {/* <td colSpan="3"></td> */}
+                      {/* <td><strong>{transferDetails.transfer_items.reduce((sum, item) => sum + parseFloat(item.total_price || 0), 0).toFixed(2)}</strong></td> */}
                     </tr>
                   </tbody>
                 </Table>
@@ -579,8 +589,8 @@ const StockInward = () => {
         </Modal.Header>
         <Modal.Body className="text-center">
           {selectedImage && (
-            <img 
-              src={selectedImage} 
+            <img
+              src={selectedImage}
               alt={selectedItemName}
               style={{
                 maxWidth: '100%',

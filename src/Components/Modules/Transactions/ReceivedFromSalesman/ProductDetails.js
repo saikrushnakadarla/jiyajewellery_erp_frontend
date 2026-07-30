@@ -70,7 +70,7 @@ const ProductDetails = ({
   const [estimatesData, setEstimatesData] = useState([]);
   const [loggedInUserId, setLoggedInUserId] = useState(null);
   const [groupedPacketProducts, setGroupedPacketProducts] = useState({});
-  const [isPacketAdded, setIsPacketAdded] = useState(false); 
+  const [isPacketAdded, setIsPacketAdded] = useState(false);
 
   const [packetImage, setPacketImage] = useState(null);
 
@@ -83,6 +83,8 @@ const ProductDetails = ({
   const [showPacketScanner, setShowPacketScanner] = useState(false);
   const [isPacketScannerInitialized, setIsPacketScannerInitialized] = useState(false);
   const packetScannerRef = useRef(null);
+
+  const [packetTotals, setPacketTotals] = useState({ grossWeight: 0, packingWt: 0 });
 
   useEffect(() => {
     const userId = localStorage.getItem('userId');
@@ -322,332 +324,357 @@ const ProductDetails = ({
   };
 
   const handlePacketBarcodeScanSuccess = async (decodedText) => {
-  try {
-    stopPacketScanner();
-
-    Swal.fire({
-      title: 'Scanning Packet Barcode...',
-      text: 'Please wait while we process the packet barcode',
-      allowOutsideClick: false,
-      didOpen: () => Swal.showLoading()
-    });
-
-    let packetBarcode = decodedText;
-
-    // Try to parse as JSON first
     try {
-      const parsedData = JSON.parse(decodedText);
-      packetBarcode = parsedData.qr_code || parsedData.barcode || parsedData.PCode_BarCode || parsedData.code || parsedData.BarCode || decodedText;
-      console.log("Parsed JSON packet data:", parsedData);
-      console.log("Extracted packet barcode:", packetBarcode);
-    } catch {
-      const barcodeMatch = decodedText.match(/PACKET:\s*([A-Z0-9]+)/i);
-      if (barcodeMatch) {
-        packetBarcode = barcodeMatch[1];
-      } else {
-        const altMatch = decodedText.match(/(barcode|Barcode|PCode|code|packet|qr_code)[:\s]*([^\s,}]+)/i);
-        if (altMatch) {
-          packetBarcode = altMatch[2];
+      stopPacketScanner();
+
+      Swal.fire({
+        title: 'Scanning Packet Barcode...',
+        text: 'Please wait while we process the packet barcode',
+        allowOutsideClick: false,
+        didOpen: () => Swal.showLoading()
+      });
+
+      let packetBarcode = decodedText;
+
+      // Try to parse as JSON first
+      try {
+        const parsedData = JSON.parse(decodedText);
+        packetBarcode = parsedData.qr_code || parsedData.barcode || parsedData.PCode_BarCode || parsedData.code || parsedData.BarCode || decodedText;
+        console.log("Parsed JSON packet data:", parsedData);
+        console.log("Extracted packet barcode:", packetBarcode);
+      } catch {
+        const barcodeMatch = decodedText.match(/PACKET:\s*([A-Z0-9]+)/i);
+        if (barcodeMatch) {
+          packetBarcode = barcodeMatch[1];
+        } else {
+          const altMatch = decodedText.match(/(barcode|Barcode|PCode|code|packet|qr_code)[:\s]*([^\s,}]+)/i);
+          if (altMatch) {
+            packetBarcode = altMatch[2];
+          }
         }
       }
-    }
 
-    console.log("Final packet barcode extracted:", packetBarcode);
+      console.log("Final packet barcode extracted:", packetBarcode);
 
-    if (packetBarcode) {
-      let packetProducts = groupedPacketProducts[packetBarcode];
+      if (packetBarcode) {
+        let packetProducts = groupedPacketProducts[packetBarcode];
 
-      if (!packetProducts || packetProducts.length === 0) {
-        const matchingPacketKey = Object.keys(groupedPacketProducts).find(
-          key => key === packetBarcode || key.includes(packetBarcode)
-        );
-        if (matchingPacketKey) {
-          packetProducts = groupedPacketProducts[matchingPacketKey];
-          console.log("Found packet by matching key:", matchingPacketKey);
-        }
-      }
-
-      if (packetProducts && packetProducts.length > 0) {
-        Swal.close();
-
-        const storedRepairDetails = JSON.parse(localStorage.getItem(`repairDetails_${tabId}`)) || [];
-        const existingCodes = new Set(storedRepairDetails.map(item => item.code));
-        const newProducts = packetProducts.filter(product => !existingCodes.has(product.code));
-
-        if (newProducts.length === 0) {
-          Swal.fire({
-            icon: 'info',
-            title: 'All Products Added',
-            text: 'All products in this packet are already added',
-            timer: 1500,
-            showConfirmButton: false
-          });
-          return;
-        }
-
-        const productsWithImages = newProducts.map(product => {
-          const assignedProduct = selectedSalesmanProducts?.find(
-            p => p.PCode_BarCode === product.code
+        if (!packetProducts || packetProducts.length === 0) {
+          const matchingPacketKey = Object.keys(groupedPacketProducts).find(
+            key => key === packetBarcode || key.includes(packetBarcode)
           );
+          if (matchingPacketKey) {
+            packetProducts = groupedPacketProducts[matchingPacketKey];
+            console.log("Found packet by matching key:", matchingPacketKey);
+          }
+        }
 
-          let imagePath = assignedProduct?.image || null;
-          let imagePreview = null;
+        if (packetProducts && packetProducts.length > 0) {
+          Swal.close();
 
-          if (imagePath) {
-            if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
-              imagePreview = imagePath;
-            } else if (imagePath.startsWith('/')) {
-              imagePreview = `${baseURL}${imagePath}`;
-            } else {
-              imagePreview = `${baseURL}/${imagePath}`;
-            }
+
+          // Calculate totals for this packet
+          let totalGrossWeight = 0;
+          let totalPackingWt = 0;
+
+          packetProducts.forEach(product => {
+            const grossWt = parseFloat(product.gross_weight) || 0;
+            totalGrossWeight += grossWt;
+
+            // Get packing_wt from estimatesData
+            const estimateProduct = estimatesData.find(est => est.code === product.code);
+            const packingWt = parseFloat(estimateProduct?.packing_wt) || 0;
+            totalPackingWt += packingWt;
+          });
+
+          // Calculate Total Packing Wt as grossWeight + packingWt
+          const totalPackingWtFinal = totalGrossWeight + totalPackingWt;
+
+          // Set packet totals
+          setPacketTotals({
+            grossWeight: totalGrossWeight,
+            packingWt: totalPackingWtFinal // This will be grossWeight + packingWt
+          });
+
+
+          const storedRepairDetails = JSON.parse(localStorage.getItem(`repairDetails_${tabId}`)) || [];
+          const existingCodes = new Set(storedRepairDetails.map(item => item.code));
+          const newProducts = packetProducts.filter(product => !existingCodes.has(product.code));
+
+          if (newProducts.length === 0) {
+            Swal.fire({
+              icon: 'info',
+              title: 'All Products Added',
+              text: 'All products in this packet are already added',
+              timer: 1500,
+              showConfirmButton: false
+            });
+            return;
           }
 
-          return {
-            ...product,
-            code: product.code,
-            product_name: product.product_name || product.sub_category,
-            metal_type: product.metal_type,
-            purity: product.purity,
-            category: product.category,
-            sub_category: product.sub_category,
-            gross_weight: product.gross_weight,
-            stone_weight: product.stone_weight,
-            stone_price: product.stone_price,
-            weight_bw: product.weight_bw,
-            va_on: product.va_on || "Gross Weight",
-            va_percent: product.va_percent,
-            wastage_weight: product.wastage_weight,
-            total_weight_av: product.total_weight_av,
-            mc_on: product.mc_on || "MC %",
-            mc_per_gram: product.mc_per_gram,
-            making_charges: product.making_charges,
-            rate: product.rate,
-            rate_amt: product.rate_amt,
-            tax_percent: product.tax_percent || "03% GST",
-            tax_amt: product.tax_amt,
-            total_price: product.total_price,
-            pricing: product.pricing || "By Weight",
-            qty: product.qty || 1,
+          const productsWithImages = newProducts.map(product => {
+            const assignedProduct = selectedSalesmanProducts?.find(
+              p => p.PCode_BarCode === product.code
+            );
+
+            let imagePath = assignedProduct?.image || null;
+            let imagePreview = null;
+
+            if (imagePath) {
+              if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
+                imagePreview = imagePath;
+              } else if (imagePath.startsWith('/')) {
+                imagePreview = `${baseURL}${imagePath}`;
+              } else {
+                imagePreview = `${baseURL}/${imagePath}`;
+              }
+            }
+
+            return {
+              ...product,
+              code: product.code,
+              product_name: product.product_name || product.sub_category,
+              metal_type: product.metal_type,
+              purity: product.purity,
+              category: product.category,
+              sub_category: product.sub_category,
+              gross_weight: product.gross_weight,
+              stone_weight: product.stone_weight,
+              stone_price: product.stone_price,
+              weight_bw: product.weight_bw,
+              va_on: product.va_on || "Gross Weight",
+              va_percent: product.va_percent,
+              wastage_weight: product.wastage_weight,
+              total_weight_av: product.total_weight_av,
+              mc_on: product.mc_on || "MC %",
+              mc_per_gram: product.mc_per_gram,
+              making_charges: product.making_charges,
+              rate: product.rate,
+              rate_amt: product.rate_amt,
+              tax_percent: product.tax_percent || "03% GST",
+              tax_amt: product.tax_amt,
+              total_price: product.total_price,
+              pricing: product.pricing || "By Weight",
+              qty: product.qty || 1,
+              packet_barcode: packetBarcode,
+              is_estimated: true,
+              design_name: product.design_name,
+              imagePreview: imagePreview,
+              image: imagePath,
+              sale_status: "Delivered",
+              piece_taxable_amt: product.piece_taxable_amt || "",
+              festival_discount: product.festival_discount || "",
+              disscount: product.disscount || "",
+              disscount_percentage: product.disscount_percentage || "",
+              hm_charges: product.hm_charges || "60.00",
+              remarks: product.remarks || "",
+              printing_purity: product.printing_purity || "",
+              selling_purity: product.selling_purity || "",
+              is_packet_selection: true,
+              assigned_id: assignedProduct?.assigned_id || null,
+              item_id: assignedProduct?.item_id || null,
+              // NEW: Add cover_wt, card_wt, packing_wt
+              cover_wt: product.cover_wt || assignedProduct?.cover_wt || "",
+              card_wt: product.card_wt || assignedProduct?.card_wt || "",
+              packing_wt: product.packing_wt || assignedProduct?.packing_wt || "",
+            };
+          });
+
+          const updatedRepairDetails = [...storedRepairDetails, ...productsWithImages];
+          setRepairDetails(updatedRepairDetails);
+          localStorage.setItem(`repairDetails_${tabId}`, JSON.stringify(updatedRepairDetails));
+
+          setIsPacketAdded(true);
+
+          setFormData(prev => ({
+            ...prev,
+            code: packetBarcode,
             packet_barcode: packetBarcode,
             is_estimated: true,
-            design_name: product.design_name,
-            imagePreview: imagePreview,
-            image: imagePath,
-            sale_status: "Delivered",
-            piece_taxable_amt: product.piece_taxable_amt || "",
-            festival_discount: product.festival_discount || "",
-            disscount: product.disscount || "",
-            disscount_percentage: product.disscount_percentage || "",
-            hm_charges: product.hm_charges || "60.00",
-            remarks: product.remarks || "",
-            printing_purity: product.printing_purity || "",
-            selling_purity: product.selling_purity || "",
             is_packet_selection: true,
-            assigned_id: assignedProduct?.assigned_id || null,
-            item_id: assignedProduct?.item_id || null,
-            // NEW: Add cover_wt, card_wt, packing_wt
-            cover_wt: product.cover_wt || assignedProduct?.cover_wt || "",
-            card_wt: product.card_wt || assignedProduct?.card_wt || "",
-            packing_wt: product.packing_wt || assignedProduct?.packing_wt || "",
-          };
-        });
+            product_name: '',
+            metal_type: '',
+            purity: '',
+            category: '',
+            sub_category: '',
+            gross_weight: '',
+            stone_weight: '',
+            stone_price: '',
+            weight_bw: '',
+            va_on: 'Gross Weight',
+            va_percent: '',
+            wastage_weight: '',
+            total_weight_av: '',
+            mc_on: 'MC %',
+            mc_per_gram: '',
+            making_charges: '',
+            rate: '',
+            rate_amt: '',
+            tax_percent: '03% GST',
+            tax_amt: '',
+            total_price: '',
+            pricing: 'By Weight',
+            qty: '1',
+            design_name: '',
+            selling_purity: '',
+            printing_purity: '',
+            imagePreview: null,
+            image: null,
+            disscount: '',
+            disscount_percentage: '',
+            pieace_cost: '',
+            hm_charges: '60.00',
+            remarks: '',
+            piece_taxable_amt: '',
+            festival_discount: '',
+            custom_purity: '',
+            cover_wt: '',
+            card_wt: '',
+            packing_wt: '',
+          }));
 
-        const updatedRepairDetails = [...storedRepairDetails, ...productsWithImages];
-        setRepairDetails(updatedRepairDetails);
-        localStorage.setItem(`repairDetails_${tabId}`, JSON.stringify(updatedRepairDetails));
+          Swal.fire({
+            icon: 'success',
+            title: 'Packet Added!',
+            text: `Added ${productsWithImages.length} product(s) from packet ${packetBarcode}`,
+            timer: 2000,
+            showConfirmButton: false
+          });
 
-        setIsPacketAdded(true);
+        } else {
+          Swal.close();
+          const availablePackets = Object.keys(groupedPacketProducts);
+          console.log("Available packets:", availablePackets);
+          console.log("Scanned packet barcode:", packetBarcode);
 
-        setFormData(prev => ({
-          ...prev,
-          code: packetBarcode,
-          packet_barcode: packetBarcode,
-          is_estimated: true,
-          is_packet_selection: true,
-          product_name: '',
-          metal_type: '',
-          purity: '',
-          category: '',
-          sub_category: '',
-          gross_weight: '',
-          stone_weight: '',
-          stone_price: '',
-          weight_bw: '',
-          va_on: 'Gross Weight',
-          va_percent: '',
-          wastage_weight: '',
-          total_weight_av: '',
-          mc_on: 'MC %',
-          mc_per_gram: '',
-          making_charges: '',
-          rate: '',
-          rate_amt: '',
-          tax_percent: '03% GST',
-          tax_amt: '',
-          total_price: '',
-          pricing: 'By Weight',
-          qty: '1',
-          design_name: '',
-          selling_purity: '',
-          printing_purity: '',
-          imagePreview: null,
-          image: null,
-          disscount: '',
-          disscount_percentage: '',
-          pieace_cost: '',
-          hm_charges: '60.00',
-          remarks: '',
-          piece_taxable_amt: '',
-          festival_discount: '',
-          custom_purity: '',
-          cover_wt: '',
-          card_wt: '',
-          packing_wt: '',
-        }));
-
-        Swal.fire({
-          icon: 'success',
-          title: 'Packet Added!',
-          text: `Added ${productsWithImages.length} product(s) from packet ${packetBarcode}`,
-          timer: 2000,
-          showConfirmButton: false
-        });
-
+          Swal.fire({
+            icon: 'warning',
+            title: 'Packet Not Found',
+            text: `No products found for packet: ${packetBarcode}`,
+            confirmButtonText: 'OK'
+          });
+        }
       } else {
         Swal.close();
-        const availablePackets = Object.keys(groupedPacketProducts);
-        console.log("Available packets:", availablePackets);
-        console.log("Scanned packet barcode:", packetBarcode);
-
         Swal.fire({
           icon: 'warning',
-          title: 'Packet Not Found',
-          text: `No products found for packet: ${packetBarcode}`,
+          title: 'Invalid Packet Barcode',
+          text: 'Could not extract barcode. Please try a different barcode.',
           confirmButtonText: 'OK'
         });
       }
-    } else {
+    } catch (error) {
       Swal.close();
+      console.error('Error processing packet barcode scan:', error);
       Swal.fire({
-        icon: 'warning',
-        title: 'Invalid Packet Barcode',
-        text: 'Could not extract barcode. Please try a different barcode.',
-        confirmButtonText: 'OK'
+        icon: 'error',
+        title: 'Error',
+        text: 'Error processing packet barcode. Please try again.'
       });
     }
-  } catch (error) {
-    Swal.close();
-    console.error('Error processing packet barcode scan:', error);
-    Swal.fire({
-      icon: 'error',
-      title: 'Error',
-      text: 'Error processing packet barcode. Please try again.'
-    });
-  }
-};
+  };
 
   // ================================================================
   // FIXED: Fetch estimates and filter by Status = "Assigned"
   // ================================================================
-useEffect(() => {
-  const fetchEstimates = async () => {
-    try {
-      const response = await axios.get(`${baseURL2}/get/estimates`);
-      setEstimatesData(response.data);
+  useEffect(() => {
+    const fetchEstimates = async () => {
+      try {
+        const response = await axios.get(`${baseURL2}/get/estimates`);
+        setEstimatesData(response.data);
 
-      const grouped = {};
-      const packetImages = {}; // Store packet images separately
-      
-      response.data.forEach(est => {
-        if (est.code && est.packet_barcode) {
-          // Check if this product is assigned to the salesman
-          const isAssignedToSalesman = selectedSalesmanProducts.some(
-            assigned => assigned.PCode_BarCode === est.code
-          );
+        const grouped = {};
+        const packetImages = {}; // Store packet images separately
 
-          // Check status from opening_tags_entry (data prop)
-          const tag = data.find(t => t.PCode_BarCode === est.code);
-          const isStatusAssigned = tag && tag.Status === "Assigned";
+        response.data.forEach(est => {
+          if (est.code && est.packet_barcode) {
+            // Check if this product is assigned to the salesman
+            const isAssignedToSalesman = selectedSalesmanProducts.some(
+              assigned => assigned.PCode_BarCode === est.code
+            );
 
-          // Only include products that are assigned AND have status "Assigned"
-          if (isAssignedToSalesman && isStatusAssigned) {
-            if (!grouped[est.packet_barcode]) {
-              grouped[est.packet_barcode] = [];
-            }
-            grouped[est.packet_barcode].push({
-              code: est.code,
-              product_name: est.product_name,
-              metal_type: est.metal_type,
-              purity: est.purity,
-              category: est.category,
-              sub_category: est.sub_category,
-              gross_weight: est.gross_weight,
-              stone_weight: est.stone_weight,
-              stone_price: est.stone_price,
-              weight_bw: est.weight_bw,
-              va_on: est.va_on,
-              va_percent: est.va_percent,
-              wastage_weight: est.wastage_weight,
-              total_weight_av: est.total_weight_av,
-              mc_on: est.mc_on,
-              mc_per_gram: est.mc_per_gram,
-              making_charges: est.making_charges,
-              rate: est.rate,
-              rate_amt: est.rate_amt,
-              tax_percent: est.tax_percent,
-              tax_amt: est.tax_amt,
-              total_price: est.total_price,
-              pricing: est.pricing,
-              qty: est.qty || 1,
-              packet_barcode: est.packet_barcode,
-              is_estimated: true,
-              design_name: est.design_name,
-              stone_price_per_carat: est.stone_price_per_carat,
-              deduct_st_Wt: est.deduct_st_Wt,
-              pur_Gross_Weight: est.pur_Gross_Weight,
-              pur_Stones_Weight: est.pur_Stones_Weight,
-              pur_deduct_st_Wt: est.pur_deduct_st_Wt,
-              pur_stone_price_per_carat: est.pur_stone_price_per_carat,
-              pur_Stones_Price: est.pur_Stones_Price,
-              pur_Weight_BW: est.pur_Weight_BW,
-              pur_Making_Charges_On: est.pur_Making_Charges_On,
-              pur_MC_Per_Gram: est.pur_MC_Per_Gram,
-              pur_Making_Charges: est.pur_Making_Charges,
-              pur_Wastage_On: est.pur_Wastage_On,
-              pur_Wastage_Percentage: est.pur_Wastage_Percentage,
-              pur_WastageWeight: est.pur_WastageWeight,
-              pur_TotalWeight_AW: est.pur_TotalWeight_AW
-            });
-            
-            // Store packet image
-            if (est.pack_images) {
-              try {
-                const images = JSON.parse(est.pack_images);
-                if (images && images.length > 0) {
-                  packetImages[est.packet_barcode] = images[0]; // Get first image
+            // Check status from opening_tags_entry (data prop)
+            const tag = data.find(t => t.PCode_BarCode === est.code);
+            const isStatusAssigned = tag && tag.Status === "Assigned";
+
+            // Only include products that are assigned AND have status "Assigned"
+            if (isAssignedToSalesman && isStatusAssigned) {
+              if (!grouped[est.packet_barcode]) {
+                grouped[est.packet_barcode] = [];
+              }
+              grouped[est.packet_barcode].push({
+                code: est.code,
+                product_name: est.product_name,
+                metal_type: est.metal_type,
+                purity: est.purity,
+                category: est.category,
+                sub_category: est.sub_category,
+                gross_weight: est.gross_weight,
+                stone_weight: est.stone_weight,
+                stone_price: est.stone_price,
+                weight_bw: est.weight_bw,
+                va_on: est.va_on,
+                va_percent: est.va_percent,
+                wastage_weight: est.wastage_weight,
+                total_weight_av: est.total_weight_av,
+                mc_on: est.mc_on,
+                mc_per_gram: est.mc_per_gram,
+                making_charges: est.making_charges,
+                rate: est.rate,
+                rate_amt: est.rate_amt,
+                tax_percent: est.tax_percent,
+                tax_amt: est.tax_amt,
+                total_price: est.total_price,
+                pricing: est.pricing,
+                qty: est.qty || 1,
+                packet_barcode: est.packet_barcode,
+                is_estimated: true,
+                design_name: est.design_name,
+                stone_price_per_carat: est.stone_price_per_carat,
+                deduct_st_Wt: est.deduct_st_Wt,
+                pur_Gross_Weight: est.pur_Gross_Weight,
+                pur_Stones_Weight: est.pur_Stones_Weight,
+                pur_deduct_st_Wt: est.pur_deduct_st_Wt,
+                pur_stone_price_per_carat: est.pur_stone_price_per_carat,
+                pur_Stones_Price: est.pur_Stones_Price,
+                pur_Weight_BW: est.pur_Weight_BW,
+                pur_Making_Charges_On: est.pur_Making_Charges_On,
+                pur_MC_Per_Gram: est.pur_MC_Per_Gram,
+                pur_Making_Charges: est.pur_Making_Charges,
+                pur_Wastage_On: est.pur_Wastage_On,
+                pur_Wastage_Percentage: est.pur_Wastage_Percentage,
+                pur_WastageWeight: est.pur_WastageWeight,
+                pur_TotalWeight_AW: est.pur_TotalWeight_AW
+              });
+
+              // Store packet image
+              if (est.pack_images) {
+                try {
+                  const images = JSON.parse(est.pack_images);
+                  if (images && images.length > 0) {
+                    packetImages[est.packet_barcode] = images[0]; // Get first image
+                  }
+                } catch (e) {
+                  // If not JSON, treat as single string
+                  packetImages[est.packet_barcode] = est.pack_images;
                 }
-              } catch (e) {
-                // If not JSON, treat as single string
-                packetImages[est.packet_barcode] = est.pack_images;
               }
             }
           }
-        }
-      });
-      setGroupedPacketProducts(grouped);
-      
-      // Store packet images in state or ref for later use
-      window.packetImages = packetImages;
-      
-      console.log("Grouped packet products with Status=Assigned:", grouped);
-      console.log("Packet images:", packetImages);
-    } catch (error) {
-      console.error("Error fetching estimates:", error);
-    }
-  };
-  fetchEstimates();
-}, [selectedSalesmanProducts, data]); // Added 'data' as dependency
+        });
+        setGroupedPacketProducts(grouped);
+
+        // Store packet images in state or ref for later use
+        window.packetImages = packetImages;
+
+        console.log("Grouped packet products with Status=Assigned:", grouped);
+        console.log("Packet images:", packetImages);
+      } catch (error) {
+        console.error("Error fetching estimates:", error);
+      }
+    };
+    fetchEstimates();
+  }, [selectedSalesmanProducts, data]); // Added 'data' as dependency
 
   const getPacketBarcode = (productCode) => {
     if (!estimatesData || !productCode) return null;
@@ -740,200 +767,235 @@ useEffect(() => {
     }
   }, [formData.category, defaultBarcode]);
 
-const handleBarcodeSelect = (selectedValue) => {
-  const selectedOption = uniqueBarcodeOptions.find(opt => opt.value === selectedValue);
+  const handleBarcodeSelect = (selectedValue) => {
+    const selectedOption = uniqueBarcodeOptions.find(opt => opt.value === selectedValue);
 
-  if (selectedOption) {
-    // Set packet image if available
-    let packetImageUrl = null;
-    if (selectedOption.type === "packet" && selectedOption.packetBarcode) {
-      const imageFileName = window.packetImages?.[selectedOption.packetBarcode];
-      if (imageFileName) {
-        // Construct image URL - adjust the path as per your server configuration
-        packetImageUrl = `${baseURL2}/uploads/pack-images/${imageFileName}`;
-        // Or if images are stored elsewhere, adjust accordingly
-        // packetImageUrl = `${baseURL2}/uploads/${imageFileName}`;
-      }
-    }
-    setPacketImage(packetImageUrl);
+    if (selectedOption) {
+      // Set packet image if available
+      let packetImageUrl = null;
+      let totalGrossWeight = 0;
+      let totalPackingWt = 0;
 
-    if (selectedOption.type === "packet" && selectedOption.products && selectedOption.products.length > 0) {
-      console.log("Packet selected with products:", selectedOption.products);
-
-      const storedRepairDetails = JSON.parse(localStorage.getItem(`repairDetails_${tabId}`)) || [];
-      const existingCodes = new Set(storedRepairDetails.map(item => item.code));
-      const newProducts = selectedOption.products.filter(product => !existingCodes.has(product.code));
-
-      if (newProducts.length === 0) {
-        alert("All products in this packet are already added");
-        setFormData(prev => ({
-          ...prev,
-          code: selectedValue,
-          packet_barcode: selectedOption.packetBarcode,
-          is_estimated: true,
-          is_packet_selection: true,
-          cover_wt: '',
-          card_wt: '',
-          packing_wt: '',
-        }));
-        return;
-      }
-
-      const productsWithImages = newProducts.map(product => {
-        const assignedProduct = selectedSalesmanProducts?.find(
-          p => p.PCode_BarCode === product.code
-        );
-
-        let imagePath = assignedProduct?.image || null;
-        let imagePreview = null;
-
-        if (imagePath) {
-          if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
-            imagePreview = imagePath;
-          } else if (imagePath.startsWith('/')) {
-            imagePreview = `${baseURL}${imagePath}`;
-          } else {
-            imagePreview = `${baseURL}/${imagePath}`;
-          }
+      if (selectedOption.type === "packet" && selectedOption.packetBarcode) {
+        const imageFileName = window.packetImages?.[selectedOption.packetBarcode];
+        if (imageFileName) {
+          packetImageUrl = `${baseURL2}/uploads/pack-images/${imageFileName}`;
         }
 
-        return {
-          ...product,
-          code: product.code,
-          product_name: product.product_name || product.sub_category,
-          metal_type: product.metal_type,
-          purity: product.purity,
-          category: product.category,
-          sub_category: product.sub_category,
-          gross_weight: product.gross_weight,
-          stone_weight: product.stone_weight,
-          stone_price: product.stone_price,
-          weight_bw: product.weight_bw,
-          va_on: product.va_on || "Gross Weight",
-          va_percent: product.va_percent,
-          wastage_weight: product.wastage_weight,
-          total_weight_av: product.total_weight_av,
-          mc_on: product.mc_on || "MC %",
-          mc_per_gram: product.mc_per_gram,
-          making_charges: product.making_charges,
-          rate: product.rate,
-          rate_amt: product.rate_amt,
-          tax_percent: product.tax_percent || "03% GST",
-          tax_amt: product.tax_amt,
-          total_price: product.total_price,
-          pricing: product.pricing || "By Weight",
-          qty: product.qty || 1,
+        // Calculate totals for products in this packet
+        if (selectedOption.products && selectedOption.products.length > 0) {
+          selectedOption.products.forEach(product => {
+            // Get gross_weight - convert to number
+            const grossWt = parseFloat(product.gross_weight) || 0;
+            totalGrossWeight += grossWt;
+
+            // Get packing_wt from estimatesData for this product
+            const estimateProduct = estimatesData.find(est => est.code === product.code);
+            const packingWt = parseFloat(estimateProduct?.packing_wt) || 0;
+            totalPackingWt += packingWt;
+          });
+        }
+
+        // Calculate Total Packing Wt as grossWeight + packingWt
+        const totalPackingWtFinal = totalGrossWeight + totalPackingWt;
+
+        // Update packet totals
+        setPacketTotals({
+          grossWeight: totalGrossWeight,
+          packingWt: totalPackingWtFinal // This will be grossWeight + packingWt
+        });
+      } else {
+        // Reset packet totals if not a packet
+        setPacketTotals({ grossWeight: 0, packingWt: 0 });
+      }
+
+      setPacketImage(packetImageUrl);
+
+      if (selectedOption.type === "packet" && selectedOption.products && selectedOption.products.length > 0) {
+        console.log("Packet selected with products:", selectedOption.products);
+        console.log("Total Gross Weight:", totalGrossWeight);
+        console.log("Total Packing Weight:", totalPackingWt);
+
+        const storedRepairDetails = JSON.parse(localStorage.getItem(`repairDetails_${tabId}`)) || [];
+        const existingCodes = new Set(storedRepairDetails.map(item => item.code));
+        const newProducts = selectedOption.products.filter(product => !existingCodes.has(product.code));
+
+        if (newProducts.length === 0) {
+          alert("All products in this packet are already added");
+          setFormData(prev => ({
+            ...prev,
+            code: selectedValue,
+            packet_barcode: selectedOption.packetBarcode,
+            is_estimated: true,
+            is_packet_selection: true,
+            cover_wt: '',
+            card_wt: '',
+            packing_wt: '',
+          }));
+          return;
+        }
+
+        const productsWithImages = newProducts.map(product => {
+          const assignedProduct = selectedSalesmanProducts?.find(
+            p => p.PCode_BarCode === product.code
+          );
+
+          let imagePath = assignedProduct?.image || null;
+          let imagePreview = null;
+
+          if (imagePath) {
+            if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
+              imagePreview = imagePath;
+            } else if (imagePath.startsWith('/')) {
+              imagePreview = `${baseURL}${imagePath}`;
+            } else {
+              imagePreview = `${baseURL}/${imagePath}`;
+            }
+          }
+
+          // Get packing_wt from estimatesData
+          const estimateProduct = estimatesData.find(est => est.code === product.code);
+          const packingWt = estimateProduct?.packing_wt || "";
+
+          return {
+            ...product,
+            code: product.code,
+            product_name: product.product_name || product.sub_category,
+            metal_type: product.metal_type,
+            purity: product.purity,
+            category: product.category,
+            sub_category: product.sub_category,
+            gross_weight: product.gross_weight,
+            stone_weight: product.stone_weight,
+            stone_price: product.stone_price,
+            weight_bw: product.weight_bw,
+            va_on: product.va_on || "Gross Weight",
+            va_percent: product.va_percent,
+            wastage_weight: product.wastage_weight,
+            total_weight_av: product.total_weight_av,
+            mc_on: product.mc_on || "MC %",
+            mc_per_gram: product.mc_per_gram,
+            making_charges: product.making_charges,
+            rate: product.rate,
+            rate_amt: product.rate_amt,
+            tax_percent: product.tax_percent || "03% GST",
+            tax_amt: product.tax_amt,
+            total_price: product.total_price,
+            pricing: product.pricing || "By Weight",
+            qty: product.qty || 1,
+            packet_barcode: selectedOption.packetBarcode,
+            is_estimated: true,
+            design_name: product.design_name,
+            imagePreview: imagePreview,
+            image: imagePath,
+            sale_status: "Delivered",
+            piece_taxable_amt: product.piece_taxable_amt || "",
+            festival_discount: product.festival_discount || "",
+            disscount: product.disscount || "",
+            disscount_percentage: product.disscount_percentage || "",
+            hm_charges: product.hm_charges || "60.00",
+            remarks: product.remarks || "",
+            printing_purity: product.printing_purity || "",
+            selling_purity: product.selling_purity || "",
+            is_packet_selection: true,
+            assigned_id: assignedProduct?.assigned_id || null,
+            item_id: assignedProduct?.item_id || null,
+            cover_wt: product.cover_wt || assignedProduct?.cover_wt || "",
+            card_wt: product.card_wt || assignedProduct?.card_wt || "",
+            packing_wt: packingWt || "",
+          };
+        });
+
+        const updatedRepairDetails = [...storedRepairDetails, ...productsWithImages];
+        setRepairDetails(updatedRepairDetails);
+        localStorage.setItem(`repairDetails_${tabId}`, JSON.stringify(updatedRepairDetails));
+
+        setIsPacketAdded(true);
+
+        setFormData(prev => ({
+          ...prev,
+          code: selectedValue,
           packet_barcode: selectedOption.packetBarcode,
           is_estimated: true,
-          design_name: product.design_name,
-          imagePreview: imagePreview,
-          image: imagePath,
-          sale_status: "Delivered",
-          piece_taxable_amt: product.piece_taxable_amt || "",
-          festival_discount: product.festival_discount || "",
-          disscount: product.disscount || "",
-          disscount_percentage: product.disscount_percentage || "",
-          hm_charges: product.hm_charges || "60.00",
-          remarks: product.remarks || "",
-          printing_purity: product.printing_purity || "",
-          selling_purity: product.selling_purity || "",
           is_packet_selection: true,
-          assigned_id: assignedProduct?.assigned_id || null,
-          item_id: assignedProduct?.item_id || null,
-          cover_wt: product.cover_wt || assignedProduct?.cover_wt || "",
-          card_wt: product.card_wt || assignedProduct?.card_wt || "",
-          packing_wt: product.packing_wt || assignedProduct?.packing_wt || "",
-        };
-      });
-
-      const updatedRepairDetails = [...storedRepairDetails, ...productsWithImages];
-      setRepairDetails(updatedRepairDetails);
-      localStorage.setItem(`repairDetails_${tabId}`, JSON.stringify(updatedRepairDetails));
-
-      setIsPacketAdded(true);
-
-      setFormData(prev => ({
-        ...prev,
-        code: selectedValue,
-        packet_barcode: selectedOption.packetBarcode,
-        is_estimated: true,
-        is_packet_selection: true,
-        product_name: '',
-        metal_type: '',
-        purity: '',
-        category: '',
-        sub_category: '',
-        gross_weight: '',
-        stone_weight: '',
-        stone_price: '',
-        weight_bw: '',
-        va_on: 'Gross Weight',
-        va_percent: '',
-        wastage_weight: '',
-        total_weight_av: '',
-        mc_on: 'MC %',
-        mc_per_gram: '',
-        making_charges: '',
-        rate: '',
-        rate_amt: '',
-        tax_percent: '03% GST',
-        tax_amt: '',
-        total_price: '',
-        pricing: 'By Weight',
-        qty: '1',
-        design_name: '',
-        selling_purity: '',
-        printing_purity: '',
-        imagePreview: null,
-        image: null,
-        disscount: '',
-        disscount_percentage: '',
-        pieace_cost: '',
-        hm_charges: '60.00',
-        remarks: '',
-        piece_taxable_amt: '',
-        festival_discount: '',
-        custom_purity: '',
-        cover_wt: '',
-        card_wt: '',
-        packing_wt: '',
-      }));
-
-      alert(`Added ${productsWithImages.length} product(s) from packet ${selectedOption.packetBarcode}`);
-
-    } else {
-      setIsPacketAdded(false);
-      setPacketImage(null); // Clear packet image if not a packet
-      if (selectedOption.packetBarcode) {
-        setFormData(prev => ({
-          ...prev,
-          code: selectedValue,
-          packet_barcode: selectedOption.packetBarcode,
-          is_estimated: selectedOption.isEstimated || false,
-          is_packet_selection: false,
+          product_name: '',
+          metal_type: '',
+          purity: '',
+          category: '',
+          sub_category: '',
+          gross_weight: '',
+          stone_weight: '',
+          stone_price: '',
+          weight_bw: '',
+          va_on: 'Gross Weight',
+          va_percent: '',
+          wastage_weight: '',
+          total_weight_av: '',
+          mc_on: 'MC %',
+          mc_per_gram: '',
+          making_charges: '',
+          rate: '',
+          rate_amt: '',
+          tax_percent: '03% GST',
+          tax_amt: '',
+          total_price: '',
+          pricing: 'By Weight',
+          qty: '1',
+          design_name: '',
+          selling_purity: '',
+          printing_purity: '',
+          imagePreview: null,
+          image: null,
+          disscount: '',
+          disscount_percentage: '',
+          pieace_cost: '',
+          hm_charges: '60.00',
+          remarks: '',
+          piece_taxable_amt: '',
+          festival_discount: '',
+          custom_purity: '',
           cover_wt: '',
           card_wt: '',
           packing_wt: '',
         }));
+
+        alert(`Added ${productsWithImages.length} product(s) from packet ${selectedOption.packetBarcode}\nTotal Gross Weight: ${totalGrossWeight.toFixed(2)}g\nTotal Packing Weight: ${totalPackingWt.toFixed(2)}g`);
+
       } else {
-        setFormData(prev => ({
-          ...prev,
-          code: selectedValue,
-          packet_barcode: null,
-          is_estimated: false,
-          is_packet_selection: false,
-          cover_wt: '',
-          card_wt: '',
-          packing_wt: '',
-        }));
+        setIsPacketAdded(false);
+        setPacketImage(null);
+        setPacketTotals({ grossWeight: 0, packingWt: 0 }); // Reset totals
+        if (selectedOption.packetBarcode) {
+          setFormData(prev => ({
+            ...prev,
+            code: selectedValue,
+            packet_barcode: selectedOption.packetBarcode,
+            is_estimated: selectedOption.isEstimated || false,
+            is_packet_selection: false,
+            cover_wt: '',
+            card_wt: '',
+            packing_wt: '',
+          }));
+        } else {
+          setFormData(prev => ({
+            ...prev,
+            code: selectedValue,
+            packet_barcode: null,
+            is_estimated: false,
+            is_packet_selection: false,
+            cover_wt: '',
+            card_wt: '',
+            packing_wt: '',
+          }));
+        }
+        handleBarcodeChange(selectedValue);
       }
-      handleBarcodeChange(selectedValue);
     }
-  }
-};
+  };
 
   const handleClear = () => {
     setIsPacketAdded(false);
+    setPacketTotals({ grossWeight: 0, packingWt: 0 });
     setFormData(prevFormData => ({
       ...prevFormData,
       code: "",
@@ -977,6 +1039,7 @@ const handleBarcodeSelect = (selectedValue) => {
       packet_barcode: null,
       is_estimated: false,
       is_packet_selection: false,
+
     }));
   };
 
@@ -1090,7 +1153,7 @@ const handleBarcodeSelect = (selectedValue) => {
     <Col>
       <Row>
         {/* Barcode with Scan Buttons */}
-        <Col xs={12} md={5}>
+        <Col xs={12} md={8}>
           <div style={{ display: 'flex', alignItems: 'flex-end', gap: '6px' }}>
             <div style={{ flex: 1, minWidth: '80px' }}>
               <InputField
@@ -1145,32 +1208,65 @@ const handleBarcodeSelect = (selectedValue) => {
               title="Scan Packet"
             >
               <FaBarcode size={13} /> Scan Packet
-            </Button> 
+            </Button>
 
-{/* Display Packet Image */}
-{packetImage && (
-  <Col xs={12} md={2} style={{ marginTop: '5px' }}>
-    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-      <img 
-        src={packetImage} 
-        alt="Packet" 
-        style={{ 
-          width: '80px', 
-          height: '80px', 
-          borderRadius: '8px',
-          border: '1px solid #ddd',
-          padding: '5px',
-          objectFit: 'cover'
-        }} 
-        onError={(e) => {
-          e.target.style.display = 'none';
-          setPacketImage(null);
-        }}
-      />
-      <span style={{ fontSize: '12px', color: '#666' }}>Packet Image</span>
-    </div>
-  </Col>
-)}
+            {/* Display Packet Image */}
+            {packetImage && (
+              <Col xs={12} md={2} style={{ marginTop: '5px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <img
+                    src={packetImage}
+                    alt="Packet"
+                    style={{
+                      width: '80px',
+                      height: '80px',
+                      borderRadius: '8px',
+                      border: '1px solid #ddd',
+                      padding: '5px',
+                      objectFit: 'cover'
+                    }}
+                    onError={(e) => {
+                      e.target.style.display = 'none';
+                      setPacketImage(null);
+                    }}
+                  />
+                  <span style={{ fontSize: '12px', color: '#666' }}>Packet Image</span>
+                </div>
+              </Col>
+            )}
+
+            {/* Display Packet Totals */}
+            {(packetTotals.grossWeight > 0 || packetTotals.packingWt > 0) && (
+              <div style={{ marginTop: '5px' }}>
+                <div style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '5px',
+                  padding: '8px 12px',
+                  border: '1px solid #e0e0e0',
+                  borderRadius: '8px',
+                  backgroundColor: '#f9f9f9'
+                }}>
+                  <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#333' }}>
+                    Packet Summary
+                  </div>
+                  <div style={{ display: 'flex', gap: '20px' }}>
+                    <div>
+                      <span style={{ fontSize: '12px', color: '#666' }}>Total Gross Wt: </span>
+                      <span style={{ fontSize: '14px', fontWeight: 'bold', color: '#28a745' }}>
+                        {packetTotals.grossWeight.toFixed(2)}g
+                      </span>
+                    </div>
+                    <div>
+                      <span style={{ fontSize: '12px', color: '#666' }}>Total Packing Wt: </span>
+                      <span style={{ fontSize: '14px', fontWeight: 'bold', color: '#007bff' }}>
+                        {packetTotals.packingWt.toFixed(2)}g
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
 
           </div>
         </Col>
