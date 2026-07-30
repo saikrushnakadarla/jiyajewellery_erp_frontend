@@ -9,7 +9,7 @@ import {
   FaBoxes, FaList, FaEye, FaCheckCircle, FaMinusCircle,
   FaUserTie, FaUserCheck, FaUserPlus, FaMapMarkerAlt,
   FaCity, FaMapPin, FaChevronDown, FaChevronRight,
-  FaBuilding, FaLocationDot, FaCamera, FaImage
+  FaBuilding, FaLocationDot, FaCamera, FaImage, FaTimesCircle
 } from 'react-icons/fa';
 import './VisitLogsWarehouseSchedule.css';
 import Swal from 'sweetalert2';
@@ -95,6 +95,48 @@ const VisitLogsWarehouseSchedule = () => {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  // ========== GROUP SCHEDULES FUNCTION ==========
+  // Group schedules by customer, date, warehouse, salesman
+  const groupSchedules = (visits) => {
+    const grouped = {};
+    
+    visits.forEach(visit => {
+      // Create a unique key based on customer, date (without time), warehouse, salesman
+      const date = visit.scheduled_date ? new Date(visit.scheduled_date) : null;
+      const dateKey = date ? date.toISOString().split('T')[0] : 'unknown';
+      
+      const key = `${visit.customer_account_id}_${dateKey}_${visit.warehouse_id}_${visit.salesman_id || 'none'}`;
+      
+      if (!grouped[key]) {
+        grouped[key] = {
+          id: visit.id,
+          customer_account_id: visit.customer_account_id,
+          customer_name: visit.customer_name,
+          customer_id: visit.customer_id,
+          warehouse_id: visit.warehouse_id,
+          warehouse_name: visit.warehouse_name,
+          scheduled_date: visit.scheduled_date,
+          salesman_id: visit.salesman_id,
+          salesman_name: visit.salesman_name,
+          salesman_photo: visit.salesman_photo,
+          status: visit.status,
+          created_at: visit.created_at,
+          barcodes: [],
+          barcode_details: []
+        };
+      }
+      
+      grouped[key].barcodes.push(visit.barcode);
+      grouped[key].barcode_details.push({
+        barcode: visit.barcode,
+        product_name: visit.product_name || 'Product'
+      });
+    });
+    
+    return Object.values(grouped);
+  };
+  // ==================================================
 
   // Fetch customers from account-details API
   const fetchCustomers = async () => {
@@ -236,6 +278,7 @@ const VisitLogsWarehouseSchedule = () => {
       warehouse_id: value,
       barcodes: []
     }));
+    setSelectedBarcodeDetails([]);
     
     if (value) {
       fetchBarcodesForStockPoint(parseInt(value));
@@ -355,6 +398,17 @@ const VisitLogsWarehouseSchedule = () => {
     });
   };
 
+  // ========== NEW: Handle individual barcode removal ==========
+  const handleRemoveBarcode = (barcodeToRemove) => {
+    setFormData(prev => ({
+      ...prev,
+      barcodes: prev.barcodes.filter(b => b !== barcodeToRemove)
+    }));
+    // Also remove from selectedBarcodeDetails if present
+    setSelectedBarcodeDetails(prev => prev.filter(b => b.barcode !== barcodeToRemove));
+  };
+  // =========================================================
+
   // Get salesman name by ID
   const getSalesmanName = (salesmanId) => {
     if (!salesmanId) return 'Not Assigned';
@@ -369,7 +423,7 @@ const VisitLogsWarehouseSchedule = () => {
     return `${baseURL}${photoPath}`;
   };
 
-  // Handle form submission
+  // Handle form submission - FIXED to use PUT directly
   const handleSubmit = async (e) => {
     e.preventDefault();
     
@@ -438,8 +492,8 @@ const VisitLogsWarehouseSchedule = () => {
       let response;
       if (isEditing) {
         console.log(`📝 Updating schedule ${editingId}...`);
-        submitData.append('_method', 'PUT');
-        response = await axios.post(`${baseURL}/api/visit-logs-warehouse-schedule/${editingId}`, submitData, {
+        // Use PUT directly instead of POST with _method
+        response = await axios.put(`${baseURL}/api/visit-logs-warehouse-schedule/${editingId}`, submitData, {
           headers: {
             'Content-Type': 'multipart/form-data'
           }
@@ -507,18 +561,21 @@ const VisitLogsWarehouseSchedule = () => {
     }
   };
 
-  // Handle edit
+  // Handle edit - updated to handle grouped schedules
   const handleEdit = (schedule) => {
     console.log(`📝 Editing schedule:`, schedule);
     const formattedDate = schedule.scheduled_date 
       ? new Date(schedule.scheduled_date).toISOString().slice(0, 16)
       : '';
     
+    // Get barcodes from the group
+    const barcodes = schedule.barcodes || (schedule.barcode ? [schedule.barcode] : []);
+    
     setFormData({
       scheduled_date: formattedDate,
       customer_id: schedule.customer_account_id || schedule.customer_id,
       warehouse_id: schedule.warehouse_id || '',
-      barcodes: schedule.barcode ? [schedule.barcode] : [],
+      barcodes: barcodes,
       salesman_id: schedule.salesman_id || '',
       salesman_photo: null,
       salesman_photo_preview: schedule.salesman_photo ? `${baseURL}${schedule.salesman_photo}` : null
@@ -1054,7 +1111,7 @@ const VisitLogsWarehouseSchedule = () => {
                     </Col>
                   </Row>
 
-                  {/* Selected Barcodes Display */}
+                  {/* Selected Barcodes Display - FIXED with individual removal */}
                   <Row className="mt-2">
                     <Col md={12}>
                       <Form.Group>
@@ -1073,22 +1130,45 @@ const VisitLogsWarehouseSchedule = () => {
                                   size="sm"
                                   onClick={() => {
                                     setFormData(prev => ({ ...prev, barcodes: [] }));
-                                    setSelectedBarcodes([]);
                                     setSelectedBarcodeDetails([]);
                                   }}
                                 >
-                                  <FaTimes />
+                                  <FaTimes /> Clear All
                                 </Button>
                               </div>
-                              <div className="vlws-barcode-tags mt-1">
-                                {formData.barcodes.slice(0, 3).map((barcode, index) => (
-                                  <Badge key={index} bg="dark" className="me-1 mb-1">
+                              <div className="vlws-barcode-tags mt-2">
+                                {formData.barcodes.map((barcode, index) => (
+                                  <Badge 
+                                    key={index} 
+                                    bg="dark" 
+                                    className="vlws-barcode-tag me-2 mb-2"
+                                    style={{ 
+                                      display: 'inline-flex', 
+                                      alignItems: 'center', 
+                                      padding: '6px 10px',
+                                      fontSize: '14px'
+                                    }}
+                                  >
+                                    <FaBarcode className="me-1" />
                                     {barcode}
+                                    <Button
+                                      variant="link"
+                                      size="sm"
+                                      className="vlws-barcode-remove-btn ms-1 p-0"
+                                      onClick={() => handleRemoveBarcode(barcode)}
+                                      style={{ 
+                                        color: '#ff6b6b', 
+                                        textDecoration: 'none',
+                                        padding: '0 4px',
+                                        fontSize: '16px',
+                                        lineHeight: 1
+                                      }}
+                                      title="Remove barcode"
+                                    >
+                                      <FaTimesCircle />
+                                    </Button>
                                   </Badge>
                                 ))}
-                                {formData.barcodes.length > 3 && (
-                                  <Badge bg="secondary">+{formData.barcodes.length - 3} more</Badge>
-                                )}
                               </div>
                             </>
                           ) : (
@@ -1212,7 +1292,7 @@ const VisitLogsWarehouseSchedule = () => {
             </Col>
           </Row>
 
-          {/* Scheduled Visits Table */}
+          {/* Scheduled Visits Table - GROUPED VIEW */}
           <Row className="vlws-table-section">
             <Col md={12}>
               <div className="vlws-table-card">
@@ -1231,7 +1311,7 @@ const VisitLogsWarehouseSchedule = () => {
                         <th>Customer</th>
                         <th>Customer Code</th>
                         <th>Stock Point</th>
-                        <th>Barcode</th>
+                        <th>Barcodes</th>
                         <th>Salesman</th>
                         <th>Photo</th>
                         <th>Status</th>
@@ -1249,78 +1329,94 @@ const VisitLogsWarehouseSchedule = () => {
                           </td>
                         </tr>
                       ) : scheduledVisits.length > 0 ? (
-                        scheduledVisits.map((schedule, index) => (
-                          <tr key={schedule.id} className={editingId === schedule.id ? 'vlws-editing-row' : ''}>
-                            <td>{index + 1}</td>
-                            <td>
-                              <FaCalendarCheck className="me-2 text-primary" />
-                              {formatDateTime(schedule.scheduled_date)}
-                            </td>
-                            <td>
-                              <FaUser className="me-2 text-success" />
-                              {schedule.customer_name || getCustomerName(schedule.customer_account_id)}
-                              <br />
-                              <small className="text-muted">ID: {schedule.customer_account_id}</small>
-                            </td>
-                            <td>
-                              <Badge bg="info">{schedule.customer_id || getCustomerCode(schedule.customer_account_id)}</Badge>
-                            </td>
-                            <td>
-                              <FaWarehouse className="me-2 text-warning" />
-                              {schedule.warehouse_name || getStockPointName(schedule.warehouse_id)}
-                            </td>
-                            <td>
-                              <Badge bg="dark" className="vlws-barcode-badge">
-                                <FaBarcode className="me-1" />
-                                {schedule.barcode || 'N/A'}
-                              </Badge>
-                            </td>
-                            <td>
-                              {schedule.salesman_id ? (
-                                <Badge bg="success" className="vlws-salesman-badge">
-                                  <FaUserCheck className="me-1" />
-                                  {schedule.salesman_name || getSalesmanName(schedule.salesman_id)}
-                                </Badge>
-                              ) : (
-                                <Badge bg="secondary">Not Assigned</Badge>
-                              )}
-                            </td>
-                            <td>
-                              {schedule.salesman_photo ? (
-                                <img 
-                                  src={getSalesmanPhotoUrl(schedule.salesman_photo)} 
-                                  alt="Salesman" 
-                                  style={{ width: '40px', height: '40px', borderRadius: '50%', objectFit: 'cover' }}
-                                />
-                              ) : (
-                                <span className="text-muted">No Photo</span>
-                              )}
-                            </td>
-                            <td>{getVisitStatusBadge(schedule.status)}</td>
-                            <td>{formatDateTime(schedule.created_at)}</td>
-                            <td>
-                              <div className="vlws-action-buttons">
-                                <Button
-                                  variant="outline-warning"
-                                  size="sm"
-                                  className="me-1"
-                                  onClick={() => handleEdit(schedule)}
-                                  title="Edit"
-                                >
-                                  <FaEdit />
-                                </Button>
-                                <Button
-                                  variant="outline-danger"
-                                  size="sm"
-                                  onClick={() => handleDelete(schedule.id)}
-                                  title="Delete"
-                                >
-                                  <FaTrash />
-                                </Button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))
+                        // Group the schedules first
+                        (() => {
+                          const groupedSchedules = groupSchedules(scheduledVisits);
+                          return groupedSchedules.map((group, index) => (
+                            <tr key={group.id || index} className={editingId === group.id ? 'vlws-editing-row' : ''}>
+                              <td>{index + 1}</td>
+                              <td>
+                                <FaCalendarCheck className="me-2 text-primary" />
+                                {formatDateTime(group.scheduled_date)}
+                              </td>
+                              <td>
+                                <FaUser className="me-2 text-success" />
+                                {group.customer_name || getCustomerName(group.customer_account_id)}
+                                <br />
+                                <small className="text-muted">ID: {group.customer_account_id}</small>
+                              </td>
+                              <td>
+                                <Badge bg="info">{group.customer_id || getCustomerCode(group.customer_account_id)}</Badge>
+                              </td>
+                              <td>
+                                <FaWarehouse className="me-2 text-warning" />
+                                {group.warehouse_name || getStockPointName(group.warehouse_id)}
+                              </td>
+                              <td>
+                                {/* Show all barcodes in a single cell */}
+                                <div className="vlws-barcode-group">
+                                  {group.barcodes && group.barcodes.length > 0 ? (
+                                    group.barcodes.map((barcode, idx) => (
+                                      <Badge key={idx} bg="dark" className="vlws-barcode-badge me-1 mb-1">
+                                        <FaBarcode className="me-1" />
+                                        {barcode}
+                                      </Badge>
+                                    ))
+                                  ) : (
+                                    <Badge bg="dark" className="vlws-barcode-badge">
+                                      <FaBarcode className="me-1" />
+                                      {group.barcode || 'N/A'}
+                                    </Badge>
+                                  )}
+                                </div>
+                              </td>
+                              <td>
+                                {group.salesman_id ? (
+                                  <Badge bg="success" className="vlws-salesman-badge">
+                                    <FaUserCheck className="me-1" />
+                                    {group.salesman_name || getSalesmanName(group.salesman_id)}
+                                  </Badge>
+                                ) : (
+                                  <Badge bg="secondary">Not Assigned</Badge>
+                                )}
+                              </td>
+                              <td>
+                                {group.salesman_photo ? (
+                                  <img 
+                                    src={getSalesmanPhotoUrl(group.salesman_photo)} 
+                                    alt="Salesman" 
+                                    style={{ width: '40px', height: '40px', borderRadius: '50%', objectFit: 'cover' }}
+                                  />
+                                ) : (
+                                  <span className="text-muted">No Photo</span>
+                                )}
+                              </td>
+                              <td>{getVisitStatusBadge(group.status)}</td>
+                              <td>{formatDateTime(group.created_at)}</td>
+                              <td>
+                                <div className="vlws-action-buttons">
+                                  <Button
+                                    variant="outline-warning"
+                                    size="sm"
+                                    className="me-1"
+                                    onClick={() => handleEdit(group)}
+                                    title="Edit"
+                                  >
+                                    <FaEdit />
+                                  </Button>
+                                  <Button
+                                    variant="outline-danger"
+                                    size="sm"
+                                    onClick={() => handleDelete(group.id)}
+                                    title="Delete"
+                                  >
+                                    <FaTrash />
+                                  </Button>
+                                </div>
+                              </td>
+                            </tr>
+                          ));
+                        })()
                       ) : (
                         <tr>
                           <td colSpan="11" className="text-center py-4 text-muted">
