@@ -153,7 +153,7 @@ const AssignedSalesmanTable = () => {
         accessor: 'total_net_weight',
       },
       {
-        Header: 'Salesman Status', // Changed from 'Status' to 'Salesman Status'
+        Header: 'Salesman Status',
         accessor: 'salesman_status',
         Cell: ({ value }) => getSalesmanStatusBadge(value),
       },
@@ -370,81 +370,76 @@ const AssignedSalesmanTable = () => {
                 </tbody>
               </Table>
 
-              <h5>Assigned Items</h5>
-              <div className="table-responsive">
-                <Table bordered>
-                  <thead style={{ whiteSpace: 'nowrap', fontSize: '13px' }}>
-                    <tr>
-                      <th>SI</th>
-                      <th>Product Name</th>
-                      <th>PCode/Barcode</th>
-                      <th>Metal Type</th>
-                      <th>Purity</th>
-                      <th>Category</th>
-                      <th>Sub Category</th>
-                      <th>Design Name</th>
-                      <th>Qty</th>
-                      <th>Gross Wt</th>
-                      <th>Packing Wt</th>
-                      {/* <th>Stone Wt</th>
-                      <th>Net Wt</th>
-                      <th>Rate</th>
-                      <th>MC</th>
-                      <th>Stone Price</th>
-                      <th>Total Price</th> */}
-                    </tr>
-                  </thead>
-                  <tbody style={{ whiteSpace: 'nowrap', fontSize: '13px' }}>
-                    {transferDetails.transfer_items && transferDetails.transfer_items.length > 0 ? (
-                      transferDetails.transfer_items.map((item, index) => (
-                        <tr key={index}>
-                          <td>{index + 1}</td>
-                          <td>{item.product_name || 'N/A'}</td>
-                          <td>{item.PCode_BarCode || 'N/A'}</td>
-                          <td>{item.metal_type || 'N/A'}</td>
-                          <td>{item.purity || 'N/A'}</td>
-                          <td>{item.category || 'N/A'}</td>
-                          <td>{item.sub_category || 'N/A'}</td>
-                          <td>{item.design_name || 'N/A'}</td>
-                          <td>{item.qty}</td>
-                          <td>{item.gross_weight}</td>
-                          <td>{parseFloat(item.packing_wt || 0) + parseFloat(item.gross_weight || 0)}</td>
-                          {/* <td>{item.stone_weight}</td>
-                          <td>{item.net_weight}</td>
-                          <td>{item.rate}</td>
-                          <td>{item.making_charges}</td>
-                          <td>{item.stone_price}</td>
-                          <td><strong>{item.total_price}</strong></td> */}
+              {/* Conditionally render Assigned Items section only if salesman_status is "accepted" */}
+              {transferDetails.transfer_details.salesman_status === "accepted" && (
+                <>
+                  <h5>Assigned Items</h5>
+                  <div className="table-responsive">
+                    <Table bordered>
+                      <thead style={{ whiteSpace: 'nowrap', fontSize: '13px' }}>
+                        <tr>
+                          <th>SI</th>
+                          <th>Product Name</th>
+                          <th>PCode/Barcode</th>
+                          <th>Metal Type</th>
+                          <th>Purity</th>
+                          <th>Category</th>
+                          <th>Sub Category</th>
+                          <th>Design Name</th>
+                          <th>Qty</th>
+                          <th>Gross Wt</th>
+                          <th>Packing Wt</th>
                         </tr>
-                      ))
-                    ) : (
-                      <tr>
-                        <td colSpan="16" className="text-center">No items found</td>
-                      </tr>
-                    )}
-                    {transferDetails.transfer_items && transferDetails.transfer_items.length > 0 && (
-                      <tr style={{ fontWeight: 'bold', backgroundColor: '#f8f9fa' }}>
-                        <td colSpan="8" className="text-end"><strong>Totals:</strong></td>
-                        <td><strong>{transferDetails.transfer_items.reduce((sum, item) => sum + parseFloat(item.qty || 0), 0).toFixed(3)}</strong></td>
-                        <td><strong>{transferDetails.transfer_items.reduce((sum, item) => sum + parseFloat(item.gross_weight || 0), 0).toFixed(3)}</strong></td>
-                        <td>
-                          <strong>
-                            {(transferDetails.transfer_items || []).reduce((sum, item) => {
-                              const total = parseFloat(item.packing_wt || 0) + parseFloat(item.gross_weight || 0);
-                              return sum + total;
-                            }, 0).toFixed(3)}
-                          </strong>
-                        </td>
-                        {/* <td><strong>{transferDetails.transfer_items.reduce((sum, item) => sum + parseFloat(item.stone_weight || 0), 0).toFixed(3)}</strong></td>
-                        <td><strong>{transferDetails.transfer_items.reduce((sum, item) => sum + parseFloat(item.net_weight || 0), 0).toFixed(3)}</strong></td>
-                        <td colSpan="2"></td>
-                        <td></td>
-                        <td><strong>{transferDetails.transfer_items.reduce((sum, item) => sum + parseFloat(item.total_price || 0), 0).toFixed(2)}</strong></td> */}
-                      </tr>
-                    )}
-                  </tbody>
-                </Table>
-              </div>
+                      </thead>
+                      <tbody style={{ whiteSpace: 'nowrap', fontSize: '13px' }}>
+                        {transferDetails.transfer_items && transferDetails.transfer_items.length > 0 ? (
+                          transferDetails.transfer_items.map((item, index) => (
+                            <tr key={index}>
+                              <td>{index + 1}</td>
+                              <td>{item.product_name || 'N/A'}</td>
+                              <td>{item.PCode_BarCode || 'N/A'}</td>
+                              <td>{item.metal_type || 'N/A'}</td>
+                              <td>{item.purity || 'N/A'}</td>
+                              <td>{item.category || 'N/A'}</td>
+                              <td>{item.sub_category || 'N/A'}</td>
+                              <td>{item.design_name || 'N/A'}</td>
+                              <td>{item.qty}</td>
+                              <td>{item.gross_weight}</td>
+                              <td>{parseFloat(item.packing_wt || 0) + parseFloat(item.gross_weight || 0)}</td>
+                            </tr>
+                          ))
+                        ) : (
+                          <tr>
+                            <td colSpan="11" className="text-center">No items found</td>
+                          </tr>
+                        )}
+                        {transferDetails.transfer_items && transferDetails.transfer_items.length > 0 && (
+                          <tr style={{ fontWeight: 'bold', backgroundColor: '#f8f9fa' }}>
+                            <td colSpan="8" className="text-end"><strong>Totals:</strong></td>
+                            <td><strong>{transferDetails.transfer_items.reduce((sum, item) => sum + parseFloat(item.qty || 0), 0).toFixed(3)}</strong></td>
+                            <td><strong>{transferDetails.transfer_items.reduce((sum, item) => sum + parseFloat(item.gross_weight || 0), 0).toFixed(3)}</strong></td>
+                            <td>
+                              <strong>
+                                {(transferDetails.transfer_items || []).reduce((sum, item) => {
+                                  const total = parseFloat(item.packing_wt || 0) + parseFloat(item.gross_weight || 0);
+                                  return sum + total;
+                                }, 0).toFixed(3)}
+                              </strong>
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </Table>
+                  </div>
+                </>
+              )}
+
+              {/* Show a message when salesman_status is pending */}
+              {transferDetails.transfer_details.salesman_status === "pending" && (
+                <div className="text-center text-muted" style={{ padding: '20px' }}>
+                  <p><strong>Note:</strong> Items are hidden because the salesman has not accepted this transfer yet.</p>
+                </div>
+              )}
             </>
           )}
         </Modal.Body>
