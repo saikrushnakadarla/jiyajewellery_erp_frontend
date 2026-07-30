@@ -9,7 +9,9 @@ import {
   FaBoxes, FaList, FaEye, FaCheckCircle, FaMinusCircle,
   FaUserTie, FaUserCheck, FaUserPlus, FaMapMarkerAlt,
   FaCity, FaMapPin, FaChevronDown, FaChevronRight,
-  FaBuilding, FaLocationDot, FaCamera, FaImage, FaTimesCircle
+  FaBuilding, FaCamera, FaImage, FaTimesCircle,
+  FaPhone, FaEnvelope, FaIdCard, FaCalendarAlt, FaTag,
+  FaLocationArrow
 } from 'react-icons/fa';
 import './VisitLogsWarehouseSchedule.css';
 import Swal from 'sweetalert2';
@@ -49,6 +51,10 @@ const VisitLogsWarehouseSchedule = () => {
   const [availableBarcodes, setAvailableBarcodes] = useState([]);
   const [selectedBarcodes, setSelectedBarcodes] = useState([]);
   const [selectedBarcodeDetails, setSelectedBarcodeDetails] = useState([]);
+
+  // State for View Modal
+  const [showViewModal, setShowViewModal] = useState(false);
+  const [viewSchedule, setViewSchedule] = useState(null);
 
   // State for custom dropdown
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -114,14 +120,20 @@ const VisitLogsWarehouseSchedule = () => {
           customer_account_id: visit.customer_account_id,
           customer_name: visit.customer_name,
           customer_id: visit.customer_id,
+          customer_code: visit.customer_code,
+          customer_phone: visit.customer_phone,
+          customer_mobile: visit.customer_mobile,
+          customer_email: visit.customer_email,
           warehouse_id: visit.warehouse_id,
           warehouse_name: visit.warehouse_name,
+          warehouse_location: visit.warehouse_location,
           scheduled_date: visit.scheduled_date,
           salesman_id: visit.salesman_id,
           salesman_name: visit.salesman_name,
           salesman_photo: visit.salesman_photo,
           status: visit.status,
           created_at: visit.created_at,
+          updated_at: visit.updated_at,
           barcodes: [],
           barcode_details: []
         };
@@ -636,6 +648,13 @@ const VisitLogsWarehouseSchedule = () => {
         });
       }
     }
+  };
+
+  // Handle View
+  const handleView = (schedule) => {
+    console.log('👁️ Viewing schedule:', schedule);
+    setViewSchedule(schedule);
+    setShowViewModal(true);
   };
 
   // Get visit status badge
@@ -1311,18 +1330,15 @@ const VisitLogsWarehouseSchedule = () => {
                         <th>Customer</th>
                         <th>Customer Code</th>
                         <th>Stock Point</th>
-                        <th>Barcodes</th>
                         <th>Salesman</th>
-                        <th>Photo</th>
                         <th>Status</th>
-                        <th>Created At</th>
                         <th>Actions</th>
                       </tr>
                     </thead>
                     <tbody>
                       {fetchLoading ? (
                         <tr>
-                          <td colSpan="11" className="text-center py-4">
+                          <td colSpan="8" className="text-center py-4">
                             <div className="spinner-border text-primary" role="status">
                               <span className="visually-hidden">Loading...</span>
                             </div>
@@ -1353,48 +1369,36 @@ const VisitLogsWarehouseSchedule = () => {
                                 {group.warehouse_name || getStockPointName(group.warehouse_id)}
                               </td>
                               <td>
-                                {/* Show all barcodes in a single cell */}
-                                <div className="vlws-barcode-group">
-                                  {group.barcodes && group.barcodes.length > 0 ? (
-                                    group.barcodes.map((barcode, idx) => (
-                                      <Badge key={idx} bg="dark" className="vlws-barcode-badge me-1 mb-1">
-                                        <FaBarcode className="me-1" />
-                                        {barcode}
-                                      </Badge>
-                                    ))
-                                  ) : (
-                                    <Badge bg="dark" className="vlws-barcode-badge">
-                                      <FaBarcode className="me-1" />
-                                      {group.barcode || 'N/A'}
-                                    </Badge>
-                                  )}
-                                </div>
-                              </td>
-                              <td>
                                 {group.salesman_id ? (
-                                  <Badge bg="success" className="vlws-salesman-badge">
-                                    <FaUserCheck className="me-1" />
-                                    {group.salesman_name || getSalesmanName(group.salesman_id)}
-                                  </Badge>
+                                  <div className="d-flex align-items-center">
+                                    {group.salesman_photo && (
+                                      <img 
+                                        src={getSalesmanPhotoUrl(group.salesman_photo)} 
+                                        alt="Salesman" 
+                                        style={{ width: '30px', height: '30px', borderRadius: '50%', objectFit: 'cover', marginRight: '8px' }}
+                                      />
+                                    )}
+                                    <Badge bg="success" className="vlws-salesman-badge">
+                                      <FaUserCheck className="me-1" />
+                                      {group.salesman_name || getSalesmanName(group.salesman_id)}
+                                    </Badge>
+                                  </div>
                                 ) : (
                                   <Badge bg="secondary">Not Assigned</Badge>
                                 )}
                               </td>
-                              <td>
-                                {group.salesman_photo ? (
-                                  <img 
-                                    src={getSalesmanPhotoUrl(group.salesman_photo)} 
-                                    alt="Salesman" 
-                                    style={{ width: '40px', height: '40px', borderRadius: '50%', objectFit: 'cover' }}
-                                  />
-                                ) : (
-                                  <span className="text-muted">No Photo</span>
-                                )}
-                              </td>
                               <td>{getVisitStatusBadge(group.status)}</td>
-                              <td>{formatDateTime(group.created_at)}</td>
                               <td>
                                 <div className="vlws-action-buttons">
+                                  <Button
+                                    variant="outline-primary"
+                                    size="sm"
+                                    className="me-1"
+                                    onClick={() => handleView(group)}
+                                    title="View Details"
+                                  >
+                                    <FaEye />
+                                  </Button>
                                   <Button
                                     variant="outline-warning"
                                     size="sm"
@@ -1419,7 +1423,7 @@ const VisitLogsWarehouseSchedule = () => {
                         })()
                       ) : (
                         <tr>
-                          <td colSpan="11" className="text-center py-4 text-muted">
+                          <td colSpan="8" className="text-center py-4 text-muted">
                             No scheduled visits found
                           </td>
                         </tr>
@@ -1432,6 +1436,224 @@ const VisitLogsWarehouseSchedule = () => {
           </Row>
         </Container>
       </div>
+
+      {/* View Schedule Modal */}
+      <Modal 
+        show={showViewModal} 
+        onHide={() => {
+          setShowViewModal(false);
+          setViewSchedule(null);
+        }}
+        size="xl"
+        className="vlws-view-modal"
+      >
+        <Modal.Header closeButton className="vlws-modal-header">
+          <Modal.Title style={{color:"white"}}>
+            <FaEye className="me-2" />
+              Visit Schedule Details
+          </Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          {viewSchedule && (
+            <div className="vlws-view-content">
+              {/* Two Column Layout */}
+              <Row>
+                <Col md={6}>
+                  {/* Customer Details Section */}
+                  <div className="vlws-view-section">
+                    <h5 className="vlws-view-section-title">
+                      <FaUser className="me-2 text-primary" />
+                      Customer Information
+                    </h5>
+                    <div className="vlws-view-details">
+                      <div className="vlws-view-item">
+                        <span className="vlws-view-label">
+                          <FaIdCard className="me-1" /> Customer ID:
+                        </span>
+                        <span className="vlws-view-value">{viewSchedule.customer_account_id || 'N/A'}</span>
+                      </div>
+                      <div className="vlws-view-item">
+                        <span className="vlws-view-label">
+                          <FaUser className="me-1" /> Name:
+                        </span>
+                        <span className="vlws-view-value">{viewSchedule.customer_name || 'N/A'}</span>
+                      </div>
+                      <div className="vlws-view-item">
+                        <span className="vlws-view-label">
+                          <FaTag className="me-1" /> Code:
+                        </span>
+                        <span className="vlws-view-value">
+                          <Badge bg="info">{viewSchedule.customer_code || viewSchedule.customer_id || 'N/A'}</Badge>
+                        </span>
+                      </div>
+                      <div className="vlws-view-item">
+                        <span className="vlws-view-label">
+                          <FaPhone className="me-1" /> Phone:
+                        </span>
+                        <span className="vlws-view-value">{viewSchedule.customer_phone || 'N/A'}</span>
+                      </div>
+                      <div className="vlws-view-item">
+                        <span className="vlws-view-label">
+                          <FaPhone className="me-1" /> Mobile:
+                        </span>
+                        <span className="vlws-view-value">{viewSchedule.customer_mobile || 'N/A'}</span>
+                      </div>
+                      <div className="vlws-view-item">
+                        <span className="vlws-view-label">
+                          <FaEnvelope className="me-1" /> Email:
+                        </span>
+                        <span className="vlws-view-value">{viewSchedule.customer_email || 'N/A'}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Schedule Details Section */}
+                  <div className="vlws-view-section mt-3">
+                    <h5 className="vlws-view-section-title">
+                      <FaCalendarCheck className="me-2 text-warning" />
+                      Schedule Information
+                    </h5>
+                    <div className="vlws-view-details">
+                      <div className="vlws-view-item">
+                        <span className="vlws-view-label">
+                          <FaCalendarAlt className="me-1" /> Scheduled Date:
+                        </span>
+                        <span className="vlws-view-value">{formatDateTime(viewSchedule.scheduled_date)}</span>
+                      </div>
+                      <div className="vlws-view-item">
+                        <span className="vlws-view-label">
+                          <FaClock className="me-1" /> Status:
+                        </span>
+                        <span className="vlws-view-value">{getVisitStatusBadge(viewSchedule.status)}</span>
+                      </div>
+                      <div className="vlws-view-item">
+                        <span className="vlws-view-label">
+                          <FaCalendarAlt className="me-1" /> Created At:
+                        </span>
+                        <span className="vlws-view-value">{formatDateTime(viewSchedule.created_at)}</span>
+                      </div>
+                      <div className="vlws-view-item">
+                        <span className="vlws-view-label">
+                          <FaCalendarAlt className="me-1" /> Updated At:
+                        </span>
+                        <span className="vlws-view-value">{formatDateTime(viewSchedule.updated_at)}</span>
+                      </div>
+                    </div>
+                  </div>
+                </Col>
+
+                <Col md={6}>
+                  {/* Warehouse Details Section */}
+                  <div className="vlws-view-section">
+                    <h5 className="vlws-view-section-title">
+                      <FaWarehouse className="me-2 text-warning" />
+                      Warehouse Information
+                    </h5>
+                    <div className="vlws-view-details">
+                      <div className="vlws-view-item">
+                        <span className="vlws-view-label">
+                          <FaWarehouse className="me-1" /> Warehouse ID:
+                        </span>
+                        <span className="vlws-view-value">{viewSchedule.warehouse_id || 'N/A'}</span>
+                      </div>
+                      <div className="vlws-view-item">
+                        <span className="vlws-view-label">
+                          <FaBuilding className="me-1" /> Name:
+                        </span>
+                        <span className="vlws-view-value">{viewSchedule.warehouse_name || 'N/A'}</span>
+                      </div>
+                      <div className="vlws-view-item">
+                        <span className="vlws-view-label">
+                          <FaLocationArrow className="me-1" /> Location:
+                        </span>
+                        <span className="vlws-view-value">{viewSchedule.warehouse_location || 'N/A'}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Salesman Details Section */}
+                  <div className="vlws-view-section mt-3">
+                    <h5 className="vlws-view-section-title">
+                      <FaUserTie className="me-2 text-success" />
+                      Salesman Information
+                    </h5>
+                    <div className="vlws-view-details">
+                      {viewSchedule.salesman_id ? (
+                        <>
+                          <div className="vlws-view-item">
+                            <span className="vlws-view-label">
+                              <FaIdCard className="me-1" /> ID:
+                            </span>
+                            <span className="vlws-view-value">{viewSchedule.salesman_id}</span>
+                          </div>
+                          <div className="vlws-view-item">
+                            <span className="vlws-view-label">
+                              <FaUserCheck className="me-1" /> Name:
+                            </span>
+                            <span className="vlws-view-value">{viewSchedule.salesman_name || 'N/A'}</span>
+                          </div>
+                          {viewSchedule.salesman_photo && (
+                            <div className="vlws-view-item">
+                              <span className="vlws-view-label">
+                                <FaCamera className="me-1" /> Photo:
+                              </span>
+                              <span className="vlws-view-value">
+                                <img 
+                                  src={getSalesmanPhotoUrl(viewSchedule.salesman_photo)} 
+                                  alt="Salesman" 
+                                  style={{ width: '60px', height: '60px', borderRadius: '50%', objectFit: 'cover' }}
+                                />
+                              </span>
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <div className="vlws-view-item">
+                          <span className="vlws-view-label">Status:</span>
+                          <span className="vlws-view-value text-muted">Not Assigned</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Barcodes Section - Moved to right column */}
+                  <div className="vlws-view-section mt-3">
+                    <h5 className="vlws-view-section-title">
+                      <FaBarcode className="me-2 text-info" />
+                      Barcodes ({viewSchedule.barcodes?.length || 0})
+                    </h5>
+                    <div className="vlws-view-barcodes">
+                      {viewSchedule.barcodes && viewSchedule.barcodes.length > 0 ? (
+                        <div className="vlws-barcode-group-view">
+                          {viewSchedule.barcodes.map((barcode, index) => (
+                            <Badge key={index} bg="dark" className="vlws-barcode-badge me-2 mb-2" style={{ fontSize: '14px', padding: '8px 14px' }}>
+                              <FaBarcode className="me-1" />
+                              {barcode}
+                            </Badge>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-muted">No barcodes associated with this visit.</p>
+                      )}
+                    </div>
+                  </div>
+                </Col>
+              </Row>
+            </div>
+          )}
+        </Modal.Body>
+        <Modal.Footer>
+          <Button
+            variant="secondary"
+            onClick={() => {
+              setShowViewModal(false);
+              setViewSchedule(null);
+            }}
+          >
+            Close
+          </Button>
+        </Modal.Footer>
+      </Modal>
 
       {/* Barcode Items Modal */}
       <Modal 
