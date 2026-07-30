@@ -213,10 +213,11 @@ const ReceivedSalesmanTable = () => {
     [userName]
   );
 
-  // Fixed handleEdit function - simplified navigation
   const handleEdit = (transfer) => {
+    const tabId = crypto.randomUUID();
     navigate("/add-receive-from-salesman", { 
       state: { 
+        tabId,
         editData: transfer,
         isEdit: true 
       } 
@@ -248,9 +249,9 @@ const ReceivedSalesmanTable = () => {
     });
   };
 
-  // Fixed handleCreate function - simplified navigation like reference code
   const handleCreate = () => {
-    navigate('/add-receive-from-salesman');
+    const tabId = crypto.randomUUID();
+    navigate("/add-receive-from-salesman", { state: { tabId } });
   };
 
   const fetchReceivedTransfers = async () => {
@@ -487,13 +488,13 @@ const ReceivedSalesmanTable = () => {
                         <td><strong>{transferDetails.transfer_items.reduce((sum, item) => sum + parseFloat(item.qty || 0), 0).toFixed(3)}</strong></td>
                         <td><strong>{transferDetails.transfer_items.reduce((sum, item) => sum + parseFloat(item.gross_weight || 0), 0).toFixed(3)}</strong></td> 
                         <td>
-                          <strong>
-                            {(transferDetails.transfer_items || []).reduce((sum, item) => {
-                              const total = parseFloat(item.packing_wt || 0) + parseFloat(item.gross_weight || 0);
-                              return sum + total;
-                            }, 0).toFixed(3)}
-                          </strong>
-                        </td>
+  <strong>
+    {(transferDetails.transfer_items || []).reduce((sum, item) => {
+      const total = parseFloat(item.packing_wt || 0) + parseFloat(item.gross_weight || 0);
+      return sum + total;
+    }, 0).toFixed(3)}
+  </strong>
+</td>
                         {/* <td><strong>{transferDetails.transfer_items.reduce((sum, item) => sum + parseFloat(item.stone_weight || 0), 0).toFixed(3)}</strong></td>
                         <td><strong>{transferDetails.transfer_items.reduce((sum, item) => sum + parseFloat(item.net_weight || 0), 0).toFixed(3)}</strong></td>
                         <td colSpan="2"></td>

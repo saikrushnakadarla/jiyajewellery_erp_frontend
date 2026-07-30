@@ -339,21 +339,11 @@ const StockTransferTable = () => {
     [userName, transferItemsCache]
   );
 
-  // Fixed handleEdit function
   const handleEdit = (transfer) => {
-    const newTabId = crypto.randomUUID();
+    const tabId = crypto.randomUUID();
     navigate("/add-stocktransfer", { 
-      state: { 
-        tabId: newTabId, 
-        editData: transfer, 
-        isEdit: true 
-      } 
+      state: { tabId, editData: transfer, isEdit: true } 
     });
-  };
-
-  // Fixed handleCreate function - same as reference code
-  const handleCreate = () => {
-    navigate('/add-stocktransfer');
   };
 
   const handleDelete = async (transferId) => {
@@ -384,6 +374,11 @@ const StockTransferTable = () => {
         }
       }
     });
+  };
+
+  const handleCreate = () => {
+    const tabId = crypto.randomUUID();
+    navigate("/add-stocktransfer", { state: { tabId } });
   };
 
   const fetchStockTransfers = async () => {

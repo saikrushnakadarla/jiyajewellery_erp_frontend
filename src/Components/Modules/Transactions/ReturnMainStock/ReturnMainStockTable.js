@@ -226,11 +226,10 @@ const ReturnMainStockTable = () => {
     [userName, stockPoints]
   );
 
+  // Fixed handleEdit function - simplified navigation
   const handleEdit = (transfer) => {
-    const tabId = crypto.randomUUID();
     navigate("/add-return-to-main-stock", { 
       state: { 
-        tabId,
         editData: transfer,
         isEdit: true 
       } 
@@ -262,9 +261,9 @@ const ReturnMainStockTable = () => {
     });
   };
 
+  // Fixed handleCreate function - simplified navigation like reference code
   const handleCreate = () => {
-    const tabId = crypto.randomUUID();
-    navigate("/add-return-to-main-stock", { state: { tabId } });
+    navigate('/add-return-to-main-stock');
   };
 
   // Fetch stock points data
@@ -475,7 +474,7 @@ const ReturnMainStockTable = () => {
                       <th>Design Name</th>
                       <th>Qty</th>
                       <th>Gross Wt</th> 
-                       <th>Packing Wt</th>
+                      <th>Packing Wt</th>
                       {/* <th>Stone Wt</th>
                       <th>Net Wt</th>
                       <th>Rate</th>
@@ -541,13 +540,13 @@ const ReturnMainStockTable = () => {
                         <td><strong>{transferDetails.return_items.reduce((sum, item) => sum + parseFloat(item.qty || 0), 0).toFixed(3)}</strong></td>
                         <td><strong>{transferDetails.return_items.reduce((sum, item) => sum + parseFloat(item.gross_weight || 0), 0).toFixed(3)}</strong></td> 
                         <td>
-  <strong>
-    {transferDetails.return_items.reduce((sum, item) => {
-      const total = parseFloat(item.packing_wt || 0) + parseFloat(item.gross_weight || 0);
-      return sum + total;
-    }, 0).toFixed(3)}
-  </strong>
-</td>
+                          <strong>
+                            {transferDetails.return_items.reduce((sum, item) => {
+                              const total = parseFloat(item.packing_wt || 0) + parseFloat(item.gross_weight || 0);
+                              return sum + total;
+                            }, 0).toFixed(3)}
+                          </strong>
+                        </td>
                         {/* <td><strong>{transferDetails.return_items.reduce((sum, item) => sum + parseFloat(item.stone_weight || 0), 0).toFixed(3)}</strong></td> */}
                         {/* <td><strong>{transferDetails.return_items.reduce((sum, item) => sum + parseFloat(item.net_weight || 0), 0).toFixed(3)}</strong></td> */}
                         {/* <td colSpan="2"></td>

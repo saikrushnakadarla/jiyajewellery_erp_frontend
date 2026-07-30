@@ -8,7 +8,7 @@ import baseURL from '../../../../Url/NodeBaseURL';
 import { AuthContext } from "../../../Pages/Login/Context";
 import Swal from 'sweetalert2';
 
-const ReceivedSalesmanTable = () => {
+const AssignedSalesmanTable = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [data, setData] = useState([]);
@@ -60,6 +60,30 @@ const ReceivedSalesmanTable = () => {
     ).padStart(2, '0')}-${date.getFullYear()}`;
   };
 
+  // Updated to show Salesman Status badge instead of regular status
+  const getSalesmanStatusBadge = (status) => {
+    const statusColors = {
+      'pending': { color: '#ffc107', text: 'Pending' },
+      'accepted': { color: '#28a745', text: 'Accepted' },
+      'rejected': { color: '#dc3545', text: 'Rejected' },
+      'completed': { color: '#17a2b8', text: 'Completed' }
+    };
+    const statusInfo = statusColors[status] || { color: '#6c757d', text: status || 'N/A' };
+    return (
+      <span style={{
+        backgroundColor: statusInfo.color,
+        color: 'white',
+        padding: '3px 8px',
+        borderRadius: '4px',
+        fontSize: '11px',
+        fontWeight: 'bold'
+      }}>
+        {statusInfo.text}
+      </span>
+    );
+  };
+
+  // Keep the old status badge for cases where we might need it
   const getStatusBadge = (status) => {
     const statusColors = {
       'pending': { color: '#ffc107', text: 'Pending' },
@@ -82,14 +106,6 @@ const ReceivedSalesmanTable = () => {
     );
   };
 
-  // Helper function to get full image URL
-  const getImageUrl = (imagePath) => {
-    if (!imagePath) return null;
-    // Remove leading slash if present and construct full URL
-    const cleanPath = imagePath.startsWith('/') ? imagePath.substring(1) : imagePath;
-    return `${baseURL}/${cleanPath}`;
-  };
-
   const columns = React.useMemo(
     () => [
       {
@@ -97,17 +113,22 @@ const ReceivedSalesmanTable = () => {
         Cell: ({ row }) => row.index + 1,
       },
       {
-        Header: 'Received No',
-        accessor: 'received_number',
+        Header: 'Assigned No',
+        accessor: 'assigned_number',
       },
       {
-        Header: 'Received Date',
+        Header: 'Assigned Date',
         accessor: 'transfer_date',
         Cell: ({ value }) => formatDate(value),
       },
       {
-        Header: 'From Salesman',
-        accessor: 'from_salesman_name',
+        Header: 'From Stock Point',
+        accessor: 'from_stock_point_name',
+        Cell: ({ value }) => value || 'N/A',
+      },
+      {
+        Header: 'To Salesman',
+        accessor: 'to_salesman_name',
         Cell: ({ value }) => value || 'N/A',
       },
       {
@@ -115,62 +136,26 @@ const ReceivedSalesmanTable = () => {
         accessor: 'salesman_mobile',
         Cell: ({ value }) => value || 'N/A',
       },
-      // {
-      //   Header: 'To Stock Point',
-      //   accessor: 'to_stock_point_name',
-      //   Cell: ({ value }) => value || 'N/A',
-      // },
       {
         Header: 'Total Items',
         accessor: 'total_items',
       },
-      // {
-      //   Header: 'Total Qty',
-      //   accessor: 'total_quantity',
-      // },
+      {
+        Header: 'Total Qty',
+        accessor: 'total_quantity',
+      },
       {
         Header: 'Total Gross Wt',
         accessor: 'total_gross_weight',
       },
-      // {
-      //   Header: 'Total Net Wt',
-      //   accessor: 'total_net_weight',
-      // },
       {
-        Header: 'Status',
-        accessor: 'status',
-        Cell: ({ value }) => getStatusBadge(value),
+        Header: 'Total Net Wt',
+        accessor: 'total_net_weight',
       },
       {
-        Header: 'Capture Image',
-        accessor: 'capture_image',
-        Cell: ({ value }) => {
-          if (!value) return <span style={{ color: '#999' }}>No image</span>;
-          const imageUrl = getImageUrl(value);
-          return (
-            <div style={{ textAlign: 'center' }}>
-              <img 
-                src={imageUrl} 
-                alt="Capture" 
-                style={{ 
-                  width: '50px', 
-                  height: '50px', 
-                  objectFit: 'cover',
-                  borderRadius: '4px',
-                  cursor: 'pointer'
-                }}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  window.open(imageUrl, '_blank');
-                }}
-                onError={(e) => {
-                  e.target.style.display = 'none';
-                  e.target.parentNode.innerHTML = '<span style="color:#999">Invalid image</span>';
-                }}
-              />
-            </div>
-          );
-        }
+        Header: 'Salesman Status', // Changed from 'Status' to 'Salesman Status'
+        accessor: 'salesman_status',
+        Cell: ({ value }) => getSalesmanStatusBadge(value),
       },
       {
         Header: 'Actions',
@@ -178,12 +163,12 @@ const ReceivedSalesmanTable = () => {
         Cell: ({ row }) => {
           const isAdmin = userName === "ADMIN";
           const canEdit = row.original.status === 'pending';
-          
+
           return (
             <div>
               <FaEye
                 style={{ cursor: 'pointer', marginLeft: '10px', color: 'green' }}
-                onClick={() => handleViewDetails(row.original.received_id)}
+                onClick={() => handleViewDetails(row.original.assigned_id)}
               />
               {isAdmin && canEdit && (
                 <FaEdit
@@ -202,7 +187,7 @@ const ReceivedSalesmanTable = () => {
                     marginLeft: '10px',
                     color: 'red',
                   }}
-                  onClick={() => handleDelete(row.original.received_id)}
+                  onClick={() => handleDelete(row.original.assigned_id)}
                 />
               )}
             </div>
@@ -213,20 +198,21 @@ const ReceivedSalesmanTable = () => {
     [userName]
   );
 
-  // Fixed handleEdit function - simplified navigation
   const handleEdit = (transfer) => {
-    navigate("/add-receive-from-salesman", { 
-      state: { 
+    const tabId = crypto.randomUUID();
+    navigate("/add-assign-salesmantransfer", {
+      state: {
+        tabId,
         editData: transfer,
-        isEdit: true 
-      } 
+        isEdit: true
+      }
     });
   };
 
-  const handleDelete = async (receivedId) => {
+  const handleDelete = async (assignedId) => {
     Swal.fire({
       title: 'Are you sure?',
-      text: `Do you really want to delete this received transfer?`,
+      text: `Do you really want to delete this assigned transfer?`,
       icon: 'warning',
       showCancelButton: true,
       confirmButtonColor: '#d33',
@@ -235,70 +221,73 @@ const ReceivedSalesmanTable = () => {
     }).then(async (result) => {
       if (result.isConfirmed) {
         try {
-          const response = await axios.delete(`${baseURL}/api/received-salesman/delete-received-transfer/${receivedId}`);
+          const response = await axios.delete(`${baseURL}/api/assigned-salesman/delete-assigned-transfer/${assignedId}`);
           if (response.status === 200) {
             Swal.fire('Deleted!', response.data.message, 'success');
-            fetchReceivedTransfers();
+            fetchAssignedTransfers();
           }
         } catch (error) {
-          console.error('Error deleting received transfer:', error);
-          Swal.fire('Error!', 'Failed to delete received transfer. Please try again.', 'error');
+          console.error('Error deleting assigned transfer:', error);
+          Swal.fire('Error!', 'Failed to delete assigned transfer. Please try again.', 'error');
         }
       }
     });
   };
 
-  // Fixed handleCreate function - simplified navigation like reference code
   const handleCreate = () => {
-    navigate('/add-receive-from-salesman');
+    const tabId = crypto.randomUUID();
+    navigate("/add-assign-salesmantransfer", { state: { tabId } });
   };
 
-  const fetchReceivedTransfers = async () => {
+  const fetchAssignedTransfers = async () => {
     try {
       setLoading(true);
-      const response = await axios.get(`${baseURL}/api/received-salesman/get-received-transfers`);
-      console.log("Received Transfers Response: ", response.data);
-      
+      const response = await axios.get(`${baseURL}/api/assigned-salesman/get-assigned-transfers`);
+      console.log("Assigned Transfers Response: ", response.data);
+
+      // Get logged-in user ID from localStorage
       const loggedInUserId = getLoggedInUserId();
       console.log("Logged in User ID from localStorage:", loggedInUserId);
-      
+
+      // Filter data where BOTH from_user_id AND from_stock_point_id match the logged-in user
       let filteredTransfers = response.data;
       if (loggedInUserId) {
         filteredTransfers = response.data.filter(
-          transfer => transfer.to_stock_point_id === loggedInUserId && 
-                     transfer.to_user_id === loggedInUserId
+          transfer => transfer.from_user_id === loggedInUserId &&
+            transfer.from_stock_point_id === loggedInUserId
         );
-        console.log("Filtered Transfers (to_stock_point_id and to_user_id match):", filteredTransfers);
+        console.log("Filtered Transfers (from_user_id and from_stock_point_id match):", filteredTransfers);
       }
-      
+
       setData(filteredTransfers);
       setFilteredData(filteredTransfers);
       setLoading(false);
     } catch (error) {
-      console.error('Error fetching received transfers:', error);
+      console.error('Error fetching assigned transfers:', error);
       setLoading(false);
     }
   };
 
-  const handleViewDetails = async (receivedId) => {
+  const handleViewDetails = async (assigned_id) => {
     try {
-      const response = await axios.get(`${baseURL}/api/received-salesman/get-received-transfer/${receivedId}`);
-      console.log("Fetched received details: ", response.data);
-      
+      const response = await axios.get(`${baseURL}/api/assigned-salesman/get-assigned-transfer/${assigned_id}`);
+      console.log("Fetched assigned details: ", response.data);
+
+      // Verify that the user has access to view this transfer
       const loggedInUserId = getLoggedInUserId();
       if (loggedInUserId) {
         const transfer = response.data.transfer_details;
-        if (transfer.to_stock_point_id !== loggedInUserId || transfer.to_user_id !== loggedInUserId) {
+        if (transfer.from_user_id !== loggedInUserId || transfer.from_stock_point_id !== loggedInUserId) {
           Swal.fire('Access Denied', 'You do not have permission to view this transfer', 'error');
           return;
         }
       }
-      
+
       setTransferDetails(response.data);
       setShowModal(true);
     } catch (error) {
-      console.error("Error fetching received details:", error);
-      Swal.fire('Error', 'Failed to fetch received details', 'error');
+      console.error("Error fetching assigned details:", error);
+      Swal.fire('Error', 'Failed to fetch assigned details', 'error');
     }
   };
 
@@ -308,7 +297,7 @@ const ReceivedSalesmanTable = () => {
   };
 
   useEffect(() => {
-    fetchReceivedTransfers();
+    fetchAssignedTransfers();
   }, []);
 
   return (
@@ -316,7 +305,7 @@ const ReceivedSalesmanTable = () => {
       <div className="sales-table-container">
         <Row className="mb-3">
           <Col className="d-flex justify-content-between align-items-center">
-            <h3>Received From Salesman</h3>
+            <h3>Assigned to Salesman</h3>
             <Button
               className="create_but"
               onClick={handleCreate}
@@ -335,65 +324,41 @@ const ReceivedSalesmanTable = () => {
 
       <Modal show={showModal} onHide={handleCloseModal} size="xl" className="m-auto">
         <Modal.Header closeButton>
-          <Modal.Title>Received Salesman Details</Modal.Title>
+          <Modal.Title>Assigned Salesman Details</Modal.Title>
         </Modal.Header>
         <Modal.Body style={{ fontSize: '13px' }}>
           {transferDetails && (
             <>
-              <h5>Received Information</h5>
+              <h5>Assigned Information</h5>
               <Table bordered>
                 <tbody>
                   <tr>
-                    <td width="30%"><strong>Received Number</strong></td>
-                    <td>{transferDetails.transfer_details.received_number}</td>
+                    <td width="30%"><strong>Assigned Number</strong></td>
+                    <td>{transferDetails.transfer_details.assigned_number}</td>
                   </tr>
                   <tr>
-                    <td><strong>Received Date</strong></td>
+                    <td><strong>Assigned Date</strong></td>
                     <td>{formatDate(transferDetails.transfer_details.transfer_date)}</td>
                   </tr>
                   <tr>
-                    <td><strong>From Salesman</strong></td>
-                    <td>{transferDetails.transfer_details.from_salesman_name || 'N/A'}</td>
+                    <td><strong>From Stock Point</strong></td>
+                    <td>{transferDetails.transfer_details.from_stock_point_name || 'N/A'}</td>
+                  </tr>
+                  <tr>
+                    <td><strong>To Salesman</strong></td>
+                    <td>{transferDetails.transfer_details.to_salesman_name || 'N/A'}</td>
                   </tr>
                   <tr>
                     <td><strong>Salesman Mobile</strong></td>
                     <td>{transferDetails.transfer_details.salesman_mobile || 'N/A'}</td>
                   </tr>
                   <tr>
-                    <td><strong>To Stock Point</strong></td>
-                    <td>{transferDetails.transfer_details.to_stock_point_name || 'N/A'}</td>
-                  </tr>
-                  <tr>
-                    <td><strong>Status</strong></td>
-                    <td>{getStatusBadge(transferDetails.transfer_details.status)}</td>
+                    <td><strong>Salesman Status</strong></td>
+                    <td>{getSalesmanStatusBadge(transferDetails.transfer_details.salesman_status)}</td>
                   </tr>
                   <tr>
                     <td><strong>Remarks</strong></td>
                     <td>{transferDetails.transfer_details.remarks || 'N/A'}</td>
-                  </tr>
-                  <tr>
-                    <td><strong>Capture Image</strong></td>
-                    <td>
-                      {transferDetails.transfer_details.capture_image ? (
-                        <img 
-                          src={getImageUrl(transferDetails.transfer_details.capture_image)} 
-                          alt="Capture" 
-                          style={{ 
-                            maxWidth: '200px', 
-                            maxHeight: '200px', 
-                            objectFit: 'contain',
-                            borderRadius: '4px'
-                          }}
-                          onClick={() => window.open(getImageUrl(transferDetails.transfer_details.capture_image), '_blank')}
-                          onError={(e) => {
-                            e.target.style.display = 'none';
-                            e.target.parentNode.innerHTML = '<span style="color:#999">Invalid image</span>';
-                          }}
-                        />
-                      ) : (
-                        <span style={{ color: '#999' }}>No image available</span>
-                      )}
-                    </td>
                   </tr>
                   <tr>
                     <td><strong>Created By</strong></td>
@@ -406,13 +371,12 @@ const ReceivedSalesmanTable = () => {
                 </tbody>
               </Table>
 
-              <h5>Received Items</h5>
+              <h5>Assigned Items</h5>
               <div className="table-responsive">
                 <Table bordered>
                   <thead style={{ whiteSpace: 'nowrap', fontSize: '13px' }}>
                     <tr>
                       <th>SI</th>
-                      <th>Image</th>
                       <th>Product Name</th>
                       <th>PCode/Barcode</th>
                       <th>Metal Type</th>
@@ -421,7 +385,7 @@ const ReceivedSalesmanTable = () => {
                       <th>Sub Category</th>
                       <th>Design Name</th>
                       <th>Qty</th>
-                      <th>Gross Wt</th> 
+                      <th>Gross Wt</th>
                       <th>Packing Wt</th>
                       {/* <th>Stone Wt</th>
                       <th>Net Wt</th>
@@ -436,28 +400,6 @@ const ReceivedSalesmanTable = () => {
                       transferDetails.transfer_items.map((item, index) => (
                         <tr key={index}>
                           <td>{index + 1}</td>
-                          <td>
-                            {item.image ? (
-                              <img 
-                                src={getImageUrl(item.image)} 
-                                alt={item.product_name || 'Product'} 
-                                style={{ 
-                                  width: '50px', 
-                                  height: '50px', 
-                                  objectFit: 'cover',
-                                  borderRadius: '4px',
-                                  cursor: 'pointer'
-                                }}
-                                onClick={() => window.open(getImageUrl(item.image), '_blank')}
-                                onError={(e) => {
-                                  e.target.style.display = 'none';
-                                  e.target.parentNode.innerHTML = '<span style="color:#999">No img</span>';
-                                }}
-                              />
-                            ) : (
-                              <span style={{ color: '#999' }}>No img</span>
-                            )}
-                          </td>
                           <td>{item.product_name || 'N/A'}</td>
                           <td>{item.PCode_BarCode || 'N/A'}</td>
                           <td>{item.metal_type || 'N/A'}</td>
@@ -466,7 +408,7 @@ const ReceivedSalesmanTable = () => {
                           <td>{item.sub_category || 'N/A'}</td>
                           <td>{item.design_name || 'N/A'}</td>
                           <td>{item.qty}</td>
-                          <td>{item.gross_weight}</td> 
+                          <td>{item.gross_weight}</td>
                           <td>{parseFloat(item.packing_wt || 0) + parseFloat(item.gross_weight || 0)}</td>
                           {/* <td>{item.stone_weight}</td>
                           <td>{item.net_weight}</td>
@@ -478,14 +420,14 @@ const ReceivedSalesmanTable = () => {
                       ))
                     ) : (
                       <tr>
-                        <td colSpan="17" className="text-center">No items found</td>
+                        <td colSpan="16" className="text-center">No items found</td>
                       </tr>
                     )}
                     {transferDetails.transfer_items && transferDetails.transfer_items.length > 0 && (
                       <tr style={{ fontWeight: 'bold', backgroundColor: '#f8f9fa' }}>
-                        <td colSpan="9" className="text-end"><strong>Totals:</strong></td>
+                        <td colSpan="8" className="text-end"><strong>Totals:</strong></td>
                         <td><strong>{transferDetails.transfer_items.reduce((sum, item) => sum + parseFloat(item.qty || 0), 0).toFixed(3)}</strong></td>
-                        <td><strong>{transferDetails.transfer_items.reduce((sum, item) => sum + parseFloat(item.gross_weight || 0), 0).toFixed(3)}</strong></td> 
+                        <td><strong>{transferDetails.transfer_items.reduce((sum, item) => sum + parseFloat(item.gross_weight || 0), 0).toFixed(3)}</strong></td>
                         <td>
                           <strong>
                             {(transferDetails.transfer_items || []).reduce((sum, item) => {
@@ -517,4 +459,4 @@ const ReceivedSalesmanTable = () => {
   );
 };
 
-export default ReceivedSalesmanTable;
+export default AssignedSalesmanTable;

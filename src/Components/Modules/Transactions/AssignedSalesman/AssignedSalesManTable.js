@@ -198,11 +198,10 @@ const AssignedSalesmanTable = () => {
     [userName]
   );
 
+  // Fixed handleEdit function - simplified navigation
   const handleEdit = (transfer) => {
-    const tabId = crypto.randomUUID();
     navigate("/add-assign-salesmantransfer", {
       state: {
-        tabId,
         editData: transfer,
         isEdit: true
       }
@@ -234,9 +233,9 @@ const AssignedSalesmanTable = () => {
     });
   };
 
+  // Fixed handleCreate function - simplified navigation like reference code
   const handleCreate = () => {
-    const tabId = crypto.randomUUID();
-    navigate("/add-assign-salesmantransfer", { state: { tabId } });
+    navigate('/add-assign-salesmantransfer');
   };
 
   const fetchAssignedTransfers = async () => {
