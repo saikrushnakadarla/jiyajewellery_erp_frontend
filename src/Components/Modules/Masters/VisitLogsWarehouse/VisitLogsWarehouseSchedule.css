@@ -310,6 +310,263 @@
   box-shadow: 0 0 0 3px rgba(45, 67, 115, 0.1);
 }
 
+/* ======================================== */
+/* VIEW MODAL STYLES - IMPROVED */
+/* ======================================== */
+.vlws-view-modal .modal-content {
+  border-radius: 16px;
+  border: none;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+  overflow: hidden;
+}
+
+.vlws-view-modal .modal-header {
+  background: linear-gradient(135deg, #1a2a6c 0%, #2d4373 100%);
+  color: white;
+  padding: 20px 30px;
+  border-bottom: none;
+}
+
+.vlws-view-modal .modal-header .modal-title {
+  font-weight: 600;
+  font-size: 22px;
+  display: flex;
+  align-items: center;
+}
+
+.vlws-view-modal .modal-header .btn-close {
+  filter: brightness(0) invert(1);
+  opacity: 0.8;
+  transition: opacity 0.3s;
+}
+
+.vlws-view-modal .modal-header .btn-close:hover {
+  opacity: 1;
+}
+
+.vlws-view-modal .modal-body {
+  padding: 30px;
+  background: #f0f2f5;
+}
+
+.vlws-view-content {
+  background: transparent;
+}
+
+/* View Section Cards */
+.vlws-view-section {
+  background: white;
+  border-radius: 12px;
+  padding: 20px 24px;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  border-left: 4px solid #2d4373;
+  transition: box-shadow 0.3s ease;
+}
+
+.vlws-view-section:hover {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+}
+
+.vlws-view-section:last-child {
+  margin-bottom: 0;
+}
+
+/* Section Title */
+.vlws-view-section-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #2d3436;
+  margin-bottom: 16px;
+  padding-bottom: 10px;
+  border-bottom: 2px solid #f0f2f5;
+  display: flex;
+  align-items: center;
+}
+
+.vlws-view-section-title .me-2 {
+  font-size: 18px;
+}
+
+/* Color-coded section borders */
+.vlws-view-section:has(.text-primary) {
+  border-left-color: #4F46E5;
+}
+
+.vlws-view-section:has(.text-warning) {
+  border-left-color: #f59e0b;
+}
+
+.vlws-view-section:has(.text-success) {
+  border-left-color: #10b981;
+}
+
+.vlws-view-section:has(.text-info) {
+  border-left-color: #06b6d4;
+}
+
+/* View Details Grid */
+.vlws-view-details {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+
+/* View Item */
+.vlws-view-item {
+  display: flex;
+  align-items: flex-start;
+  padding: 6px 0;
+  font-size: 14px;
+  border-bottom: 1px solid #f8f9fa;
+}
+
+.vlws-view-item:last-child {
+  border-bottom: none;
+}
+
+.vlws-view-label {
+  font-weight: 600;
+  color: #4a5568;
+  min-width: 140px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.vlws-view-label svg {
+  font-size: 14px;
+  color: #6b7280;
+}
+
+.vlws-view-value {
+  color: #1a202c;
+  font-weight: 500;
+  word-break: break-word;
+  flex: 1;
+}
+
+.vlws-view-value .badge {
+  font-size: 12px;
+  padding: 4px 10px;
+}
+
+/* Barcodes in View Modal */
+.vlws-view-barcodes {
+  padding: 4px 0;
+}
+
+.vlws-barcode-group-view {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.vlws-barcode-group-view .vlws-barcode-badge {
+  background: #1a202c;
+  color: white;
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s ease;
+}
+
+.vlws-barcode-group-view .vlws-barcode-badge:hover {
+  transform: scale(1.05);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.vlws-barcode-group-view .vlws-barcode-badge svg {
+  font-size: 13px;
+}
+
+/* Modal Footer */
+.vlws-view-modal .modal-footer {
+  background: white;
+  padding: 16px 30px;
+  border-top: 1px solid #e9ecef;
+}
+
+.vlws-view-modal .modal-footer .btn {
+  padding: 10px 30px;
+  border-radius: 8px;
+  font-weight: 500;
+}
+
+/* Responsive for View Modal */
+@media (max-width: 768px) {
+  .vlws-view-modal .modal-body {
+    padding: 16px;
+  }
+  
+  .vlws-view-section {
+    padding: 16px;
+  }
+  
+  .vlws-view-item {
+    flex-direction: column;
+    padding: 8px 0;
+  }
+  
+  .vlws-view-label {
+    min-width: auto;
+    margin-bottom: 2px;
+    font-size: 12px;
+  }
+  
+  .vlws-view-value {
+    font-size: 14px;
+    padding-left: 20px;
+  }
+  
+  .vlws-view-section-title {
+    font-size: 14px;
+  }
+  
+  .vlws-view-modal .modal-header .modal-title {
+    font-size: 18px;
+  }
+}
+
+/* Animation for View Modal */
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.vlws-view-section {
+  animation: slideUp 0.4s ease-out forwards;
+}
+
+.vlws-view-section:nth-child(2) {
+  animation-delay: 0.05s;
+}
+
+.vlws-view-section:nth-child(3) {
+  animation-delay: 0.1s;
+}
+
+.vlws-view-section:nth-child(4) {
+  animation-delay: 0.15s;
+}
+
+.vlws-view-section:nth-child(5) {
+  animation-delay: 0.2s;
+}
+
+/* ======================================== */
+
 /* Responsive Adjustments */
 @media (max-width: 768px) {
   .vlws-header-card {
