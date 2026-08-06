@@ -11,7 +11,7 @@ import {
   FaCity, FaMapPin, FaChevronDown, FaChevronRight,
   FaBuilding, FaCamera, FaImage, FaTimesCircle,
   FaPhone, FaEnvelope, FaIdCard, FaCalendarAlt, FaTag,
-  FaLocationArrow
+  FaLocationArrow, FaCalendarDay, FaExclamationTriangle
 } from 'react-icons/fa';
 import './VisitLogsWarehouseSchedule.css';
 import Swal from 'sweetalert2';
@@ -134,6 +134,9 @@ const VisitLogsWarehouseSchedule = () => {
           status: visit.status,
           created_at: visit.created_at,
           updated_at: visit.updated_at,
+          customer_status: visit.customer_status || 'Scheduled',
+          reschedule_date: visit.reschedule_date || null,
+          reschedule_notes: visit.reschedule_notes || null,
           barcodes: [],
           barcode_details: []
         };
@@ -657,7 +660,7 @@ const VisitLogsWarehouseSchedule = () => {
     setShowViewModal(true);
   };
 
-  // Get visit status badge
+  // Get visit status badge (for the original status field - kept for backward compatibility)
   const getVisitStatusBadge = (status) => {
     if (!status || status === 'scheduled') {
       return <Badge bg="primary">Scheduled</Badge>;
@@ -669,6 +672,42 @@ const VisitLogsWarehouseSchedule = () => {
       return <Badge bg="danger">Cancelled</Badge>;
     }
     return <Badge bg="secondary">{status}</Badge>;
+  };
+
+  // ========== NEW: Get Customer Status Badge ==========
+  const getCustomerStatusBadge = (customerStatus) => {
+    if (!customerStatus || customerStatus === 'Scheduled') {
+      return <Badge bg="warning" className="vlws-status-badge">Scheduled</Badge>;
+    }
+    if (customerStatus === 'Available') {
+      return <Badge bg="success" className="vlws-status-badge">✅ Available</Badge>;
+    }
+    if (customerStatus === 'Not Available') {
+      return <Badge bg="danger" className="vlws-status-badge">❌ Not Available</Badge>;
+    }
+    return <Badge bg="secondary" className="vlws-status-badge">{customerStatus}</Badge>;
+  };
+  // ===================================================
+
+  // Format date and time with reschedule support
+  const formatDateTimeWithReschedule = (scheduledDate, rescheduleDate) => {
+    // If there's a reschedule date, use it
+    const dateToShow = rescheduleDate || scheduledDate;
+    if (!dateToShow) return 'N/A';
+    
+    const date = new Date(dateToShow);
+    return date.toLocaleString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  // Check if there's a reschedule
+  const hasReschedule = (rescheduleDate) => {
+    return rescheduleDate !== null && rescheduleDate !== undefined && rescheduleDate !== '';
   };
 
   // Format date and time
@@ -1311,7 +1350,7 @@ const VisitLogsWarehouseSchedule = () => {
             </Col>
           </Row>
 
-          {/* Scheduled Visits Table - GROUPED VIEW */}
+          {/* ========== UPDATED TABLE: Removed Status, Added Customer Status ========== */}
           <Row className="vlws-table-section">
             <Col md={12}>
               <div className="vlws-table-card">
@@ -1331,7 +1370,7 @@ const VisitLogsWarehouseSchedule = () => {
                         <th>Customer Code</th>
                         <th>Stock Point</th>
                         <th>Salesman</th>
-                        <th>Status</th>
+                        <th>Customer Status</th>
                         <th>Actions</th>
                       </tr>
                     </thead>
@@ -1352,8 +1391,33 @@ const VisitLogsWarehouseSchedule = () => {
                             <tr key={group.id || index} className={editingId === group.id ? 'vlws-editing-row' : ''}>
                               <td>{index + 1}</td>
                               <td>
-                                <FaCalendarCheck className="me-2 text-primary" />
-                                {formatDateTime(group.scheduled_date)}
+                                <div>
+                                  <FaCalendarCheck className="me-2 text-primary" />
+                                  {/* Check if there's a reschedule */}
+                                  {hasReschedule(group.reschedule_date) ? (
+                                    <React.Fragment>
+                                      <span className="text-muted text-decoration-line-through">
+                                        {formatDateTime(group.scheduled_date)}
+                                      </span>
+                                      <br />
+                                      <span className="text-warning">
+                                        <FaExclamationTriangle className="me-1" />
+                                        <strong>Rescheduled:</strong> {formatDateTime(group.reschedule_date)}
+                                      </span>
+                                      {group.reschedule_notes && (
+                                        <React.Fragment>
+                                          <br />
+                                          <small className="text-muted">
+                                            <FaClock className="me-1" />
+                                            Note: {group.reschedule_notes}
+                                          </small>
+                                        </React.Fragment>
+                                      )}
+                                    </React.Fragment>
+                                  ) : (
+                                    <span>{formatDateTime(group.scheduled_date)}</span>
+                                  )}
+                                </div>
                               </td>
                               <td>
                                 <FaUser className="me-2 text-success" />
@@ -1387,7 +1451,18 @@ const VisitLogsWarehouseSchedule = () => {
                                   <Badge bg="secondary">Not Assigned</Badge>
                                 )}
                               </td>
-                              <td>{getVisitStatusBadge(group.status)}</td>
+                              <td>
+                                {getCustomerStatusBadge(group.customer_status)}
+                                {/* Show reschedule notes if available and status is Not Available */}
+                                {group.customer_status === 'Not Available' && group.reschedule_notes && (
+                                  <div className="mt-1">
+                                    <small className="text-muted">
+                                      <FaClock className="me-1" />
+                                      {group.reschedule_notes}
+                                    </small>
+                                  </div>
+                                )}
+                              </td>
                               <td>
                                 <div className="vlws-action-buttons">
                                   <Button
@@ -1434,10 +1509,11 @@ const VisitLogsWarehouseSchedule = () => {
               </div>
             </Col>
           </Row>
+          {/* ========== END UPDATED TABLE ========== */}
         </Container>
       </div>
 
-      {/* View Schedule Modal */}
+      {/* View Schedule Modal - Updated to show Customer Status and Reschedule info */}
       <Modal 
         show={showViewModal} 
         onHide={() => {
@@ -1504,6 +1580,23 @@ const VisitLogsWarehouseSchedule = () => {
                         </span>
                         <span className="vlws-view-value">{viewSchedule.customer_email || 'N/A'}</span>
                       </div>
+                      {/* Customer Status in View Modal */}
+                      <div className="vlws-view-item">
+                        <span className="vlws-view-label">
+                          <FaCheckCircle className="me-1" /> Customer Status:
+                        </span>
+                        <span className="vlws-view-value">
+                          {getCustomerStatusBadge(viewSchedule.customer_status)}
+                        </span>
+                      </div>
+                      {viewSchedule.customer_status === 'Not Available' && viewSchedule.reschedule_notes && (
+                        <div className="vlws-view-item">
+                          <span className="vlws-view-label">
+                            <FaClock className="me-1" /> Reschedule Notes:
+                          </span>
+                          <span className="vlws-view-value text-muted">{viewSchedule.reschedule_notes}</span>
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -1520,6 +1613,26 @@ const VisitLogsWarehouseSchedule = () => {
                         </span>
                         <span className="vlws-view-value">{formatDateTime(viewSchedule.scheduled_date)}</span>
                       </div>
+                      {hasReschedule(viewSchedule.reschedule_date) && (
+                        <>
+                          <div className="vlws-view-item">
+                            <span className="vlws-view-label">
+                              <FaExclamationTriangle className="me-1 text-warning" /> Rescheduled Date:
+                            </span>
+                            <span className="vlws-view-value text-warning">
+                              <strong>{formatDateTime(viewSchedule.reschedule_date)}</strong>
+                            </span>
+                          </div>
+                          {viewSchedule.reschedule_notes && (
+                            <div className="vlws-view-item">
+                              <span className="vlws-view-label">
+                                <FaClock className="me-1" /> Reschedule Notes:
+                              </span>
+                              <span className="vlws-view-value text-muted">{viewSchedule.reschedule_notes}</span>
+                            </div>
+                          )}
+                        </>
+                      )}
                       <div className="vlws-view-item">
                         <span className="vlws-view-label">
                           <FaClock className="me-1" /> Status:
