@@ -134,7 +134,7 @@ const VisitLogsWarehouseSchedule = () => {
           status: visit.status,
           created_at: visit.created_at,
           updated_at: visit.updated_at,
-          customer_status: visit.customer_status || 'Scheduled',
+          customer_status: visit.customer_status || 'Pending',
           reschedule_date: visit.reschedule_date || null,
           reschedule_notes: visit.reschedule_notes || null,
           barcodes: [],
@@ -676,17 +676,20 @@ const VisitLogsWarehouseSchedule = () => {
 
   // ========== NEW: Get Customer Status Badge ==========
   const getCustomerStatusBadge = (customerStatus) => {
-    if (!customerStatus || customerStatus === 'Scheduled') {
-      return <Badge bg="warning" className="vlws-status-badge">Scheduled</Badge>;
-    }
-    if (customerStatus === 'Available') {
-      return <Badge bg="success" className="vlws-status-badge">✅ Available</Badge>;
-    }
-    if (customerStatus === 'Not Available') {
-      return <Badge bg="danger" className="vlws-status-badge">❌ Not Available</Badge>;
-    }
-    return <Badge bg="secondary" className="vlws-status-badge">{customerStatus}</Badge>;
-  };
+  if (!customerStatus || customerStatus === 'Pending') {
+    return <Badge bg="warning" className="vlws-status-badge">⏳ Pending</Badge>;
+  }
+  if (customerStatus === 'Scheduled') {
+    return <Badge bg="warning" className="vlws-status-badge">⏳ Pending</Badge>;
+  }
+  if (customerStatus === 'Available') {
+    return <Badge bg="success" className="vlws-status-badge">✅ Available</Badge>;
+  }
+  if (customerStatus === 'Not Available') {
+    return <Badge bg="danger" className="vlws-status-badge">❌ Not Available</Badge>;
+  }
+  return <Badge bg="secondary" className="vlws-status-badge">{customerStatus}</Badge>;
+};
   // ===================================================
 
   // Format date and time with reschedule support
