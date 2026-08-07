@@ -34,6 +34,14 @@ const AssignedSalesmanForm = () => {
   const [selectedTransferItems, setSelectedTransferItems] = useState([]);
   const [isAllProductsSelected, setIsAllProductsSelected] = useState(false);
 
+  // ============= WEIGHT CAPTURE STATES =============
+  const [capturedWeights, setCapturedWeights] = useState({});
+  const [isWeightProcessing, setIsWeightProcessing] = useState(false);
+  const [currentWeightItem, setCurrentWeightItem] = useState(null);
+
+  // ============= WEIGHT CAPTURE TRIGGER FOR TABLE =============
+  const [triggerWeightCamera, setTriggerWeightCamera] = useState(null);
+
   const [loggedInUserId, setLoggedInUserId] = useState(null);
 
   const [oldSalesData, setOldSalesData] = useState(
@@ -125,36 +133,133 @@ const AssignedSalesmanForm = () => {
     return savedData ? JSON.parse(savedData) : [];
   });
 
-  // Calculate weight totals whenever repairDetails changes
- // Calculate weight totals whenever repairDetails changes
-useEffect(() => {
-  if (!repairDetails || repairDetails.length === 0) {
-    setItemGrossTotal(0);
-    setPacketGrossTotal(0);
-    // Reset totalWeightWithBag to 0 when no items
-    setTotalWeightWithBag(0);
-    return;
+  // ============= HANDLE WEIGHT CAPTURE FROM PRODUCT DETAILS =============
+ // ============= HANDLE WEIGHT CAPTURE FROM PRODUCT DETAILS =============
+const handleCaptureWeight = async (itemId, weightData) => {
+  // Update the captured weights state
+  setCapturedWeights(prev => ({
+    ...prev,
+    [itemId]: {
+      total_grams: weightData.total_grams,
+      grams: weightData.grams,
+      milligrams: weightData.milligrams,
+      raw_text: weightData.raw_text,
+      confidence: weightData.confidence || 100,
+      captured_at: new Date().toISOString()
+    }
+  }));
+
+  // Update the repairDetails with the weight data
+  setRepairDetails(prev => 
+    prev.map((item) => {
+      const itemIdFromItem = item.item_id || item.id || item.code;
+      if (String(itemIdFromItem) === String(itemId)) {
+        return {
+          ...item,
+          weight_machine_reading: weightData.total_grams,
+          weight_machine_grams: weightData.grams,
+          weight_machine_milligrams: weightData.milligrams,
+          weight_machine_raw: weightData.raw_text,
+          weight_machine_confidence: weightData.confidence || 100
+        };
+      }
+      return item;
+    })
+  );
+
+  // Save to localStorage
+  const updatedRepairDetails = repairDetails.map((item) => {
+    const itemIdFromItem = item.item_id || item.id || item.code;
+    if (String(itemIdFromItem) === String(itemId)) {
+      return {
+        ...item,
+        weight_machine_reading: weightData.total_grams,
+        weight_machine_grams: weightData.grams,
+        weight_machine_milligrams: weightData.milligrams,
+        weight_machine_raw: weightData.raw_text,
+        weight_machine_confidence: weightData.confidence || 100
+      };
+    }
+    return item;
+  });
+  localStorage.setItem(`repairDetails_${tabId}`, JSON.stringify(updatedRepairDetails));
+
+  // 🆕 NEW: Save weight to database immediately
+  try {
+    // Find the actual item_id from the repairDetails
+    const item = repairDetails.find(item => {
+      const itemIdFromItem = item.item_id || item.id || item.code;
+      return String(itemIdFromItem) === String(itemId);
+    });
+
+    if (item && item.item_id) {
+      console.log(`💾 Saving weight to database for item_id: ${item.item_id}`);
+      
+      const payload = {
+        total_grams: weightData.total_grams,
+        grams: weightData.grams,
+        milligrams: weightData.milligrams,
+        raw_text: weightData.raw_text,
+        confidence: weightData.confidence || 100
+      };
+
+      const response = await axios.put(
+        `${baseURL}/api/assigned-salesman/update-item-weight/${item.item_id}`,
+        payload
+      );
+
+      if (response.data.success) {
+        console.log(`✅ Weight saved to database for item ${item.item_id}`);
+      } else {
+        console.warn('⚠️ Weight saved locally but database update may have failed');
+      }
+    } else {
+      console.warn('⚠️ Could not find item_id to save weight to database');
+    }
+  } catch (error) {
+    console.error('❌ Error saving weight to database:', error);
+    // Don't show error to user - weight is still saved locally
   }
+};
 
-  // Calculate Item Gross Total (sum of gross_weight)
-  const itemGross = repairDetails.reduce(
-    (sum, item) => sum + parseFloat(item.gross_weight || 0), 
-    0
-  );
-  setItemGrossTotal(itemGross);
+  // ============= HANDLE WEIGHT CAPTURE FROM TABLE =============
+  const handleCaptureWeightFromTable = (itemId, itemDetails) => {
+    // Set the trigger to open weight camera with the item details
+    setTriggerWeightCamera({
+      itemId: itemId,
+      itemDetails: itemDetails
+    });
+  };
 
-  // Calculate Packet Gross Total (sum of gross_weight + packing_wt)
-  const packetGross = repairDetails.reduce(
-    (sum, item) => sum + parseFloat(item.gross_weight || 0) + parseFloat(item.packing_wt || 0),
-    0
-  );
-  setPacketGrossTotal(packetGross);
+  // Calculate weight totals whenever repairDetails changes
+  useEffect(() => {
+    if (!repairDetails || repairDetails.length === 0) {
+      setItemGrossTotal(0);
+      setPacketGrossTotal(0);
+      // Reset totalWeightWithBag to 0 when no items
+      setTotalWeightWithBag(0);
+      return;
+    }
 
-  // IMPORTANT: Do NOT auto-populate totalWeightWithBag
-  // It should start at 0 and only be set by user input
-  // Only reset to 0 if user hasn't entered a value
-  // We keep the existing value if user has manually entered something
-}, [repairDetails]);
+    // Calculate Item Gross Total (sum of gross_weight)
+    const itemGross = repairDetails.reduce(
+      (sum, item) => sum + parseFloat(item.gross_weight || 0), 
+      0
+    );
+    setItemGrossTotal(itemGross);
+
+    // Calculate Packet Gross Total (sum of gross_weight + packing_wt)
+    const packetGross = repairDetails.reduce(
+      (sum, item) => sum + parseFloat(item.gross_weight || 0) + parseFloat(item.packing_wt || 0),
+      0
+    );
+    setPacketGrossTotal(packetGross);
+
+    // IMPORTANT: Do NOT auto-populate totalWeightWithBag
+    // It should start at 0 and only be set by user input
+    // Only reset to 0 if user hasn't entered a value
+    // We keep the existing value if user has manually entered something
+  }, [repairDetails]);
 
   // Handler for Total Weight with Bag change
   const handleTotalWeightWithBagChange = (value) => {
@@ -267,7 +372,10 @@ useEffect(() => {
             const itemsWithTransfer = detailResponse.data.transfer_items.map(item => ({
               ...item,
               transfer_number: transfer.transfer_number,
-              transfer_id: transfer.transfer_id
+              transfer_id: transfer.transfer_id,
+              // Ensure PCode_BarCode is properly set
+              PCode_BarCode: item.PCode_BarCode || item.code,
+              code: item.PCode_BarCode || item.code,
             }));
             allItems.push(...itemsWithTransfer);
           }
@@ -289,6 +397,7 @@ useEffect(() => {
     if (formData.active_stock_point_id) {
       const fetchItems = async () => {
         const items = await getTransferItemsForStockPoint(formData.active_stock_point_id);
+        console.log("📦 Selected Transfer Items:", items);
         setSelectedTransferItems(items);
         // Reset selection validation
         setIsAllProductsSelected(false);
@@ -302,24 +411,47 @@ useEffect(() => {
 
   // 🆕 NEW: Check if all products from a transfer are selected
   const checkAllProductsSelected = (selectedBarcodes) => {
-    if (!selectedTransferItems.length) return false;
+    // Log for debugging
+    console.log("🔍 checkAllProductsSelected - selectedBarcodes:", selectedBarcodes);
+    console.log("🔍 checkAllProductsSelected - selectedTransferItems:", selectedTransferItems);
+    
+    if (!selectedTransferItems.length) {
+      console.log("⚠️ selectedTransferItems is empty");
+      return false;
+    }
+    
+    if (!selectedBarcodes.length) {
+      console.log("⚠️ selectedBarcodes is empty");
+      return false;
+    }
     
     // Group items by transfer_id
     const groupedByTransfer = {};
     selectedTransferItems.forEach(item => {
-      if (!groupedByTransfer[item.transfer_id]) {
-        groupedByTransfer[item.transfer_id] = [];
+      // Use PCode_BarCode from stock transfer
+      const barcode = item.PCode_BarCode || item.code;
+      const transferId = item.transfer_id;
+      
+      if (!groupedByTransfer[transferId]) {
+        groupedByTransfer[transferId] = [];
       }
-      groupedByTransfer[item.transfer_id].push(item.PCode_BarCode);
+      if (barcode) {
+        groupedByTransfer[transferId].push(barcode);
+      }
     });
+    
+    console.log("📊 Grouped by transfer:", groupedByTransfer);
     
     // For each transfer, check if all its barcodes are in selectedBarcodes
     for (const transferId in groupedByTransfer) {
       const allBarcodes = groupedByTransfer[transferId];
+      // Check if all barcodes from this transfer are selected
       const allSelected = allBarcodes.every(barcode => selectedBarcodes.includes(barcode));
-      if (allSelected) {
+      if (allSelected && allBarcodes.length > 0) {
         console.log(`✅ All products from transfer ${transferId} are selected`);
         return true;
+      } else {
+        console.log(`⚠️ Not all products from transfer ${transferId} are selected. Required: ${allBarcodes.length}, Selected: ${allBarcodes.filter(b => selectedBarcodes.includes(b)).length}`);
       }
     }
     return false;
@@ -1006,7 +1138,7 @@ useEffect(() => {
     fetchEstimate();
   }, []);
 
-// In AssignedSalesmanForm.js - this is already correct (no Stock_Point filter)
+  // In AssignedSalesmanForm.js - this is already correct (no Stock_Point filter)
   // In AssignedSalesmanForm.jsx - inside the component
 
   useEffect(() => {
@@ -1020,16 +1152,16 @@ useEffect(() => {
         
         let stockData = data.result || [];
         
-      // FIX: Filter based on logged-in user ID AND exclude MAIN STOCK ROOM
+        // FIX: Filter based on logged-in user ID AND exclude MAIN STOCK ROOM
         if (loggedInUserId) {
           stockData = stockData.filter(item => 
             item.Status === "Available" && 
             item.user_id === loggedInUserId &&
-          // CRITICAL FIX: Exclude products in MAIN STOCK ROOM
+            // CRITICAL FIX: Exclude products in MAIN STOCK ROOM
             item.Stock_Point !== 'MAIN STOCK ROOM' 
           );
         } else {
-        // If no logged-in user, only show Available items and exclude MAIN STOCK ROOM
+          // If no logged-in user, only show Available items and exclude MAIN STOCK ROOM
           stockData = stockData.filter(item => 
             item.Status === "Available" &&
             item.Stock_Point !== 'MAIN STOCK ROOM'
@@ -1062,7 +1194,7 @@ useEffect(() => {
         return;
       }
 
-    // Filter only matching repeatedData items with Status Available and matching user_id
+      // Filter only matching repeatedData items with Status Available and matching user_id
       const filteredData = response.data.repeatedData
         .filter((item) =>
           stock.some(
@@ -1187,7 +1319,7 @@ useEffect(() => {
         `${baseURL}/get-order-details/${order_number}`,
       );
 
-    // Filter only matching repeatedData items with Status Available and matching user_id
+      // Filter only matching repeatedData items with Status Available and matching user_id
       const filteredData = response.data.repeatedData
         .filter((item) => {
           const stockItem = stock?.find(s => s.PCode_BarCode === item.code);
@@ -1304,7 +1436,7 @@ useEffect(() => {
     try {
       const storageKey = `repairDetails_${tabId}`;
 
-    // First check if the repair item exists in stock with matching user_id
+      // First check if the repair item exists in stock with matching user_id
       const stockItem = stock?.find(s => s.PCode_BarCode === repair.code);
       
       if (!stockItem || stockItem.Status !== "Available" || 
@@ -1313,7 +1445,7 @@ useEffect(() => {
         return null;
       }
 
-    // Create new filtered entry with necessary fields
+      // Create new filtered entry with necessary fields
       const filteredData = [
         {
           sub_category: repair.item,
@@ -1354,7 +1486,7 @@ useEffect(() => {
           tax_percent: "0",
           tax_amt: "0",
           hm_charges: "0",
-        code: repair.code, // Add the barcode code
+          code: repair.code, // Add the barcode code
         },
       ];
 
@@ -1453,7 +1585,7 @@ useEffect(() => {
   // };
 
   const handleAdd = () => {
-  // Check if the selected product belongs to the logged-in user and is Available
+    // Check if the selected product belongs to the logged-in user and is Available
     const selectedStockItem = stock?.find(s => s.PCode_BarCode === formData.code);
     
     if (selectedStockItem) {
@@ -1469,7 +1601,7 @@ useEffect(() => {
 
     const storedRepairDetails = JSON.parse(localStorage.getItem(`repairDetails_${tabId}`)) || [];
 
-  // Check for duplicate
+    // Check for duplicate
     const isDuplicate = storedRepairDetails.some(
       (item) => item.code === formData.code
     );
@@ -1479,7 +1611,7 @@ useEffect(() => {
       return;
     }
 
-  // Check if the product is part of a stock transfer
+    // Check if the product is part of a stock transfer
     const transferItem = selectedTransferItems.find(
       item => item.PCode_BarCode === formData.code
     );
@@ -1504,10 +1636,12 @@ useEffect(() => {
         imagePreview: formData.imagePreview,
         image: formData.image,
         transfer_id: transferItem.transfer_id,
-      // Ensure new fields are preserved
+        // Ensure new fields are preserved
         cover_wt: formData.cover_wt || "0",
         card_wt: formData.card_wt || "0",
         packing_wt: formData.packing_wt || "0",
+        // Add item_id from transfer item if available
+        item_id: transferItem.item_id || null,
       },
     ];
 
@@ -1610,7 +1744,7 @@ useEffect(() => {
       sale_status: "Delivered",
       piece_taxable_amt: "",
       festival_discount: "",
-    // Reset new fields
+      // Reset new fields
       cover_wt: "",
       card_wt: "",
       packing_wt: "",
@@ -1651,8 +1785,8 @@ useEffect(() => {
       date: new Date().toISOString().split("T")[0],
       transfer_number: "",
       active_stock_point_id: "",
-    salesman_id: "",        // Add this
-    salesman_name: "",      // Add this
+      salesman_id: "",        // Add this
+      salesman_name: "",      // Add this
       active_stock_point_details: null,
     });
     setPaymentDetails({
@@ -2209,38 +2343,38 @@ useEffect(() => {
     }
   }, []);
 
-//   const resetForm = () => {
-//   setFormData({
-//     customer_id: "",
-//     mobile: "",
-//     account_name: "",
-//     email: "",
-//     address1: "",
-//     address2: "",
-//     city: "",
-//     pincode: "",
-//     state: "",
-//     state_code: "",
-//     aadhar_card: "",
-//     gst_in: "",
-//     pan_card: "",
-//     date: new Date().toISOString().split("T")[0],
-//     transfer_number: "",
-//     active_stock_point_id: "",
-//     salesman_id: "",        // Add this
-//     salesman_name: "",      // Add this
-//     active_stock_point_details: null,
-//   });
-//   setPaymentDetails({
-//     cash_amount: 0,
-//     card_amt: 0,
-//     chq: "",
-//     chq_amt: 0,
-//     online: "",
-//     online_amt: 0,
-//   });
-//   setRepairDetails([]);
-// };
+  //   const resetForm = () => {
+  //   setFormData({
+  //     customer_id: "",
+  //     mobile: "",
+  //     account_name: "",
+  //     email: "",
+  //     address1: "",
+  //     address2: "",
+  //     city: "",
+  //     pincode: "",
+  //     state: "",
+  //     state_code: "",
+  //     aadhar_card: "",
+  //     gst_in: "",
+  //     pan_card: "",
+  //     date: new Date().toISOString().split("T")[0],
+  //     transfer_number: "",
+  //     active_stock_point_id: "",
+  //     salesman_id: "",        // Add this
+  //     salesman_name: "",      // Add this
+  //     active_stock_point_details: null,
+  //   });
+  //   setPaymentDetails({
+  //     cash_amount: 0,
+  //     card_amt: 0,
+  //     chq: "",
+  //     chq_amt: 0,
+  //     online: "",
+  //     online_amt: 0,
+  //   });
+  //   setRepairDetails([]);
+  // };
 
   const [product, setProduct] = useState([]); // State to store table data
   const [company, setCompany] = useState(null);
@@ -2570,172 +2704,194 @@ useEffect(() => {
   // };
 
   // 🆕 UPDATED: handleSave with validation for all products
- // 🆕 UPDATED: handleSave with validation for all products
-const handleSave = async () => {
-  try {
-    const activeStockPointDetails = formData.active_stock_point_details;
-    const selectedSalesman = formData.salesman_id ? {
-      salesman_id: formData.salesman_id,
-      salesman_name: formData.salesman_name
-    } : null;
+  const handleSave = async () => {
+    try {
+      const activeStockPointDetails = formData.active_stock_point_details;
+      const selectedSalesman = formData.salesman_id ? {
+        salesman_id: formData.salesman_id,
+        salesman_name: formData.salesman_name
+      } : null;
 
-    if (!activeStockPointDetails) {
-      alert("Please select an Active Stock Point");
-      return;
-    }
-
-    if (!selectedSalesman) {
-      alert("Please select a Salesman");
-      return;
-    }
-
-    if (!repairDetails || repairDetails.length === 0) {
-      alert("Please add items to transfer");
-      return;
-    }
-
-    // 🆕 NEW: Check if ALL products from a transfer are selected
-    const selectedBarcodes = repairDetails.map(item => item.code).filter(Boolean);
-    const allSelected = checkAllProductsSelected(selectedBarcodes);
-
-    if (!allSelected) {
-      alert("⚠️ You must select ALL products from a stock transfer before assigning to a salesman. Please add all products from the same transfer.");
-      return;
-    }
-
-    // 🆕 NEW: Check if all selected products belong to the same transfer
-    const transferIds = repairDetails
-      .map(item => item.transfer_id)
-      .filter(Boolean);
-    
-    const uniqueTransferIds = [...new Set(transferIds)];
-    if (uniqueTransferIds.length > 1) {
-      alert("⚠️ All products must belong to the same stock transfer. Please select products from only one transfer.");
-      return;
-    }
-
-    // Use assigned_number instead of transfer_number
-    let nextAssignedNumber = formData.assigned_number || formData.transfer_number;
-    
-    if (!nextAssignedNumber) {
-      try {
-        const response = await axios.get(`${baseURL}/api/assigned-salesman/lastAssignedNumber`);
-        nextAssignedNumber = response.data.lastAssignedNumber;
-      } catch (error) {
-        console.error("Error fetching next assigned number:", error);
-        nextAssignedNumber = `ASN001`;
+      if (!activeStockPointDetails) {
+        alert("Please select an Active Stock Point");
+        return;
       }
-    }
 
-    console.log("Saving with Assigned Number:", nextAssignedNumber);
+      if (!selectedSalesman) {
+        alert("Please select a Salesman");
+        return;
+      }
 
-    // Get the capture image from formData (from Customer Details)
-    const captureImage = formData.capture_image || null;
-    console.log("📷 Capture Image present:", !!captureImage);
+      if (!repairDetails || repairDetails.length === 0) {
+        alert("Please add items to transfer");
+        return;
+      }
 
-    // Calculate weight totals
-    const calculatedItemGrossTotal = repairDetails.reduce(
-      (sum, item) => sum + parseFloat(item.gross_weight || 0), 
-      0
-    );
-    
-    const calculatedPacketGrossTotal = repairDetails.reduce(
-      (sum, item) => sum + parseFloat(item.gross_weight || 0) + parseFloat(item.packing_wt || 0),
-      0
-    );
+      // 🆕 NEW: Check if ALL products from a transfer are selected
+      const selectedBarcodes = repairDetails.map(item => item.code).filter(Boolean);
+      const allSelected = checkAllProductsSelected(selectedBarcodes);
 
-    const transferData = repairDetails.map(item => ({
-      product_id: item.product_id || null,
-      product_name: item.product_name || null,
-      metal_type: item.metal_type || null,
-      purity: item.purity || item.selling_purity || null,
-      category: item.category || null,
-      sub_category: item.sub_category || item.product_name || null,
-      design_name: item.design_name || null,
-      qty: parseFloat(item.qty) || 1,
-      gross_weight: parseFloat(item.gross_weight) || 0,
-      stone_weight: parseFloat(item.stone_weight) || 0,
-      net_weight: parseFloat(item.total_weight_av) || parseFloat(item.weight_bw) || 0,
-      rate: parseFloat(item.rate) || 0,
-      making_charges: parseFloat(item.making_charges) || 0,
-      stone_price: parseFloat(item.stone_price) || 0,
-      total_price: parseFloat(item.total_price) || 0,
-      image: item.image || null,
-      remarks: item.remarks || null,
-      PCode_BarCode: item.code,
-      cover_wt: parseFloat(item.cover_wt) || 0,
-      card_wt: parseFloat(item.card_wt) || 0,
-      packing_wt: parseFloat(item.packing_wt) || 0,
-    }));
+      if (!allSelected) {
+        alert("⚠️ You must select ALL products from a stock transfer before assigning to a salesman. Please add all products from the same transfer.");
+        return;
+      }
 
-    const payload = {
-      transfer_data: transferData,
-      from_stock_point_id: parseInt(formData.active_stock_point_id),
-      to_salesman_id: parseInt(selectedSalesman.salesman_id),
-      transfer_date: formData.date || new Date().toISOString().split('T')[0],
-      reference_number: nextAssignedNumber,
-      remarks: `Assigned to ${selectedSalesman.salesman_name} from ${activeStockPointDetails.stock_point_name}`,
-      created_by: formData.account_name || "system",
-      from_user_id: activeStockPointDetails.user_id || null,
-      to_user_id: null,
-      capture_image: captureImage,
-      // NEW: Add weight totals to payload
-      item_gross_total: calculatedItemGrossTotal,
-      packet_gross_total: calculatedPacketGrossTotal,
-      total_weight_with_bag: totalWeightWithBag || 0
-    };
-
-    console.log("📦 Sending Assigned Salesman Payload with weight totals:", {
-      item_gross_total: calculatedItemGrossTotal,
-      packet_gross_total: calculatedPacketGrossTotal,
-      total_weight_with_bag: totalWeightWithBag
-    });
-
-    const response = await axios.post(`${baseURL}/api/assigned-salesman/save-assigned-salesman`, payload);
-   
-    if (response.status === 200 || response.status === 201) {
-      alert(`✅ All products assigned to Salesman successfully! Assigned Number: ${nextAssignedNumber}`);
+      // 🆕 NEW: Check if all selected products belong to the same transfer
+      const transferIds = repairDetails
+        .map(item => item.transfer_id)
+        .filter(Boolean);
       
-      // Clear data
-      setOldSalesData([]);
-      setSchemeSalesData([]);
-      setRepairDetails([]);
-      setPaymentDetails({
-        cash_amount: 0,
-        card_amt: 0,
-        chq: "",
-        chq_amt: 0,
-        online: "",
-        online_amt: 0,
+      const uniqueTransferIds = [...new Set(transferIds)];
+      if (uniqueTransferIds.length > 1) {
+        alert("⚠️ All products must belong to the same stock transfer. Please select products from only one transfer.");
+        return;
+      }
+
+      // Use assigned_number instead of transfer_number
+      let nextAssignedNumber = formData.assigned_number || formData.transfer_number;
+      
+      if (!nextAssignedNumber) {
+        try {
+          const response = await axios.get(`${baseURL}/api/assigned-salesman/lastAssignedNumber`);
+          nextAssignedNumber = response.data.lastAssignedNumber;
+        } catch (error) {
+          console.error("Error fetching next assigned number:", error);
+          nextAssignedNumber = `ASN001`;
+        }
+      }
+
+      console.log("Saving with Assigned Number:", nextAssignedNumber);
+
+      // Get the capture image from formData (from Customer Details)
+      const captureImage = formData.capture_image || null;
+      console.log("📷 Capture Image present:", !!captureImage);
+
+      // Calculate weight totals
+      const calculatedItemGrossTotal = repairDetails.reduce(
+        (sum, item) => sum + parseFloat(item.gross_weight || 0), 
+        0
+      );
+      
+      const calculatedPacketGrossTotal = repairDetails.reduce(
+        (sum, item) => sum + parseFloat(item.gross_weight || 0) + parseFloat(item.packing_wt || 0),
+        0
+      );
+
+      const transferData = repairDetails.map(item => ({
+  product_id: item.product_id || null,
+  product_name: item.product_name || null,
+  metal_type: item.metal_type || null,
+  purity: item.purity || item.selling_purity || null,
+  category: item.category || null,
+  sub_category: item.sub_category || item.product_name || null,
+  design_name: item.design_name || null,
+  qty: parseFloat(item.qty) || 1,
+  gross_weight: parseFloat(item.gross_weight) || 0,
+  stone_weight: parseFloat(item.stone_weight) || 0,
+  net_weight: parseFloat(item.total_weight_av) || parseFloat(item.weight_bw) || 0,
+  rate: parseFloat(item.rate) || 0,
+  making_charges: parseFloat(item.making_charges) || 0,
+  stone_price: parseFloat(item.stone_price) || 0,
+  total_price: parseFloat(item.total_price) || 0,
+  image: item.image || null,
+  remarks: item.remarks || null,
+  PCode_BarCode: item.code,
+  cover_wt: parseFloat(item.cover_wt) || 0,
+  card_wt: parseFloat(item.card_wt) || 0,
+  packing_wt: parseFloat(item.packing_wt) || 0,
+  item_id: item.item_id || null,
+
+  // ===== FIX: include captured weight-machine data =====
+  weight_machine_reading:
+    parseFloat(item.weight_machine_reading) ||
+    parseFloat(capturedWeights[item.item_id || item.code]?.total_grams) ||
+    0,
+  weight_machine_grams:
+    parseInt(item.weight_machine_grams) ||
+    parseInt(capturedWeights[item.item_id || item.code]?.grams) ||
+    0,
+  weight_machine_milligrams:
+    parseInt(item.weight_machine_milligrams) ||
+    parseInt(capturedWeights[item.item_id || item.code]?.milligrams) ||
+    0,
+  weight_machine_confidence:
+    parseInt(item.weight_machine_confidence) ||
+    parseInt(capturedWeights[item.item_id || item.code]?.confidence) ||
+    0,
+  weight_machine_raw:
+    item.weight_machine_raw ||
+    capturedWeights[item.item_id || item.code]?.raw_text ||
+    null,
+}));
+
+      const payload = {
+        transfer_data: transferData,
+        from_stock_point_id: parseInt(formData.active_stock_point_id),
+        to_salesman_id: parseInt(selectedSalesman.salesman_id),
+        transfer_date: formData.date || new Date().toISOString().split('T')[0],
+        reference_number: nextAssignedNumber,
+        remarks: `Assigned to ${selectedSalesman.salesman_name} from ${activeStockPointDetails.stock_point_name}`,
+        created_by: formData.account_name || "system",
+        from_user_id: activeStockPointDetails.user_id || null,
+        to_user_id: null,
+        capture_image: captureImage,
+        // NEW: Add weight totals to payload
+        item_gross_total: calculatedItemGrossTotal,
+        packet_gross_total: calculatedPacketGrossTotal,
+        total_weight_with_bag: totalWeightWithBag || 0
+      };
+
+      console.log("📦 Sending Assigned Salesman Payload with weight totals:", {
+        item_gross_total: calculatedItemGrossTotal,
+        packet_gross_total: calculatedPacketGrossTotal,
+        total_weight_with_bag: totalWeightWithBag
       });
-      setOldTableData([]);
-      setSchemeTableData([]);
-      setDiscount(0);
-      setIsAllProductsSelected(false);
-      setTotalWeightWithBag(0);
-      setItemGrossTotal(0);
-      setPacketGrossTotal(0);
-      
-      // Reset form data
-      setFormData({
-        ...formData,
-        active_stock_point_id: "",
-        salesman_id: "",
-        salesman_name: "",
-        active_stock_point_details: null,
-        assigned_number: "",
-        transfer_number: "",
-        capture_image: null,
-        capture_image_file: null
-      });
-      
-      navigate("/assign-to-salesman");
+
+      const response = await axios.post(`${baseURL}/api/assigned-salesman/save-assigned-salesman`, payload);
+     
+      if (response.status === 200 || response.status === 201) {
+        alert(`✅ All products assigned to Salesman successfully! Assigned Number: ${nextAssignedNumber}`);
+        
+        // Clear data
+        setOldSalesData([]);
+        setSchemeSalesData([]);
+        setRepairDetails([]);
+        setPaymentDetails({
+          cash_amount: 0,
+          card_amt: 0,
+          chq: "",
+          chq_amt: 0,
+          online: "",
+          online_amt: 0,
+        });
+        setOldTableData([]);
+        setSchemeTableData([]);
+        setDiscount(0);
+        setIsAllProductsSelected(false);
+        setTotalWeightWithBag(0);
+        setItemGrossTotal(0);
+        setPacketGrossTotal(0);
+        
+        // Reset form data
+        setFormData({
+          ...formData,
+          active_stock_point_id: "",
+          salesman_id: "",
+          salesman_name: "",
+          active_stock_point_details: null,
+          assigned_number: "",
+          transfer_number: "",
+          capture_image: null,
+          capture_image_file: null
+        });
+        
+        navigate("/assign-to-salesman");
+      }
+    } catch (error) {
+      console.error("Error saving assigned salesman:", error);
+      alert("Error saving assigned salesman: " + (error.response?.data?.message || error.message));
     }
-  } catch (error) {
-    console.error("Error saving assigned salesman:", error);
-    alert("Error saving assigned salesman: " + (error.response?.data?.message || error.message));
-  }
-};
+  };
 
   const refreshSalesData = () => {
     setOldSalesData([]);
@@ -2940,6 +3096,13 @@ const handleSave = async () => {
               packetGrossTotal={packetGrossTotal}
               totalWeightWithBag={totalWeightWithBag}
               onTotalWeightWithBagChange={handleTotalWeightWithBagChange}
+              // ============= NEW: Weight capture props =============
+              onCaptureWeight={handleCaptureWeight}
+              isWeightProcessing={isWeightProcessing}
+              currentItemId={repairDetails.length > 0 ? repairDetails[0]?.item_id || repairDetails[0]?.id || 0 : null}
+              // ============= NEW: Trigger weight camera from table =============
+              triggerWeightCamera={triggerWeightCamera}
+              setTriggerWeightCamera={setTriggerWeightCamera}
             />
           </div>
 
@@ -2952,6 +3115,11 @@ const handleSave = async () => {
               packetGrossTotal={packetGrossTotal}
               totalWeightWithBag={totalWeightWithBag}
               onTotalWeightWithBagChange={handleTotalWeightWithBagChange}
+              // ============= NEW: Weight capture props =============
+              capturedWeights={capturedWeights}
+              isWeightProcessing={isWeightProcessing}
+              // ============= NEW: Handle weight capture from table =============
+              onCaptureWeightFromTable={handleCaptureWeightFromTable}
             />
           </div>
 
@@ -3057,7 +3225,7 @@ const handleSave = async () => {
                 isAnyOfferApplied={isAnyOfferApplied}
                 // Pass the selected advance amount
                 selectedAdvanceReceiptAmount={selectedAdvanceReceiptAmount}
-                  // 🆕 NEW: Pass validation props
+                // 🆕 NEW: Pass validation props
                 isAllProductsSelected={isAllProductsSelected}
                 selectedTransferItems={selectedTransferItems}
                 repairDetails={repairDetails}
@@ -3066,6 +3234,9 @@ const handleSave = async () => {
                 packetGrossTotal={packetGrossTotal}
                 totalWeightWithBag={totalWeightWithBag}
                 onTotalWeightWithBagChange={handleTotalWeightWithBagChange}
+                // ===== NEW: Weight validation props =====
+                capturedWeights={capturedWeights}
+                requireWeightForAll={true}  // Set to true to enforce weight capture, false to make it optional
               />
             </div>
           </div>

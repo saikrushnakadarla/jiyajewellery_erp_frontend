@@ -1,10 +1,18 @@
 import React, { useState } from 'react';
 import { Table, Button, Modal, Row, Col } from 'react-bootstrap';
-import { FaEdit, FaTrash, FaEye } from 'react-icons/fa';
+import { FaEdit, FaTrash, FaEye, FaWeightHanging } from 'react-icons/fa';
 import baseURL from './../../../../Url/NodeBaseURL';
 import "./ProductTable.css";
 
-const ProductTable = ({ repairDetails, onDelete, onEdit }) => {
+const ProductTable = ({ 
+  repairDetails, 
+  onDelete, 
+  onEdit,
+  capturedWeights = {},
+  isWeightProcessing = false,
+  // NEW: Trigger weight camera from table
+  onCaptureWeightFromTable
+}) => {
   console.log("repairDetails=", repairDetails)
 
   const [showModal, setShowModal] = useState(false);
@@ -18,16 +26,26 @@ const ProductTable = ({ repairDetails, onDelete, onEdit }) => {
   // Function to get image URL
   const getImageUrl = (imagePath) => {
     if (!imagePath) return null;
-    // If it's already a full URL, return it
     if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
       return imagePath;
     }
-    // If it's a relative path, prepend baseURL
     if (imagePath.startsWith('/')) {
       return `${baseURL}${imagePath}`;
     }
-    // If it's just a filename or path without leading slash
     return `${baseURL}/${imagePath}`;
+  };
+
+  // Check if weight is captured for an item
+  const hasWeight = (itemId) => {
+    return capturedWeights[itemId] && capturedWeights[itemId].total_grams > 0;
+  };
+
+  // Handle capture weight button click from table
+  const handleCaptureWeightClick = (detail, index) => {
+    const itemId = detail.item_id || detail.id || index;
+    if (onCaptureWeightFromTable) {
+      onCaptureWeightFromTable(itemId, detail);
+    }
   };
 
   return (
@@ -48,13 +66,16 @@ const ProductTable = ({ repairDetails, onDelete, onEdit }) => {
             <th>MC</th>
             <th>Total Price</th>
             <th>Image</th>
+            <th>Weight</th>
             <th>Action</th>
           </tr>
         </thead>
         <tbody>
           {repairDetails.length > 0 ? (
             repairDetails.map((detail, index) => {
-              // Try to get image from multiple sources
+              const itemId = detail.item_id || detail.id || index;
+              const hasWeightData = hasWeight(itemId);
+              
               let imageUrl = null;
               if (detail.image) {
                 imageUrl = getImageUrl(detail.image);
@@ -97,18 +118,37 @@ const ProductTable = ({ repairDetails, onDelete, onEdit }) => {
                     )}
                   </td>
                   <td>
+                    <Button
+                      variant={hasWeightData ? "success" : "outline-secondary"}
+                      size="sm"
+                      onClick={() => handleCaptureWeightClick(detail, index)}
+                      disabled={isWeightProcessing}
+                      style={{
+                        padding: "2px 8px",
+                        fontSize: "11px",
+                        whiteSpace: "nowrap"
+                      }}
+                      title={hasWeightData ? "Weight already captured" : "Click to capture weight for this item"}
+                    >
+                      <FaWeightHanging /> {hasWeightData ? "✓" : "Capture"}
+                    </Button>
+                    {hasWeightData && (
+                      <span style={{ 
+                        fontSize: '10px', 
+                        color: '#28a745', 
+                        display: 'block',
+                        marginTop: '2px'
+                      }}>
+                        {capturedWeights[itemId]?.total_grams?.toFixed(3)}g
+                      </span>
+                    )}
+                  </td>
+                  <td>
                     <div style={{ display: "flex", alignItems: "center" }}>
                       <FaEye
                         onClick={() => handleView(detail)}
                         style={{ cursor: 'pointer', marginLeft: '10px', color: 'green' }}
                       />
-                      {/* <FaEdit
-                        onClick={() => {
-                          onEdit(index);
-                          setTimeout(() => onEdit(index), 1);
-                        }}
-                        style={{ cursor: "pointer", marginLeft: "10px", color: "blue" }}
-                      /> */}
                       <FaTrash
                         style={{ cursor: "pointer", marginLeft: "10px", color: "red" }}
                         onClick={() => onDelete(index)}
@@ -120,7 +160,7 @@ const ProductTable = ({ repairDetails, onDelete, onEdit }) => {
             })
           ) : (
             <tr>
-              <td colSpan="14" className="text-center">
+              <td colSpan="15" className="text-center">
                 No data available
               </td>
             </tr>
@@ -128,7 +168,6 @@ const ProductTable = ({ repairDetails, onDelete, onEdit }) => {
         </tbody>
         {repairDetails.length > 0 && (
           <tfoot style={{ fontSize: "12px" }}>
-            {/* Only the totals row */}
             <tr style={{ fontWeight: 'bold', background: '#f8f9fa' }}>
               <td>{repairDetails.length}</td>
               <td colSpan="4"></td>
@@ -142,11 +181,12 @@ const ProductTable = ({ repairDetails, onDelete, onEdit }) => {
               <td>
                 {repairDetails.reduce((sum, item) => sum + parseFloat(item.total_weight_av || 0), 0).toFixed(3)}
               </td>
-              <td colSpan="8"></td>
+              <td colSpan="6"></td>
             </tr>
           </tfoot>
         )}
       </Table>
+      
       <Modal show={showModal} onHide={() => setShowModal(false)} size="xl">
         <Modal.Header closeButton>
           <Modal.Title>Product Details</Modal.Title>

@@ -3,9 +3,9 @@ import { Col, Row, Button, Dropdown, DropdownButton, Modal } from 'react-bootstr
 import InputField from './InputfieldSales';
 import axios from 'axios';
 import { AiOutlinePlus } from "react-icons/ai";
-import baseURL from "../../../../Url/NodeBaseURL";
+import baseURL from "../../../../Url/NodeBaseURL2";
 import { useNavigate } from "react-router-dom";
-import { FaTrash, FaCamera, FaUpload, FaQrcode } from "react-icons/fa";
+import { FaTrash, FaCamera, FaUpload, FaQrcode, FaWeightHanging } from "react-icons/fa";
 import Webcam from "react-webcam";
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import Swal from 'sweetalert2';
@@ -61,11 +61,16 @@ const ProductDetails = ({
   selectedOrder,
   orderData,
   visitLogsData,
-  // NEW: Weight totals props from parent
   itemGrossTotal,
   packetGrossTotal,
   totalWeightWithBag,
-  onTotalWeightWithBagChange
+  onTotalWeightWithBagChange,
+  onCaptureWeight,
+  isWeightProcessing = false,
+  currentItemId,
+  // NEW: Trigger weight camera from parent
+  triggerWeightCamera,
+  setTriggerWeightCamera,
 }) => {
 
   const [showModal, setShowModal] = useState(false);
@@ -79,12 +84,47 @@ const ProductDetails = ({
   const [isScannerInitialized, setIsScannerInitialized] = useState(false);
   const scannerRef = useRef(null);
 
+  // ============= WEIGHT CAMERA STATES =============
+  const [showWeightCamera, setShowWeightCamera] = useState(false);
+  const [weightCameraStream, setWeightCameraStream] = useState(null);
+  const weightVideoRef = useRef(null);
+  const weightCanvasRef = useRef(null);
+  const weightFileInputRef = useRef(null);
+  const [isProcessingWeight, setIsProcessingWeight] = useState(false);
+  const [extractedWeight, setExtractedWeight] = useState(null);
+  const [weightCaptureError, setWeightCaptureError] = useState(null);
+
+  // Gemini extraction fields
+  const [extractedGrams, setExtractedGrams] = useState(null);
+  const [extractedMilligrams, setExtractedMilligrams] = useState(null);
+  const [extractedTotalGrams, setExtractedTotalGrams] = useState(null);
+  const [extractedRawText, setExtractedRawText] = useState(null);
+
+  // ============= WEIGHT CAPTURE FOR TABLE ITEM =============
+  const [weightCaptureItemId, setWeightCaptureItemId] = useState(null);
+  const [weightCaptureItemDetails, setWeightCaptureItemDetails] = useState(null);
+
   useEffect(() => {
     const userId = localStorage.getItem('userId');
     if (userId) {
       setLoggedInUserId(parseInt(userId));
     }
   }, []);
+
+  // Watch for trigger from parent (ProductTable)
+  useEffect(() => {
+    if (triggerWeightCamera && setTriggerWeightCamera) {
+      // If we have a currentItemId from the table item, use it
+      if (triggerWeightCamera.itemId) {
+        setWeightCaptureItemId(triggerWeightCamera.itemId);
+        setWeightCaptureItemDetails(triggerWeightCamera.itemDetails || null);
+        // Open weight camera
+        startWeightCameraForItem(triggerWeightCamera.itemId);
+      }
+      // Reset trigger
+      setTriggerWeightCamera(null);
+    }
+  }, [triggerWeightCamera]);
 
   // Initialize scanner when modal opens
   useEffect(() => {
@@ -168,7 +208,6 @@ const ProductDetails = ({
       console.log("Scanned barcode:", barcode);
 
       if (barcode) {
-        // Check if product exists in products master
         const product = products.find((prod) => String(prod.rbarcode) === String(barcode));
         if (product) {
           Swal.close();
@@ -183,10 +222,8 @@ const ProductDetails = ({
           return;
         }
 
-        // Check if product exists in tags
         const tag = data.find((tag) => String(tag.PCode_BarCode) === String(barcode));
         if (tag) {
-          // If salesman is selected, check if product is scheduled
           if (formData.salesman_id) {
             const salesmanId = parseInt(formData.salesman_id);
             const isScheduled = visitLogsData?.some(
@@ -215,7 +252,6 @@ const ProductDetails = ({
             return;
           }
 
-          // FIX: Check Stock_Point - EXCLUDE MAIN STOCK ROOM
           if (tag.Stock_Point === "MAIN STOCK ROOM") {
             Swal.close();
             Swal.fire({
@@ -277,7 +313,6 @@ const ProductDetails = ({
     }
   };
 
-  // Get scheduled barcodes for selected salesman from visitLogsData
   const getScheduledBarcodes = () => {
     if (!formData.salesman_id || !visitLogsData || visitLogsData.length === 0) {
       return [];
@@ -290,11 +325,9 @@ const ProductDetails = ({
 
   const scheduledBarcodes = getScheduledBarcodes();
 
-  // ============= FIXED: Build barcode options with proper filtering =============
   const buildBarcodeOptions = () => {
     const options = [];
 
-    // 1. Product master options (only when no salesman selected)
     if (!formData.salesman_id) {
       const productOptions = products
         .filter((product) => (formData.category ? product.product_name === formData.category : true))
@@ -306,15 +339,9 @@ const ProductDetails = ({
       options.push(...productOptions);
     }
 
-    // 2. When salesman is selected, ONLY show scheduled products
     if (formData.salesman_id) {
       const scheduledSet = new Set(scheduledBarcodes);
       
-      // Filter tags: include ONLY if:
-      // - Scheduled for the salesman
-      // - Status is "Available"
-      // - NOT in MAIN STOCK ROOM
-      // - user_id matches the salesman (if logged in)
       const scheduledTags = data.filter((tag) => {
         if (formData.category && tag.category !== formData.category) return false;
         if (!scheduledSet.has(tag.PCode_BarCode)) return false;
@@ -334,7 +361,6 @@ const ProductDetails = ({
         }))
       );
     } else {
-      // No salesman selected: show all available stock that is NOT in MAIN STOCK ROOM
       const stockTags = data.filter((tag) => {
         if (formData.category && tag.category !== formData.category) return false;
         if (tag.Status !== 'Available') return false;
@@ -354,7 +380,6 @@ const ProductDetails = ({
       );
     }
 
-    // Add placeholder if no options
     if (options.length === 0) {
       options.push({
         value: '',
@@ -363,7 +388,6 @@ const ProductDetails = ({
       });
     }
 
-    // Remove duplicate options (keep first occurrence)
     const uniqueOptions = [];
     const seenValues = new Set();
     for (const option of options) {
@@ -377,8 +401,6 @@ const ProductDetails = ({
   };
 
   const uniqueBarcodeOptions = buildBarcodeOptions();
-
-  // ============= END FIXED =============
 
   const defaultBarcode = formData.category
     ? products.find((product) => product.product_name === formData.category)?.rbarcode || ""
@@ -544,7 +566,198 @@ const ProductDetails = ({
     formData.pricing,
   ]);
 
-  // Count scheduled products for display
+  // ============= WEIGHT CAPTURE FUNCTIONS =============
+
+  // Process weight image using Gemini API
+  const processWeightImage = async (imageFile) => {
+    // Use the barcode as the item identifier
+    const targetItemId = weightCaptureItemId || formData.code;
+    
+    if (!targetItemId) {
+      alert("Please select a product first before capturing weight.");
+      return;
+    }
+
+    setIsProcessingWeight(true);
+    setExtractedWeight(null);
+    setWeightCaptureError(null);
+
+    try {
+      const formDataObj = new FormData();
+      formDataObj.append('image', imageFile);
+      formDataObj.append('estimate_number', '');
+      formDataObj.append('item_id', targetItemId);
+
+      const response = await axios.post(`${baseURL}/api/extract-weight-gemini`, formDataObj, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+
+      if (response.data.success && response.data.record) {
+        const record = response.data.record;
+
+        setExtractedRawText(record.raw_text);
+        setExtractedGrams(record.grams);
+        setExtractedMilligrams(record.milligrams);
+        setExtractedTotalGrams(record.total_grams);
+
+        const weightData = {
+          total_grams: record.total_grams,
+          grams: record.grams,
+          milligrams: record.milligrams,
+          raw_text: record.raw_text,
+          confidence: record.confidence || 100
+        };
+
+        setExtractedWeight(weightData);
+
+        // Notify parent component about the captured weight
+        if (onCaptureWeight) {
+          // Pass the barcode as the item ID - this will be used to match the item
+          onCaptureWeight(targetItemId, weightData);
+        }
+
+        // Close weight camera after successful capture
+        stopWeightCamera();
+
+        Swal.fire({
+          icon: 'success',
+          title: '✅ Weight Extracted!',
+          html: `
+            <div style="font-size: 24px; padding: 10px 0;">
+              <strong>${record.total_grams.toFixed(3)} g</strong>
+              <div style="font-size: 14px; color: #666; margin-top: 5px;">
+                ${record.grams} g / ${record.milligrams} mg
+              </div>
+              <div style="font-size: 12px; color: #888; margin-top: 5px;">
+                Raw: ${record.raw_text}
+              </div>
+            </div>
+          `,
+          timer: 3000,
+          showConfirmButton: false
+        });
+
+        // Reset weight capture item states
+        setWeightCaptureItemId(null);
+        setWeightCaptureItemDetails(null);
+
+      } else {
+        setWeightCaptureError(response.data.message || 'Could not extract weight from image');
+        Swal.fire({
+          icon: 'warning',
+          title: 'Could Not Detect Weight',
+          text: response.data.message || 'Please try a clearer photo of the weight machine display.',
+          confirmButtonText: 'OK'
+        });
+      }
+    } catch (error) {
+      console.error('Gemini API Error:', error);
+      let errorMessage = 'Error processing weight image.';
+      if (error.response) {
+        errorMessage = error.response.data?.message || errorMessage;
+      }
+      setWeightCaptureError(errorMessage);
+      Swal.fire({
+        icon: 'error',
+        title: 'Extraction Failed',
+        text: errorMessage,
+        confirmButtonText: 'OK'
+      });
+    } finally {
+      setIsProcessingWeight(false);
+    }
+  };
+
+  // Start weight camera for a specific item (called from ProductTable)
+  const startWeightCameraForItem = (itemId, itemDetails = null) => {
+    setWeightCaptureItemId(itemId);
+    setWeightCaptureItemDetails(itemDetails);
+    
+    // Open the camera
+    navigator.mediaDevices.getUserMedia({ 
+      video: { facingMode: 'environment' } 
+    })
+    .then(stream => {
+      setWeightCameraStream(stream);
+      setShowWeightCamera(true);
+      setTimeout(() => { 
+        if (weightVideoRef.current) weightVideoRef.current.srcObject = stream; 
+      }, 100);
+    })
+    .catch(error => {
+      console.error('Error accessing camera:', error);
+      alert('Failed to access camera. Please check permissions.');
+    });
+  };
+
+  // Start weight camera - called from the Capture Weight button
+  const startWeightCamera = () => {
+    // If no product is selected in the form, show alert
+    if (!formData.code) {
+      alert("Please select a product first using the barcode dropdown or scan button.");
+      return;
+    }
+
+    // If the product is already in the table, use its ID
+    // Otherwise, we'll use the barcode as identifier
+    const itemId = currentItemId || formData.code;
+    
+    // Open the camera
+    navigator.mediaDevices.getUserMedia({ 
+      video: { facingMode: 'environment' } 
+    })
+    .then(stream => {
+      setWeightCameraStream(stream);
+      setShowWeightCamera(true);
+      setTimeout(() => { 
+        if (weightVideoRef.current) weightVideoRef.current.srcObject = stream; 
+      }, 100);
+    })
+    .catch(error => {
+      console.error('Error accessing camera:', error);
+      alert('Failed to access camera. Please check permissions.');
+    });
+  };
+
+  const stopWeightCamera = () => {
+    if (weightCameraStream) {
+      weightCameraStream.getTracks().forEach(track => track.stop());
+      setWeightCameraStream(null);
+    }
+    setShowWeightCamera(false);
+    setWeightCaptureError(null);
+  };
+
+  const captureWeightImage = () => {
+    if (weightVideoRef.current && weightCanvasRef.current) {
+      const video = weightVideoRef.current;
+      const canvas = weightCanvasRef.current;
+      const context = canvas.getContext('2d');
+
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      canvas.toBlob((blob) => {
+        const file = new File([blob], `weight_capture_${Date.now()}.jpg`, { type: 'image/jpeg' });
+        processWeightImage(file);
+      }, 'image/jpeg');
+    }
+  };
+
+  // Trigger weight file upload
+  const triggerWeightFileUpload = () => {
+    weightFileInputRef.current?.click();
+  };
+
+  const handleWeightFileUpload = (event) => {
+    const file = event.target.files[0];
+    if (file) {
+      processWeightImage(file);
+    }
+    event.target.value = '';
+  };
+
   const scheduledCount = formData.salesman_id ? scheduledBarcodes.length : 0;
 
   return (
@@ -591,104 +804,10 @@ const ProductDetails = ({
           </div>
         </Col>
 
-        {/* Category - COMMENTED OUT */}
-        {/*
-        <Col xs={12} md={2} className="d-flex align-items-center">
-          <div style={{ flex: 1 }}>
-            <InputField
-              label="Category"
-              name="category"
-              value={formData.category || ""}
-              type="select"
-              onChange={handleChange}
-              options={categoryOptions}
-            />
-          </div>
-          <AiOutlinePlus
-            size={18}
-            color="black"
-            style={{
-              marginLeft: "8px",
-              cursor: "pointer",
-              marginBottom: "20px",
-              flexShrink: 0
-            }}
-            onClick={() =>
-              navigate("/itemmaster", {
-                state: {
-                  from: `/sales?tabId=${tabId}`
-                }
-              })
-            }
-          />
-        </Col>
-        */}
-
-        {/* Metal Type - COMMENTED OUT */}
-        {/*
-        <Col xs={12} md={2}>
-          <InputField
-            label="Metal Type"
-            name="metal_type"
-            value={formData.metal_type || ""}
-            onChange={handleChange}
-            type="select"
-            options={metaltypeOptions}
-          />
-        </Col>
-        */}
-
-        {/* Sub Category - COMMENTED OUT */}
-        {/*
-        <Col xs={12} md={2} className="d-flex align-items-center">
-          <div style={{ flex: 1 }}>
-            <InputField
-              label="Sub Category"
-              name="product_name"
-              value={formData.product_name || ""}
-              onChange={handleChange}
-              type="select"
-              options={subcategoryOptions}
-            />
-          </div>
-          <AiOutlinePlus
-            size={18}
-            color="black"
-            style={{
-              marginLeft: "8px",
-              cursor: "pointer",
-              marginBottom: "20px",
-              flexShrink: 0
-            }}
-            onClick={() =>
-              navigate("/subcategory", {
-                state: {
-                  from: `/sales?tabId=${tabId}`,
-                  metal_type: formData.metal_type
-                }
-              })
-            }
-          />
-        </Col>
-        */}
-
-        {/* Product Design Name - COMMENTED OUT */}
-        {/*
-        <Col xs={12} md={2}>
-          <InputField
-            label="Product Design Name"
-            name="design_name"
-            value={formData.design_name}
-            onChange={handleChange}
-            type="select"
-            options={designOptions}
-          />
-        </Col>
-        */}
-
-        {/* Action Buttons - Choose/Capture Image, Add, Clear */}
+        {/* ============= ACTION BUTTONS ============= */}
         <Col xs={12} md={8}>
           <div className="d-flex align-items-center" style={{ gap: '10px', flexWrap: 'wrap' }}>
+            {/* 1. Choose / Capture Image Dropdown */}
             <DropdownButton
               id="dropdown-basic-button"
               title="Choose / Capture Image"
@@ -711,6 +830,19 @@ const ProductDetails = ({
               )}
             </DropdownButton>
 
+            {/* ============= Capture Weight Button - REMOVED as requested ============= */}
+            {/* The Capture Weight button is now only available in the table */}
+
+            {/* Hidden file input for weight upload */}
+            <input
+              ref={weightFileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleWeightFileUpload}
+              style={{ display: 'none' }}
+            />
+
+            {/* 3. Add / Update Button */}
             <Button
               onClick={isEditing ? handleUpdate : handleAdd}
               style={{
@@ -724,6 +856,7 @@ const ProductDetails = ({
               {isEditing ? "Update" : "Add"}
             </Button>
 
+            {/* 4. Clear Button */}
             <Button
               variant="secondary"
               onClick={handleClear}
@@ -740,8 +873,110 @@ const ProductDetails = ({
         </Col>
       </Row>
 
-      {/* NEW: Second Row - Weight Totals Display */}
-      {/* Show weight totals only when there are items (itemGrossTotal > 0) */}
+      {/* Display extracted weight info */}
+      {extractedWeight && (
+        <Row style={{ marginTop: '10px' }}>
+          <Col xs={12}>
+            <div style={{
+              backgroundColor: '#d4edda',
+              border: '1px solid #c3e6cb',
+              borderRadius: '8px',
+              padding: '8px 15px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '20px',
+              flexWrap: 'wrap'
+            }}>
+              <span style={{ fontWeight: 'bold', color: '#155724' }}>
+                ✅ Weight Captured:
+              </span>
+              <span style={{ fontWeight: 'bold', fontSize: '18px', color: '#0d47a1' }}>
+                {extractedTotalGrams?.toFixed(3)} g
+              </span>
+              <span style={{ fontSize: '14px', color: '#155724' }}>
+                ({extractedGrams} g / {extractedMilligrams} mg)
+              </span>
+              <span style={{ fontSize: '12px', color: '#666' }}>
+                Raw: {extractedRawText}
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  setExtractedWeight(null);
+                  setExtractedGrams(null);
+                  setExtractedMilligrams(null);
+                  setExtractedTotalGrams(null);
+                  setExtractedRawText(null);
+                }}
+                style={{
+                  background: '#dc3545',
+                  border: 'none',
+                  color: 'white',
+                  borderRadius: '4px',
+                  padding: '2px 10px',
+                  cursor: 'pointer',
+                  marginLeft: 'auto'
+                }}
+              >
+                ✕ Close
+              </button>
+            </div>
+          </Col>
+        </Row>
+      )}
+
+      {/* Weight capture error */}
+      {weightCaptureError && (
+        <Row style={{ marginTop: '10px' }}>
+          <Col xs={12}>
+            <div style={{
+              backgroundColor: '#f8d7da',
+              border: '1px solid #f5c6cb',
+              borderRadius: '8px',
+              padding: '8px 15px',
+              color: '#721c24'
+            }}>
+              ⚠️ {weightCaptureError}
+              <button
+                type="button"
+                onClick={() => setWeightCaptureError(null)}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: '#721c24',
+                  marginLeft: '10px',
+                  cursor: 'pointer'
+                }}
+              >
+                ✕
+              </button>
+            </div>
+          </Col>
+        </Row>
+      )}
+
+      {/* Processing indicator */}
+      {isProcessingWeight && (
+        <Row style={{ marginTop: '10px' }}>
+          <Col xs={12}>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+              padding: '8px 15px',
+              backgroundColor: '#e3f2fd',
+              borderRadius: '8px'
+            }}>
+              <div className="spinner-border spinner-border-sm text-primary" role="status">
+                <span className="visually-hidden">Processing...</span>
+              </div>
+              <span style={{ color: '#0d47a1' }}>Processing weight image with Gemini AI...</span>
+            </div>
+          </Col>
+        </Row>
+      )}
+
+      {/* Weight Totals Display */}
       {itemGrossTotal > 0 && (
         <Row style={{ marginTop: '10px' }}>
           <Col xs={12}>
@@ -869,6 +1104,51 @@ const ProductDetails = ({
         </Modal.Body>
         <Modal.Footer>
           <Button variant="secondary" onClick={stopScanner}>Cancel Scan</Button>
+        </Modal.Footer>
+      </Modal>
+
+      {/* ============= WEIGHT CAMERA MODAL ============= */}
+      <Modal show={showWeightCamera} onHide={stopWeightCamera} centered size="lg">
+        <Modal.Header closeButton>
+          <Modal.Title>Capture Weight Machine Display</Modal.Title>
+        </Modal.Header>
+        <Modal.Body style={{ textAlign: 'center' }}>
+          <video 
+            ref={weightVideoRef} 
+            autoPlay 
+            playsInline 
+            style={{ 
+              width: '100%', 
+              maxHeight: '400px', 
+              objectFit: 'contain' 
+            }} 
+          />
+          <canvas ref={weightCanvasRef} style={{ display: 'none' }} />
+          <p className="mt-2 text-muted">
+            Point the camera at the weight machine display to capture and extract the weight using Gemini AI
+          </p>
+          <p className="text-muted" style={{ fontSize: '12px' }}>
+            Or use the "Upload Weight" button below to select an image from your device
+          </p>
+          <Button 
+            variant="outline-secondary" 
+            size="sm" 
+            onClick={triggerWeightFileUpload}
+            style={{ marginTop: '5px' }}
+          >
+            📤 Upload Weight Image
+          </Button>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={stopWeightCamera}>Cancel</Button>
+          <Button 
+            variant="primary" 
+            onClick={captureWeightImage} 
+            disabled={isProcessingWeight}
+            style={{ backgroundColor: '#28a745', borderColor: '#28a745' }}
+          >
+            {isProcessingWeight ? 'Processing...' : 'Capture & Extract Weight'}
+          </Button>
         </Modal.Footer>
       </Modal>
     </Col>
