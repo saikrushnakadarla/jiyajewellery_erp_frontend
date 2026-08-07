@@ -4,10 +4,6 @@ import { AuthContext } from "../Login/Context";
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts';
 import { Card, Row, Col, Alert, Spinner, Badge } from 'react-bootstrap';
 import './Dashboard.css';
-// FIX: Everything (visit-logs-warehouse-schedule, account-details, stockpoints,
-// stock-transfer, etc.) lives on the ERP backend (port 5001) = `baseURL`.
-// Do NOT import baseURL2 (port 5000) here — those routes don't exist on that server,
-// which is why "Today's Warehouse Visits" and notifications were always empty.
 import baseURL from "../../../Url/NodeBaseURL";
 
 function StockPointDashboard() {
@@ -36,13 +32,6 @@ function StockPointDashboard() {
   // State for Today's Warehouse Visits
   const [todayVisits, setTodayVisits] = useState([]);
   const [visitsLoading, setVisitsLoading] = useState(true);
-
-  // FIX: This is the piece that was missing — the actual stock_point_id
-  // for the currently logged-in warehouse, resolved by matching the
-  // stock_point_name against the logged-in userName. Without this,
-  // "visit.warehouse_id" was never compared against anything, so either
-  // every warehouse's visits showed up, or (combined with the wrong base
-  // URL) nothing showed up at all.
   const [currentStockPointId, setCurrentStockPointId] = useState(null);
 
   // Get userName from localStorage
@@ -76,7 +65,46 @@ function StockPointDashboard() {
     return null;
   };
 
-  // Fetch Today's Warehouse Visits — now correctly scoped to THIS warehouse
+  // Format date for display
+  const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric'
+    });
+  };
+
+  // Format time for display
+  const formatTime = (dateString) => {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    return date.toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    });
+  };
+
+  // Format date for scheduled/reschedule display
+  const formatDateTime = (dateString) => {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric'
+    }) + ' at ' + date.toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    });
+  };
+
+  // Fetch Today's Warehouse Visits
   const fetchTodayVisits = async (stockPointId) => {
     try {
       setVisitsLoading(true);
@@ -87,14 +115,14 @@ function StockPointDashboard() {
         return;
       }
 
-      // FIX: baseURL (5001), not baseURL2 (5000)
+      // Fetch visit logs
       const response = await fetch(`${baseURL}/api/visit-logs-warehouse-schedule`);
       if (!response.ok) {
         throw new Error('Failed to fetch schedule visits');
       }
       const scheduleData = await response.json();
 
-      // FIX: baseURL (5001), not baseURL2 (5000)
+      // Fetch account details
       const accountResponse = await fetch(`${baseURL}/get/account-details`);
       if (!accountResponse.ok) {
         throw new Error('Failed to fetch account details');
@@ -105,7 +133,7 @@ function StockPointDashboard() {
       const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 0, 0, 0);
       const todayEnd = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59);
 
-      // FIX: actually filter by THIS warehouse's stock point id, not just "truthy"
+      // Filter visits for today and this warehouse
       const todayVisitsFiltered = scheduleData.filter(visit => {
         if (!visit.warehouse_id || visit.warehouse_id !== stockPointId) return false;
         if (visit.status !== 'scheduled') return false;
@@ -115,37 +143,45 @@ function StockPointDashboard() {
         return visitDate >= todayStart && visitDate <= todayEnd;
       });
 
-      // Group visits by customer
+      // Group visits by customer and merge with account details
       const groupedVisits = {};
       todayVisitsFiltered.forEach(visit => {
-        const customer = accountData.find(acc =>
-          acc.customer_id === visit.customer_id ||
-          acc.account_id === visit.customer_account_id
+        // Find matching account by customer_id
+        const customerAccount = accountData.find(acc => 
+          acc.customer_id === visit.customer_id
         );
 
         const customerKey = visit.customer_account_id || visit.customer_id;
+        
         if (!groupedVisits[customerKey]) {
           groupedVisits[customerKey] = {
             customer_account_id: visit.customer_account_id,
             customer_id: visit.customer_id,
-            customer_name: customer?.account_name || visit.customer_name || 'Unknown Customer',
-            customer_phone: customer?.phone || visit.customer_phone || 'N/A',
-            customer_mobile: customer?.mobile || visit.customer_mobile || 'N/A',
-            customer_email: customer?.email || visit.customer_email || 'N/A',
-            address1: customer?.address1 || 'N/A',
-            city: customer?.city || 'N/A',
-            state: customer?.state || 'N/A',
-            account_name: customer?.account_name || visit.customer_name || 'Unknown Customer',
+            customer_name: customerAccount?.account_name || visit.customer_name || 'Unknown Customer',
+            customer_status: visit.customer_status || 'Scheduled',
+            reschedule_date: visit.reschedule_date || null,
+            reschedule_notes: visit.reschedule_notes || null,
+            // Address details from account data
+            address1: customerAccount?.address1 || null,
+            address2: customerAccount?.address2 || null,
+            city: customerAccount?.city || null,
+            district: customerAccount?.district || null,
+            pincode: customerAccount?.pincode || null,
+            state: customerAccount?.state || null,
             visits: []
           };
         }
+        
         groupedVisits[customerKey].visits.push({
           id: visit.id,
           warehouse_name: visit.warehouse_name,
           barcode: visit.barcode,
           scheduled_date: visit.scheduled_date,
           status: visit.status,
-          salesman_name: visit.salesman_name
+          salesman_name: visit.salesman_name,
+          salesman_photo: visit.salesman_photo || null,
+          customer_status: visit.customer_status || 'Scheduled',
+          reschedule_date: visit.reschedule_date || null
         });
       });
 
@@ -252,7 +288,6 @@ function StockPointDashboard() {
   // Fetch all data on component mount
   useEffect(() => {
     const init = async () => {
-      // Resolve this warehouse's stock_point_id FIRST, then fetch visits
       const stockPointId = await resolveCurrentStockPointId();
       await fetchTodayVisits(stockPointId);
     };
@@ -263,8 +298,6 @@ function StockPointDashboard() {
     fetchAssignedToSalesman();
     fetchReceivedFromSalesman();
 
-    // Optional: refresh visits every 60s so newly scheduled visits show up
-    // without a manual page reload
     const visitsInterval = setInterval(async () => {
       const stockPointId = currentStockPointId || (await resolveCurrentStockPointId());
       fetchTodayVisits(stockPointId);
@@ -273,29 +306,6 @@ function StockPointDashboard() {
     return () => clearInterval(visitsInterval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  // Format date for display
-  const formatDate = (dateString) => {
-    if (!dateString) return 'N/A';
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', {
-      weekday: 'short',
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric'
-    });
-  };
-
-  // Format time for display
-  const formatTime = (dateString) => {
-    if (!dateString) return 'N/A';
-    const date = new Date(dateString);
-    return date.toLocaleTimeString('en-US', {
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: true
-    });
-  };
 
   // Prepare data for pie chart
   const getStockStatusData = () => {
@@ -354,6 +364,34 @@ function StockPointDashboard() {
     navigate("/receive-from-salesman");
   };
 
+  // Get status badge color
+  const getStatusBadgeColor = (status) => {
+    switch(status?.toLowerCase()) {
+      case 'scheduled':
+        return 'primary';
+      case 'available':
+        return 'success';
+      case 'not available':
+        return 'danger';
+      default:
+        return 'secondary';
+    }
+  };
+
+  // Get unique salesman details for a customer
+  const getSalesmanDetails = (visits) => {
+    const salesmanMap = {};
+    visits.forEach(v => {
+      if (v.salesman_name && !salesmanMap[v.salesman_name]) {
+        salesmanMap[v.salesman_name] = {
+          name: v.salesman_name,
+          photo: v.salesman_photo || null
+        };
+      }
+    });
+    return Object.values(salesmanMap);
+  };
+
   return (
     <div className="main-container" style={{ backgroundColor: '#b7721834', minHeight: '100vh' }}>
       <div className="dashboard-header">
@@ -369,7 +407,14 @@ function StockPointDashboard() {
 
         {/* TODAY'S WAREHOUSE VISITS SECTION */}
         <div className="today-visits-section" style={{ marginBottom: '30px' }}>
-          <div className="section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+          <div className="section-header" style={{ 
+            display: 'flex', 
+            justifyContent: 'space-between', 
+            alignItems: 'center', 
+            marginBottom: '20px',
+            flexWrap: 'wrap',
+            gap: '10px'
+          }}>
             <div>
               <h3 style={{ margin: 0, fontSize: '20px', fontWeight: 600, color: '#1e293b' }}>
                 <span style={{ marginRight: '8px' }}>📅</span> Today's Warehouse Visits
@@ -378,165 +423,315 @@ function StockPointDashboard() {
                 {formatDate(new Date().toISOString())}
               </p>
             </div>
-            <Badge bg="primary" style={{ fontSize: '14px', padding: '8px 16px' }}>
+            <Badge bg="primary" style={{ fontSize: '14px', padding: '8px 20px', borderRadius: '20px' }}>
               {todayVisits.length} Customer{todayVisits.length !== 1 ? 's' : ''}
             </Badge>
           </div>
 
           {visitsLoading ? (
-            <div className="text-center py-4">
+            <div className="text-center py-5">
               <Spinner animation="border" variant="primary" size="sm" />
-              <span className="ms-2">Loading visits...</span>
+              <span className="ms-2" style={{ color: '#64748b' }}>Loading visits...</span>
             </div>
           ) : todayVisits.length > 0 ? (
             <Row className="g-4">
-              {todayVisits.map((customer, index) => (
-                <Col key={index} lg={12} md={6} sm={12}>
-                  <Card className="today-visit-card" style={{
-                    border: 'none',
-                    borderRadius: '16px',
-                    boxShadow: '0 4px 20px rgba(0,0,0,0.06)',
-                    height: '100%',
-                    overflow: 'hidden',
-                    backgroundColor: '#fff'
-                  }}
-                  >
-                    <Card.Body style={{ padding: '0' }}>
-                      <div style={{
-                        padding: '16px 20px 12px 20px',
-                        borderBottom: '1px solid #f1f5f9',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '12px'
-                      }}>
+              {todayVisits.map((customer, index) => {
+                const salesmanDetails = getSalesmanDetails(customer.visits);
+                return (
+                  <Col key={index} lg={12} md={6} sm={12}>
+                    <Card className="today-visit-card" style={{
+                      border: 'none',
+                      borderRadius: '20px',
+                      boxShadow: '0 4px 24px rgba(0,0,0,0.08)',
+                      height: '100%',
+                      overflow: 'hidden',
+                      backgroundColor: '#ffffff',
+                      transition: 'all 0.3s ease'
+                    }}>
+                      <Card.Body style={{ padding: '0' }}>
+                        {/* Header with Customer Name, ID and Status */}
                         <div style={{
-                          width: '44px',
-                          height: '44px',
-                          borderRadius: '50%',
-                          background: 'linear-gradient(135deg, #8b5cf6, #3b82f6)',
+                          padding: '18px 24px',
+                          background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
+                          borderBottom: '1px solid #e2e8f0',
                           display: 'flex',
                           alignItems: 'center',
-                          justifyContent: 'center',
-                          fontSize: '18px',
-                          fontWeight: '600',
-                          color: '#fff',
-                          flexShrink: 0
+                          justifyContent: 'space-between',
+                          gap: '12px',
+                          flexWrap: 'wrap'
                         }}>
-                          {customer.account_name?.charAt(0) || 'C'}
-                        </div>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <h6 style={{ margin: 0, fontSize: '15px', fontWeight: 600, color: '#0f172a' }}>
-                            {customer.account_name || 'Unknown Customer'}
-                          </h6>
-                          <div style={{ fontSize: '12px', color: '#64748b' }}>
-                            <span>🆔</span> {customer.customer_id || 'N/A'}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                            <div style={{
+                              width: '48px',
+                              height: '48px',
+                              borderRadius: '50%',
+                              background: 'linear-gradient(135deg, #8b5cf6, #6366f1)',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontSize: '20px',
+                              fontWeight: '600',
+                              color: '#fff',
+                              flexShrink: 0,
+                              boxShadow: '0 4px 12px rgba(99, 102, 241, 0.3)'
+                            }}>
+                              {customer.customer_name?.charAt(0) || 'C'}
+                            </div>
+                            <div>
+                              <h6 style={{ margin: 0, fontSize: '16px', fontWeight: 600, color: '#0f172a' }}>
+                                {customer.customer_name || 'Unknown Customer'}
+                              </h6>
+                              <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>
+                                <span style={{ fontWeight: 500, color: '#475569' }}>ID:</span> {customer.customer_id || 'N/A'}
+                              </div>
+                            </div>
                           </div>
+                          <Badge 
+                            bg={getStatusBadgeColor(customer.customer_status)} 
+                            style={{ 
+                              fontSize: '12px', 
+                              padding: '6px 16px', 
+                              borderRadius: '20px',
+                              fontWeight: 500,
+                              boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+                            }}
+                          >
+                            {customer.customer_status || 'Scheduled'}
+                          </Badge>
                         </div>
-                      </div>
 
-                      <div style={{ padding: '12px 20px' }}>
-                        <div style={{
-                          display: 'grid',
-                          gridTemplateColumns: '1fr 1fr',
-                          gap: '6px 16px',
-                          fontSize: '18px'
+                        {/* Address Section with Icons */}
+                        <div style={{ 
+                          padding: '16px 24px', 
+                          borderBottom: '1px solid #f1f5f9',
+                          backgroundColor: '#ffffff'
                         }}>
-                          <div>
-                            <span style={{ color: '#94a3b8' }}>📞</span>
-                            <span style={{ marginLeft: '4px', color: '#334155' }}>{customer.customer_phone || 'N/A'}</span>
-                          </div>
-                          <div>
-                            <span style={{ color: '#94a3b8' }}>📱</span>
-                            <span style={{ marginLeft: '4px', color: '#334155' }}>{customer.customer_mobile || 'N/A'}</span>
-                          </div>
-                          <div style={{ gridColumn: '1 / -1' }}>
-                            <span style={{ color: '#94a3b8' }}>✉️</span>
-                            <span style={{ marginLeft: '4px', color: '#334155' }}>{customer.customer_email || 'N/A'}</span>
-                          </div>
-                          <div style={{ gridColumn: '1 / -1' }}>
-                            <span style={{ color: '#94a3b8' }}>📍</span>
-                            <span style={{ marginLeft: '4px', color: '#334155' }}>
-                              {customer.address1 && customer.address1 !== 'N/A' ? customer.address1 : ''}
-                              {customer.city && customer.city !== 'N/A' ? `, ${customer.city}` : ''}
-                              {customer.state && customer.state !== 'N/A' ? `, ${customer.state}` : ''}
-                              {(!customer.address1 || customer.address1 === 'N/A') && 'No address available'}
-                            </span>
+                          <div style={{ 
+                            display: 'grid', 
+                            gridTemplateColumns: '1fr',
+                            gap: '6px'
+                          }}>
+                            {customer.address1 && (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                <span style={{ color: '#64748b', fontSize: '16px', width: '20px' }}>🏠</span>
+                                <span style={{ fontSize: '13px', color: '#334155' }}>
+                                  <strong>Address 1:</strong> {customer.address1}
+                                </span>
+                              </div>
+                            )}
+                            {customer.address2 && (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                <span style={{ color: '#64748b', fontSize: '16px', width: '20px' }}>📍</span>
+                                <span style={{ fontSize: '13px', color: '#334155' }}>
+                                  <strong>Address 2:</strong> {customer.address2}
+                                </span>
+                              </div>
+                            )}
+                            {customer.city && (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                <span style={{ color: '#64748b', fontSize: '16px', width: '20px' }}>🏙️</span>
+                                <span style={{ fontSize: '13px', color: '#334155' }}>
+                                  <strong>City:</strong> {customer.city}
+                                </span>
+                              </div>
+                            )}
+                            {customer.district && (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                <span style={{ color: '#64748b', fontSize: '16px', width: '20px' }}>🗺️</span>
+                                <span style={{ fontSize: '13px', color: '#334155' }}>
+                                  <strong>District:</strong> {customer.district}
+                                </span>
+                              </div>
+                            )}
+                            {customer.state && (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                <span style={{ color: '#64748b', fontSize: '16px', width: '20px' }}>🏛️</span>
+                                <span style={{ fontSize: '13px', color: '#334155' }}>
+                                  <strong>State:</strong> {customer.state}
+                                </span>
+                              </div>
+                            )}
+                            {customer.pincode && (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                <span style={{ color: '#64748b', fontSize: '16px', width: '20px' }}>📮</span>
+                                <span style={{ fontSize: '13px', color: '#334155' }}>
+                                  <strong>Pincode:</strong> {customer.pincode}
+                                </span>
+                              </div>
+                            )}
+                            {!customer.address1 && !customer.city && !customer.state && (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                <span style={{ color: '#94a3b8', fontSize: '16px', width: '20px' }}>📍</span>
+                                <span style={{ fontSize: '13px', color: '#94a3b8' }}>
+                                  No address available
+                                </span>
+                              </div>
+                            )}
                           </div>
                         </div>
-                      </div>
 
-                      <div style={{
-                        backgroundColor: '#f8fafc',
-                        padding: '12px 20px',
-                        borderTop: '1px solid #f1f5f9',
-                        borderBottom: '1px solid #f1f5f9'
-                      }}>
+                        {/* Status Details Section */}
                         <div style={{
+                          backgroundColor: '#f8fafc',
+                          padding: '14px 24px',
+                          borderBottom: '1px solid #f1f5f9'
+                        }}>
+                          {customer.customer_status?.toLowerCase() === 'scheduled' && customer.visits.length > 0 && (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                              <span style={{ color: '#3b82f6', fontSize: '18px' }}>📋</span>
+                              <span style={{ fontSize: '13px', color: '#334155' }}>
+                                <strong style={{ color: '#1e293b' }}>Scheduled:</strong> {formatDateTime(customer.visits[0]?.scheduled_date)}
+                              </span>
+                            </div>
+                          )}
+                          
+                          {customer.customer_status?.toLowerCase() === 'not available' && customer.reschedule_date && (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                              <span style={{ color: '#ef4444', fontSize: '18px' }}>🔄</span>
+                              <span style={{ fontSize: '13px', color: '#334155' }}>
+                                <strong style={{ color: '#1e293b' }}>Rescheduled:</strong> {formatDateTime(customer.reschedule_date)}
+                              </span>
+                              {customer.reschedule_notes && (
+                                <span style={{ 
+                                  fontSize: '12px', 
+                                  color: '#64748b',
+                                  backgroundColor: '#f1f5f9',
+                                  padding: '2px 12px',
+                                  borderRadius: '12px',
+                                  marginLeft: '4px'
+                                }}>
+                                  📝 {customer.reschedule_notes}
+                                </span>
+                              )}
+                            </div>
+                          )}
+
+                          {customer.customer_status?.toLowerCase() === 'available' && (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                              <span style={{ color: '#22c55e', fontSize: '18px' }}>✅</span>
+                              <span style={{ fontSize: '13px', color: '#334155' }}>
+                                <strong style={{ color: '#1e293b' }}>Status:</strong> Available - Visit completed
+                              </span>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Salesman Details with Photos */}
+                        <div style={{
+                          padding: '14px 24px',
                           display: 'flex',
                           justifyContent: 'space-between',
                           alignItems: 'center',
-                          marginBottom: '8px'
+                          flexWrap: 'wrap',
+                          gap: '12px',
+                          backgroundColor: '#ffffff',
+                          borderBottom: '1px solid #f1f5f9'
                         }}>
-                          <span style={{ fontSize: '12px', fontWeight: 600, color: '#64748b' }}>
-                            📋 {customer.visits.length} Visit{customer.visits.length > 1 ? 's' : ''}
-                          </span>
-                        </div>
-                        {customer.visits.map((visit, vIndex) => (
-                          <div key={vIndex} style={{
-                            display: 'grid',
-                            gridTemplateColumns: 'auto 1fr auto',
-                            gap: '4px 12px',
-                            padding: '6px 0',
-                            borderBottom: vIndex < customer.visits.length - 1 ? '1px solid #e2e8f0' : 'none',
-                            fontSize: '12px'
-                          }}>
-                            <span style={{ color: '#94a3b8' }}>📦</span>
-                            <span style={{ color: '#3b82f6', fontWeight: 600, fontFamily: 'monospace' }}>
-                              {visit.barcode || 'N/A'}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
+                            <span style={{ fontSize: '13px', color: '#475569', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <span style={{ fontSize: '16px' }}>📦</span>
+                              <strong>{customer.visits.length}</strong> Visit{customer.visits.length > 1 ? 's' : ''}
                             </span>
-                            <span style={{ color: '#64748b' }}>{formatTime(visit.scheduled_date)}</span>
-                            {visit.salesman_name && (
-                              <>
-                                <span style={{ color: '#94a3b8' }}>👤</span>
-                                <span style={{ color: '#334155' }}>{visit.salesman_name}</span>
-                                <span></span>
-                              </>
-                            )}
                           </div>
-                        ))}
-                      </div>
+                          <Badge 
+                            bg="primary" 
+                            style={{ 
+                              fontSize: '10px', 
+                              padding: '4px 14px', 
+                              borderRadius: '20px',
+                              fontWeight: 500,
+                              opacity: 0.8
+                            }}
+                          >
+                            🏪 Warehouse Visit
+                          </Badge>
+                        </div>
 
-                      <div style={{
-                        padding: '10px 20px',
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        fontSize: '12px',
-                        color: '#94a3b8'
-                      }}>
-                        <span>
-                          <span style={{ marginRight: '4px' }}>🕐</span>
-                          {customer.visits.length} Visit{customer.visits.length > 1 ? 's' : ''}
-                        </span>
-                        <Badge bg="primary" style={{ fontSize: '10px', padding: '3px 10px', borderRadius: '12px' }}>
-                          Warehouse Visit
-                        </Badge>
-                      </div>
-                    </Card.Body>
-                  </Card>
-                </Col>
-              ))}
+                        {/* Salesman Photos Section */}
+                        {salesmanDetails.length > 0 && (
+                          <div style={{
+                            padding: '12px 24px',
+                            backgroundColor: '#fafbfc',
+                            borderTop: '1px solid #f1f5f9',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '12px',
+                            flexWrap: 'wrap'
+                          }}>
+                            <span style={{ fontSize: '13px', fontWeight: 500, color: '#475569' }}>
+                              👤 Salesman:
+                            </span>
+                            {salesmanDetails.map((salesman, idx) => (
+                              <div key={idx} style={{ 
+                                display: 'flex', 
+                                alignItems: 'center', 
+                                gap: '8px',
+                                backgroundColor: '#ffffff',
+                                padding: '4px 12px 4px 4px',
+                                borderRadius: '50px',
+                                boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
+                                border: '1px solid #e2e8f0'
+                              }}>
+                                {salesman.photo ? (
+                                  <img 
+                                    src={`${baseURL}${salesman.photo}`} 
+                                    alt={salesman.name}
+                                    style={{
+                                      width: '32px',
+                                      height: '32px',
+                                      borderRadius: '50%',
+                                      objectFit: 'cover',
+                                      border: '2px solid #e2e8f0'
+                                    }}
+                                    onError={(e) => {
+                                      e.target.style.display = 'none';
+                                      e.target.parentElement.innerHTML = `
+                                        <div style="width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#8b5cf6,#6366f1);display:flex;align-items:center;justify-content:center;color:#fff;font-size:14px;font-weight:600;flex-shrink:0;">
+                                          ${salesman.name.charAt(0)}
+                                        </div>
+                                      `;
+                                    }}
+                                  />
+                                ) : (
+                                  <div style={{
+                                    width: '32px',
+                                    height: '32px',
+                                    borderRadius: '50%',
+                                    background: 'linear-gradient(135deg, #8b5cf6, #6366f1)',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    color: '#fff',
+                                    fontSize: '14px',
+                                    fontWeight: 600,
+                                    flexShrink: 0
+                                  }}>
+                                    {salesman.name.charAt(0)}
+                                  </div>
+                                )}
+                                <span style={{ fontSize: '13px', color: '#334155', fontWeight: 500 }}>
+                                  {salesman.name}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </Card.Body>
+                    </Card>
+                  </Col>
+                );
+              })}
             </Row>
           ) : (
             <Card style={{
-              border: '1px dashed #cbd5e1',
-              borderRadius: '16px',
+              border: '2px dashed #cbd5e1',
+              borderRadius: '20px',
               backgroundColor: '#f8fafc',
-              padding: '40px 20px',
+              padding: '60px 20px',
               textAlign: 'center'
             }}>
-              <div style={{ fontSize: '48px', marginBottom: '16px' }}>🏪</div>
-              <h5 style={{ color: '#475569', marginBottom: '8px' }}>No Visits Scheduled Today</h5>
+              <div style={{ fontSize: '56px', marginBottom: '16px' }}>🏪</div>
+              <h5 style={{ color: '#475569', marginBottom: '8px', fontWeight: 600 }}>No Visits Scheduled Today</h5>
               <p style={{ color: '#94a3b8', margin: 0 }}>
                 You have no customer visits scheduled for today. Enjoy your day! 🎉
               </p>
@@ -665,7 +860,12 @@ function StockPointDashboard() {
 
       <style>{`
         .today-visit-card {
-          transition: transform 0.2s ease, box-shadow 0.2s ease;
+          transition: all 0.3s ease;
+        }
+
+        .today-visit-card:hover {
+          transform: translateY(-4px);
+          box-shadow: 0 8px 32px rgba(0,0,0,0.12) !important;
         }
 
         .sp-dashboard-cards {
@@ -677,30 +877,30 @@ function StockPointDashboard() {
 
         .sp-dashboard-card {
           background: white;
-          border-radius: 12px;
-          padding: 20px;
+          border-radius: 16px;
+          padding: 20px 24px;
           display: flex;
           justify-content: space-between;
           align-items: center;
-          box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-          transition: transform 0.2s, box-shadow 0.2s;
+          box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+          transition: all 0.3s ease;
           min-height: 100px;
         }
 
         .sp-dashboard-card:hover {
           transform: translateY(-4px);
-          box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+          box-shadow: 0 6px 24px rgba(0,0,0,0.10);
         }
 
         .sp-card-left h2 {
-          font-size: 28px;
+          font-size: 32px;
           font-weight: 700;
           margin: 0;
           color: #1e293b;
         }
 
         .sp-card-left h5 {
-          font-size: 14px;
+          font-size: 15px;
           font-weight: 600;
           margin: 4px 0 2px 0;
           color: #475569;
@@ -713,14 +913,14 @@ function StockPointDashboard() {
         }
 
         .sp-card-icon {
-          font-size: 36px;
-          opacity: 0.7;
+          font-size: 40px;
+          opacity: 0.8;
         }
 
-        .sp-card-blue { border-left: 4px solid #3b82f6; }
-        .sp-card-green { border-left: 4px solid #22c55e; }
-        .sp-card-yellow { border-left: 4px solid #fbbf24; }
-        .sp-card-red { border-left: 4px solid #ef4444; }
+        .sp-card-blue { border-left: 5px solid #3b82f6; }
+        .sp-card-green { border-left: 5px solid #22c55e; }
+        .sp-card-yellow { border-left: 5px solid #fbbf24; }
+        .sp-card-red { border-left: 5px solid #ef4444; }
 
         .charts-container {
           display: flex;
@@ -736,9 +936,9 @@ function StockPointDashboard() {
 
         .chart-card, .chart-card-full {
           background: white;
-          border-radius: 12px;
-          padding: 20px;
-          box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+          border-radius: 16px;
+          padding: 24px;
+          box-shadow: 0 2px 12px rgba(0,0,0,0.06);
         }
 
         .chart-card-full {
