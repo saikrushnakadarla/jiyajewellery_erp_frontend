@@ -11,7 +11,8 @@ import {
   FaCity, FaMapPin, FaChevronDown, FaChevronRight,
   FaBuilding, FaCamera, FaImage, FaTimesCircle,
   FaPhone, FaEnvelope, FaIdCard, FaCalendarAlt, FaTag,
-  FaLocationArrow, FaCalendarDay, FaExclamationTriangle
+  FaLocationArrow, FaCalendarDay, FaExclamationTriangle,
+  FaUserCircle
 } from 'react-icons/fa';
 import './VisitLogsWarehouseSchedule.css';
 import Swal from 'sweetalert2';
@@ -25,7 +26,8 @@ const VisitLogsWarehouseSchedule = () => {
     barcodes: [],
     salesman_id: '',
     salesman_photo: null,
-    salesman_photo_preview: null
+    salesman_photo_preview: null,
+    salesman_photo_path: null // Store the path from account-details
   });
 
   // State for dropdown data
@@ -103,12 +105,10 @@ const VisitLogsWarehouseSchedule = () => {
   }, []);
 
   // ========== GROUP SCHEDULES FUNCTION ==========
-  // Group schedules by customer, date, warehouse, salesman
   const groupSchedules = (visits) => {
     const grouped = {};
     
     visits.forEach(visit => {
-      // Create a unique key based on customer, date (without time), warehouse, salesman
       const date = visit.scheduled_date ? new Date(visit.scheduled_date) : null;
       const dateKey = date ? date.toISOString().split('T')[0] : 'unknown';
       
@@ -308,9 +308,39 @@ const VisitLogsWarehouseSchedule = () => {
       ...prev,
       [name]: value
     }));
+
+    // If salesman changes, update photo
+    if (name === 'salesman_id') {
+      const selectedSalesman = salesmen.find(s => s.account_id === parseInt(value));
+      if (selectedSalesman && selectedSalesman.profile_photo) {
+        const photoUrl = getFullImageUrl(selectedSalesman.profile_photo);
+        setFormData(prev => ({
+          ...prev,
+          salesman_photo_preview: photoUrl,
+          salesman_photo_path: selectedSalesman.profile_photo,
+          salesman_photo: null // Clear any uploaded file
+        }));
+      } else {
+        setFormData(prev => ({
+          ...prev,
+          salesman_photo_preview: null,
+          salesman_photo_path: null,
+          salesman_photo: null
+        }));
+      }
+    }
   };
 
-  // Handle salesman photo upload
+  // Helper function to get full image URL
+  const getFullImageUrl = (photoPath) => {
+    if (!photoPath) return null;
+    if (photoPath.startsWith('http://') || photoPath.startsWith('https://')) {
+      return photoPath;
+    }
+    return `${baseURL}${photoPath}`;
+  };
+
+  // Handle salesman photo upload (manual)
   const handlePhotoChange = (e) => {
     const file = e.target.files[0];
     if (file) {
@@ -340,7 +370,8 @@ const VisitLogsWarehouseSchedule = () => {
         setFormData(prev => ({
           ...prev,
           salesman_photo: file,
-          salesman_photo_preview: event.target.result
+          salesman_photo_preview: event.target.result,
+          salesman_photo_path: null // Clear the path since we're uploading a new file
         }));
       };
       reader.readAsDataURL(file);
@@ -352,7 +383,8 @@ const VisitLogsWarehouseSchedule = () => {
     setFormData(prev => ({
       ...prev,
       salesman_photo: null,
-      salesman_photo_preview: null
+      salesman_photo_preview: null,
+      salesman_photo_path: null
     }));
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
@@ -413,16 +445,14 @@ const VisitLogsWarehouseSchedule = () => {
     });
   };
 
-  // ========== NEW: Handle individual barcode removal ==========
+  // Handle individual barcode removal
   const handleRemoveBarcode = (barcodeToRemove) => {
     setFormData(prev => ({
       ...prev,
       barcodes: prev.barcodes.filter(b => b !== barcodeToRemove)
     }));
-    // Also remove from selectedBarcodeDetails if present
     setSelectedBarcodeDetails(prev => prev.filter(b => b.barcode !== barcodeToRemove));
   };
-  // =========================================================
 
   // Get salesman name by ID
   const getSalesmanName = (salesmanId) => {
@@ -438,7 +468,7 @@ const VisitLogsWarehouseSchedule = () => {
     return `${baseURL}${photoPath}`;
   };
 
-  // Handle form submission - FIXED to use PUT directly
+  // Handle form submission
   const handleSubmit = async (e) => {
     e.preventDefault();
     
@@ -480,7 +510,7 @@ const VisitLogsWarehouseSchedule = () => {
       return;
     }
 
-    // Prepare data for API including salesman and photo
+    // Prepare data for API
     const selectedSalesman = salesmen.find(s => s.account_id === parseInt(formData.salesman_id));
     
     const submitData = new FormData();
@@ -495,6 +525,13 @@ const VisitLogsWarehouseSchedule = () => {
     if (selectedSalesman) {
       submitData.append('salesman_name', selectedSalesman.account_name);
     }
+    
+    // If there's a photo path from account-details (no new file uploaded)
+    if (formData.salesman_photo_path && !formData.salesman_photo) {
+      submitData.append('salesman_photo_path', formData.salesman_photo_path);
+    }
+    
+    // If a new photo was uploaded
     if (formData.salesman_photo) {
       submitData.append('salesman_photo', formData.salesman_photo);
     }
@@ -507,7 +544,6 @@ const VisitLogsWarehouseSchedule = () => {
       let response;
       if (isEditing) {
         console.log(`📝 Updating schedule ${editingId}...`);
-        // Use PUT directly instead of POST with _method
         response = await axios.put(`${baseURL}/api/visit-logs-warehouse-schedule/${editingId}`, submitData, {
           headers: {
             'Content-Type': 'multipart/form-data'
@@ -560,7 +596,8 @@ const VisitLogsWarehouseSchedule = () => {
       barcodes: [],
       salesman_id: '',
       salesman_photo: null,
-      salesman_photo_preview: null
+      salesman_photo_preview: null,
+      salesman_photo_path: null
     });
     setIsEditing(false);
     setEditingId(null);
@@ -586,6 +623,12 @@ const VisitLogsWarehouseSchedule = () => {
     // Get barcodes from the group
     const barcodes = schedule.barcodes || (schedule.barcode ? [schedule.barcode] : []);
     
+    // Get salesman photo URL
+    let photoPreview = null;
+    if (schedule.salesman_photo) {
+      photoPreview = getFullImageUrl(schedule.salesman_photo);
+    }
+    
     setFormData({
       scheduled_date: formattedDate,
       customer_id: schedule.customer_account_id || schedule.customer_id,
@@ -593,7 +636,8 @@ const VisitLogsWarehouseSchedule = () => {
       barcodes: barcodes,
       salesman_id: schedule.salesman_id || '',
       salesman_photo: null,
-      salesman_photo_preview: schedule.salesman_photo ? `${baseURL}${schedule.salesman_photo}` : null
+      salesman_photo_preview: photoPreview,
+      salesman_photo_path: schedule.salesman_photo || null
     });
     
     setIsEditing(true);
@@ -660,7 +704,7 @@ const VisitLogsWarehouseSchedule = () => {
     setShowViewModal(true);
   };
 
-  // Get visit status badge (for the original status field - kept for backward compatibility)
+  // Get visit status badge
   const getVisitStatusBadge = (status) => {
     if (!status || status === 'scheduled') {
       return <Badge bg="primary">Scheduled</Badge>;
@@ -674,27 +718,25 @@ const VisitLogsWarehouseSchedule = () => {
     return <Badge bg="secondary">{status}</Badge>;
   };
 
-  // ========== NEW: Get Customer Status Badge ==========
+  // Get Customer Status Badge
   const getCustomerStatusBadge = (customerStatus) => {
-  if (!customerStatus || customerStatus === 'Pending') {
-    return <Badge bg="warning" className="vlws-status-badge">⏳ Pending</Badge>;
-  }
-  if (customerStatus === 'Scheduled') {
-    return <Badge bg="warning" className="vlws-status-badge">⏳ Pending</Badge>;
-  }
-  if (customerStatus === 'Available') {
-    return <Badge bg="success" className="vlws-status-badge">✅ Available</Badge>;
-  }
-  if (customerStatus === 'Not Available') {
-    return <Badge bg="danger" className="vlws-status-badge">❌ Not Available</Badge>;
-  }
-  return <Badge bg="secondary" className="vlws-status-badge">{customerStatus}</Badge>;
-};
-  // ===================================================
+    if (!customerStatus || customerStatus === 'Pending') {
+      return <Badge bg="warning" className="vlws-status-badge">⏳ Pending</Badge>;
+    }
+    if (customerStatus === 'Scheduled') {
+      return <Badge bg="warning" className="vlws-status-badge">⏳ Pending</Badge>;
+    }
+    if (customerStatus === 'Available') {
+      return <Badge bg="success" className="vlws-status-badge">✅ Available</Badge>;
+    }
+    if (customerStatus === 'Not Available') {
+      return <Badge bg="danger" className="vlws-status-badge">❌ Not Available</Badge>;
+    }
+    return <Badge bg="secondary" className="vlws-status-badge">{customerStatus}</Badge>;
+  };
 
   // Format date and time with reschedule support
   const formatDateTimeWithReschedule = (scheduledDate, rescheduleDate) => {
-    // If there's a reschedule date, use it
     const dateToShow = rescheduleDate || scheduledDate;
     if (!dateToShow) return 'N/A';
     
@@ -1127,52 +1169,77 @@ const VisitLogsWarehouseSchedule = () => {
                     </Col>
                   </Row>
 
-                  {/* Salesman Photo Upload */}
+                  {/* Salesman Photo Display - Shows profile photo from account-details when salesman selected */}
                   <Row className="mt-2">
                     <Col md={12}>
                       <Form.Group>
                         <Form.Label className="vlws-label">
-                          <FaCamera className="me-1" /> Salesman Photo (Optional)
+                          <FaCamera className="me-1" /> Salesman Photo 
+                          {formData.salesman_photo_path && (
+                            <span className="text-success ms-2">(From Profile)</span>
+                          )}
+                          {formData.salesman_photo && !formData.salesman_photo_path && (
+                            <span className="text-warning ms-2">(Uploaded)</span>
+                          )}
                         </Form.Label>
                         <div className="vlws-photo-upload-container">
-                          <div className="vlws-photo-upload-area">
-                            <input
-                              type="file"
-                              ref={fileInputRef}
-                              accept="image/*"
-                              onChange={handlePhotoChange}
-                              className="vlws-photo-input"
-                              id="salesman-photo-upload"
-                            />
-                            <label htmlFor="salesman-photo-upload" className="vlws-photo-upload-label">
-                              <FaImage className="vlws-upload-icon" />
-                              <span>Click to upload photo</span>
-                              <small className="text-muted">JPG, PNG, GIF (Max 5MB)</small>
-                            </label>
-                          </div>
-                          
-                          {formData.salesman_photo_preview && (
-                            <div className="vlws-photo-preview">
+                          {/* Show profile photo if salesman is selected and has one */}
+                          {formData.salesman_id && formData.salesman_photo_preview && (
+                            <div className="vlws-photo-preview vlws-profile-photo-preview">
                               <img 
                                 src={formData.salesman_photo_preview} 
-                                alt="Salesman" 
+                                alt="Salesman Profile" 
                                 className="vlws-photo-preview-img"
                               />
+                              <div className="vlws-photo-info">
+                                <small className="text-muted">Profile Photo</small>
+                                {formData.salesman_photo_path && (
+                                  <small className="text-success d-block">✓ From account profile</small>
+                                )}
+                              </div>
                               <button
                                 type="button"
                                 className="vlws-photo-remove-btn"
                                 onClick={removePhoto}
+                                title="Remove photo"
                               >
                                 <FaTimes />
                               </button>
                             </div>
                           )}
+
+                          {/* Upload area - only show when no salesman selected or no profile photo */}
+                          {(!formData.salesman_id || !formData.salesman_photo_preview) && (
+                            <div className="vlws-photo-upload-area">
+                              <input
+                                type="file"
+                                ref={fileInputRef}
+                                accept="image/*"
+                                onChange={handlePhotoChange}
+                                className="vlws-photo-input"
+                                id="salesman-photo-upload"
+                              />
+                              <label htmlFor="salesman-photo-upload" className="vlws-photo-upload-label">
+                                <FaImage className="vlws-upload-icon" />
+                                <span>Click to upload photo</span>
+                                <small className="text-muted">JPG, PNG, GIF (Max 5MB)</small>
+                              </label>
+                            </div>
+                          )}
                         </div>
+                        {formData.salesman_id && formData.salesman_photo_preview && (
+                          <div className="mt-2">
+                            <small className="text-muted">
+                              <FaUserCircle className="me-1" />
+                              Photo loaded from salesman's profile. Click the X to remove and upload a different photo.
+                            </small>
+                          </div>
+                        )}
                       </Form.Group>
                     </Col>
                   </Row>
 
-                  {/* Selected Barcodes Display - FIXED with individual removal */}
+                  {/* Selected Barcodes Display */}
                   <Row className="mt-2">
                     <Col md={12}>
                       <Form.Group>
@@ -1344,7 +1411,7 @@ const VisitLogsWarehouseSchedule = () => {
             <Col md={12}>
               <Alert variant="info" className="vlws-info-alert">
                 <FaClock className="me-2" />
-                <strong>Schedule Management:</strong> Select a stock point to see available barcodes, then choose multiple barcodes to associate with the customer visit. You can optionally assign a salesman and upload their photo.
+                <strong>Schedule Management:</strong> Select a stock point to see available barcodes, then choose multiple barcodes to associate with the customer visit. You can optionally assign a salesman and their profile photo will automatically be displayed.
                 <br />
                 <small className="text-muted">
                   Note: The customer is identified by their account_id (e.g., 56, 53) which is stored in the schedule.
@@ -1353,7 +1420,7 @@ const VisitLogsWarehouseSchedule = () => {
             </Col>
           </Row>
 
-          {/* ========== UPDATED TABLE: Removed Status, Added Customer Status ========== */}
+          {/* Scheduled Visits Table */}
           <Row className="vlws-table-section">
             <Col md={12}>
               <div className="vlws-table-card">
@@ -1387,7 +1454,6 @@ const VisitLogsWarehouseSchedule = () => {
                           </td>
                         </tr>
                       ) : scheduledVisits.length > 0 ? (
-                        // Group the schedules first
                         (() => {
                           const groupedSchedules = groupSchedules(scheduledVisits);
                           return groupedSchedules.map((group, index) => (
@@ -1396,7 +1462,6 @@ const VisitLogsWarehouseSchedule = () => {
                               <td>
                                 <div>
                                   <FaCalendarCheck className="me-2 text-primary" />
-                                  {/* Check if there's a reschedule */}
                                   {hasReschedule(group.reschedule_date) ? (
                                     <React.Fragment>
                                       <span className="text-muted text-decoration-line-through">
@@ -1456,7 +1521,6 @@ const VisitLogsWarehouseSchedule = () => {
                               </td>
                               <td>
                                 {getCustomerStatusBadge(group.customer_status)}
-                                {/* Show reschedule notes if available and status is Not Available */}
                                 {group.customer_status === 'Not Available' && group.reschedule_notes && (
                                   <div className="mt-1">
                                     <small className="text-muted">
@@ -1512,11 +1576,10 @@ const VisitLogsWarehouseSchedule = () => {
               </div>
             </Col>
           </Row>
-          {/* ========== END UPDATED TABLE ========== */}
         </Container>
       </div>
 
-      {/* View Schedule Modal - Updated to show Customer Status and Reschedule info */}
+      {/* View Schedule Modal */}
       <Modal 
         show={showViewModal} 
         onHide={() => {
@@ -1535,10 +1598,8 @@ const VisitLogsWarehouseSchedule = () => {
         <Modal.Body>
           {viewSchedule && (
             <div className="vlws-view-content">
-              {/* Two Column Layout */}
               <Row>
                 <Col md={6}>
-                  {/* Customer Details Section */}
                   <div className="vlws-view-section">
                     <h5 className="vlws-view-section-title">
                       <FaUser className="me-2 text-primary" />
@@ -1583,7 +1644,6 @@ const VisitLogsWarehouseSchedule = () => {
                         </span>
                         <span className="vlws-view-value">{viewSchedule.customer_email || 'N/A'}</span>
                       </div>
-                      {/* Customer Status in View Modal */}
                       <div className="vlws-view-item">
                         <span className="vlws-view-label">
                           <FaCheckCircle className="me-1" /> Customer Status:
@@ -1603,7 +1663,6 @@ const VisitLogsWarehouseSchedule = () => {
                     </div>
                   </div>
 
-                  {/* Schedule Details Section */}
                   <div className="vlws-view-section mt-3">
                     <h5 className="vlws-view-section-title">
                       <FaCalendarCheck className="me-2 text-warning" />
@@ -1659,7 +1718,6 @@ const VisitLogsWarehouseSchedule = () => {
                 </Col>
 
                 <Col md={6}>
-                  {/* Warehouse Details Section */}
                   <div className="vlws-view-section">
                     <h5 className="vlws-view-section-title">
                       <FaWarehouse className="me-2 text-warning" />
@@ -1687,7 +1745,6 @@ const VisitLogsWarehouseSchedule = () => {
                     </div>
                   </div>
 
-                  {/* Salesman Details Section */}
                   <div className="vlws-view-section mt-3">
                     <h5 className="vlws-view-section-title">
                       <FaUserTie className="me-2 text-success" />
@@ -1732,7 +1789,6 @@ const VisitLogsWarehouseSchedule = () => {
                     </div>
                   </div>
 
-                  {/* Barcodes Section - Moved to right column */}
                   <div className="vlws-view-section mt-3">
                     <h5 className="vlws-view-section-title">
                       <FaBarcode className="me-2 text-info" />
