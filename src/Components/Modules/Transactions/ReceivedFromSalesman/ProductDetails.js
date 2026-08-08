@@ -6,7 +6,7 @@ import { AiOutlinePlus } from "react-icons/ai";
 import baseURL from "../../../../Url/NodeBaseURL";
 import baseURL2 from "../../../../Url/NodeBaseURL2";
 import { useNavigate } from "react-router-dom";
-import { FaTrash, FaCamera, FaUpload, FaQrcode, FaBarcode } from "react-icons/fa";
+import { FaTrash, FaCamera, FaUpload, FaQrcode, FaBarcode, FaWeightHanging } from "react-icons/fa";
 import Webcam from "react-webcam";
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import Swal from 'sweetalert2';
@@ -62,6 +62,12 @@ const ProductDetails = ({
   selectedOrder,
   orderData,
   selectedSalesmanProducts = [],
+  // ============= WEIGHT CAPTURE PROPS =============
+  onCaptureWeight,
+  isWeightProcessing = false,
+  currentItemId,
+  triggerWeightCamera,
+  setTriggerWeightCamera,
 }) => {
 
   const [showModal, setShowModal] = useState(false);
@@ -85,6 +91,17 @@ const ProductDetails = ({
   const packetScannerRef = useRef(null);
 
   const [packetTotals, setPacketTotals] = useState({ grossWeight: 0, packingWt: 0 });
+
+  // ============= WEIGHT CAPTURE STATES =============
+  const [showWeightCamera, setShowWeightCamera] = useState(false);
+  const [weightCameraStream, setWeightCameraStream] = useState(null);
+  const weightVideoRef = useRef(null);
+  const weightCanvasRef = useRef(null);
+  const weightFileInputRef = useRef(null);
+  const [isProcessingWeight, setIsProcessingWeight] = useState(false);
+  const [extractedWeight, setExtractedWeight] = useState(null);
+  const [weightCaptureError, setWeightCaptureError] = useState(null);
+  const [weightCaptureItemId, setWeightCaptureItemId] = useState(null);
 
   useEffect(() => {
     const userId = localStorage.getItem('userId');
@@ -111,6 +128,199 @@ const ProductDetails = ({
       return () => clearTimeout(timer);
     }
   }, [showPacketScanner, isPacketScannerInitialized]);
+
+  // ============= WEIGHT CAMERA FUNCTIONS =============
+
+  // Process weight image using Gemini API
+  const processWeightImage = async (imageFile) => {
+    const targetItemId = weightCaptureItemId || formData.code;
+    
+    if (!targetItemId) {
+      alert("Please select a product first before capturing weight.");
+      return;
+    }
+
+    setIsProcessingWeight(true);
+    setExtractedWeight(null);
+    setWeightCaptureError(null);
+
+    try {
+      const formDataObj = new FormData();
+      formDataObj.append('image', imageFile);
+      formDataObj.append('estimate_number', '');
+      formDataObj.append('item_id', targetItemId);
+
+      const response = await axios.post(`${baseURL2}/api/extract-weight-gemini`, formDataObj, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+
+      if (response.data.success && response.data.record) {
+        const record = response.data.record;
+
+        const weightData = {
+          total_grams: record.total_grams,
+          grams: record.grams,
+          milligrams: record.milligrams,
+          raw_text: record.raw_text,
+          confidence: record.confidence || 100
+        };
+
+        setExtractedWeight(weightData);
+
+        // Notify parent component about the captured weight
+        if (onCaptureWeight) {
+          onCaptureWeight(targetItemId, weightData);
+        }
+
+        // Close weight camera after successful capture
+        stopWeightCamera();
+
+        Swal.fire({
+          icon: 'success',
+          title: '✅ Weight Extracted!',
+          html: `
+            <div style="font-size: 24px; padding: 10px 0;">
+              <strong>${record.total_grams.toFixed(3)} g</strong>
+              <div style="font-size: 14px; color: #666; margin-top: 5px;">
+                ${record.grams} g / ${record.milligrams} mg
+              </div>
+              <div style="font-size: 12px; color: #888; margin-top: 5px;">
+                Raw: ${record.raw_text}
+              </div>
+            </div>
+          `,
+          timer: 3000,
+          showConfirmButton: false
+        });
+
+        setWeightCaptureItemId(null);
+
+      } else {
+        setWeightCaptureError(response.data.message || 'Could not extract weight from image');
+        Swal.fire({
+          icon: 'warning',
+          title: 'Could Not Detect Weight',
+          text: response.data.message || 'Please try a clearer photo of the weight machine display.',
+          confirmButtonText: 'OK'
+        });
+      }
+    } catch (error) {
+      console.error('Gemini API Error:', error);
+      let errorMessage = 'Error processing weight image.';
+      if (error.response) {
+        errorMessage = error.response.data?.message || errorMessage;
+      }
+      setWeightCaptureError(errorMessage);
+      Swal.fire({
+        icon: 'error',
+        title: 'Extraction Failed',
+        text: errorMessage,
+        confirmButtonText: 'OK'
+      });
+    } finally {
+      setIsProcessingWeight(false);
+    }
+  };
+
+  // Start weight camera for a specific item (called from ProductTable)
+  const startWeightCameraForItem = (itemId, itemDetails = null) => {
+    setWeightCaptureItemId(itemId);
+    
+    // Open the camera
+    navigator.mediaDevices.getUserMedia({ 
+      video: { facingMode: 'environment' } 
+    })
+    .then(stream => {
+      setWeightCameraStream(stream);
+      setShowWeightCamera(true);
+      setTimeout(() => { 
+        if (weightVideoRef.current) weightVideoRef.current.srcObject = stream; 
+      }, 100);
+    })
+    .catch(error => {
+      console.error('Error accessing camera:', error);
+      alert('Failed to access camera. Please check permissions.');
+    });
+  };
+
+  // Start weight camera - called from the Capture Weight button
+  const startWeightCamera = () => {
+    // If no product is selected in the form, show alert
+    if (!formData.code) {
+      alert("Please select a product first using the barcode dropdown or scan button.");
+      return;
+    }
+
+    const itemId = currentItemId || formData.code;
+    
+    // Open the camera
+    navigator.mediaDevices.getUserMedia({ 
+      video: { facingMode: 'environment' } 
+    })
+    .then(stream => {
+      setWeightCameraStream(stream);
+      setShowWeightCamera(true);
+      setTimeout(() => { 
+        if (weightVideoRef.current) weightVideoRef.current.srcObject = stream; 
+      }, 100);
+    })
+    .catch(error => {
+      console.error('Error accessing camera:', error);
+      alert('Failed to access camera. Please check permissions.');
+    });
+  };
+
+  const stopWeightCamera = () => {
+    if (weightCameraStream) {
+      weightCameraStream.getTracks().forEach(track => track.stop());
+      setWeightCameraStream(null);
+    }
+    setShowWeightCamera(false);
+    setWeightCaptureError(null);
+  };
+
+  const captureWeightImage = () => {
+    if (weightVideoRef.current && weightCanvasRef.current) {
+      const video = weightVideoRef.current;
+      const canvas = weightCanvasRef.current;
+      const context = canvas.getContext('2d');
+
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      canvas.toBlob((blob) => {
+        const file = new File([blob], `weight_capture_${Date.now()}.jpg`, { type: 'image/jpeg' });
+        processWeightImage(file);
+      }, 'image/jpeg');
+    }
+  };
+
+  // Trigger weight file upload
+  const triggerWeightFileUpload = () => {
+    weightFileInputRef.current?.click();
+  };
+
+  const handleWeightFileUpload = (event) => {
+    const file = event.target.files[0];
+    if (file) {
+      processWeightImage(file);
+    }
+    event.target.value = '';
+  };
+
+  // Watch for trigger from parent (ProductTable)
+  useEffect(() => {
+    if (triggerWeightCamera && setTriggerWeightCamera) {
+      if (triggerWeightCamera.itemId) {
+        setWeightCaptureItemId(triggerWeightCamera.itemId);
+        // Open weight camera
+        startWeightCameraForItem(triggerWeightCamera.itemId);
+      }
+      // Reset trigger
+      setTriggerWeightCamera(null);
+    }
+  }, [triggerWeightCamera]);
 
   const initializeScanner = () => {
     const element = document.getElementById('barcode-reader');
@@ -1039,7 +1249,9 @@ const ProductDetails = ({
       packet_barcode: null,
       is_estimated: false,
       is_packet_selection: false,
-
+      cover_wt: "",
+      card_wt: "",
+      packing_wt: "",
     }));
   };
 
@@ -1149,13 +1361,40 @@ const ProductDetails = ({
     return `${baseURL}/${imagePath}`;
   };
 
+  // Common button height style
+  const buttonHeightStyle = {
+    height: '38px',
+    marginBottom: '8px',
+    flexShrink: 0,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '4px 12px',
+    fontSize: '13px',
+    whiteSpace: 'nowrap',
+    borderRadius: '4px',
+    border: '1px solid transparent',
+  };
+
   return (
     <Col>
       <Row>
-        {/* Barcode with Scan Buttons */}
-        <Col xs={12} md={8}>
-          <div style={{ display: 'flex', alignItems: 'flex-end', gap: '6px' }}>
-            <div style={{ flex: 1, minWidth: '80px' }}>
+        {/* ALL IN ONE ROW - Barcode, Scan Buttons, Choose/Capture, Add, Clear */}
+        <Col xs={12}>
+          <div style={{ 
+            display: 'flex', 
+            alignItems: 'flex-end', 
+            gap: '6px',
+            flexWrap: 'wrap'
+          }}>
+            {/* Barcode field */}
+            <div
+              style={{
+                flex: "0 0 320px",
+                maxWidth: "60%",
+                minWidth: "250px"
+              }}
+            >
               <InputField
                 label="BarCode/Rbarcode"
                 name="code"
@@ -1165,110 +1404,272 @@ const ProductDetails = ({
                 options={uniqueBarcodeOptions}
               />
             </div>
+
+            {/* Scan Barcode Button */}
             <Button
               variant="primary"
               size="sm"
               onClick={startScanner}
               style={{
+                ...buttonHeightStyle,
                 backgroundColor: '#007bff',
                 borderColor: '#007bff',
-                whiteSpace: 'nowrap',
-                padding: '4px 8px',
-                fontSize: '13px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '10px',
-                flexShrink: 0,
-                minWidth: '90px',
-                height: '38px',
-                marginBottom: '8px',
+                gap: '6px',
               }}
               title="Scan Barcode"
             >
               <FaQrcode size={13} /> Scan Barcode
             </Button>
+
+            {/* Scan Packet Button */}
             <Button
               variant="success"
               size="sm"
               onClick={startPacketScanner}
               style={{
+                ...buttonHeightStyle,
                 backgroundColor: '#28a745',
                 borderColor: '#28a745',
-                whiteSpace: 'nowrap',
-                padding: '4px 8px',
-                fontSize: '13px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '10px',
-                flexShrink: 0,
-                minWidth: '90px',
-                height: '38px',
-                marginBottom: '8px',
+                gap: '6px',
               }}
               title="Scan Packet"
             >
               <FaBarcode size={13} /> Scan Packet
             </Button>
 
-            {/* Display Packet Image */}
-            {packetImage && (
-              <Col xs={12} md={2} style={{ marginTop: '5px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <img
-                    src={packetImage}
-                    alt="Packet"
-                    style={{
-                      width: '80px',
-                      height: '80px',
-                      borderRadius: '8px',
-                      border: '1px solid #ddd',
-                      padding: '5px',
-                      objectFit: 'cover'
-                    }}
-                    onError={(e) => {
-                      e.target.style.display = 'none';
-                      setPacketImage(null);
-                    }}
-                  />
-                  <span style={{ fontSize: '12px', color: '#666' }}>Packet Image</span>
-                </div>
-              </Col>
-            )}
+            {/* Choose/Capture Image Dropdown */}
+            <DropdownButton
+              id="dropdown-basic-button"
+              title="Choose / Capture Image"
+              variant="primary"
+              size="sm"
+              onClick={() => setShowOptions(!showOptions)}
+              style={{ 
+                flexShrink: 0,
+                marginBottom: '8px',
+                height: '38px',
+              }}
+              disabled={isPacketAdded}
+              className="d-flex align-items-center"
+            >
+              {showOptions && (
+                <>
+                  <Dropdown.Item onClick={() => fileInputRef.current && fileInputRef.current.click()}>
+                    <FaUpload /> Choose Image
+                  </Dropdown.Item>
+                  <Dropdown.Item onClick={() => setShowWebcam(true)}>
+                    <FaCamera /> Capture Image
+                  </Dropdown.Item>
+                </>
+              )}
+            </DropdownButton>
 
-            {/* Display Packet Totals */}
-            {(packetTotals.grossWeight > 0 || packetTotals.packingWt > 0) && (
-              <div style={{ marginTop: '5px' }}>
-                <div style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '5px',
-                  padding: '8px 12px',
-                  border: '1px solid #e0e0e0',
+            {/* Add/Update Button */}
+            <Button
+              onClick={isEditing ? handleUpdate : handleAdd}
+              style={{
+                ...buttonHeightStyle,
+                backgroundColor: "#a36e29",
+                borderColor: "#a36e29",
+                minWidth: '100px',
+              }}
+              disabled={isPacketAdded}
+            >
+              {isEditing ? "Update" : "Add"}
+            </Button>
+
+            {/* Clear Button */}
+            <Button
+              variant="secondary"
+              onClick={handleClear}
+              style={{
+                ...buttonHeightStyle,
+                backgroundColor: 'gray',
+                borderColor: 'gray',
+                minWidth: '100px',
+              }}
+            >
+              Clear
+            </Button>
+
+            <input
+              type="file"
+              name="image"
+              accept="image/*"
+              ref={fileInputRef}
+              style={{ display: "none" }}
+              onChange={handleImageChange}
+            />
+          </div>
+
+          {/* Webcam and Image Preview */}
+          {showWebcam && (
+            <div style={{ marginTop: '10px' }}>
+              <Webcam
+                audio={false}
+                ref={webcamRef}
+                screenshotFormat="image/jpeg"
+                width={150}
+                height={150}
+              />
+              <Button variant="success" size="sm" onClick={captureImage} style={{ marginRight: "5px" }}>
+                Capture
+              </Button>
+              <Button variant="secondary" size="sm" onClick={() => setShowWebcam(false)}>
+                Cancel
+              </Button>
+            </div>
+          )}
+          
+          {formData.imagePreview && (
+            <div style={{ position: "relative", display: "inline-block", marginTop: "10px" }}>
+              <img
+                src={formData.imagePreview}
+                alt="Selected"
+                style={{
+                  width: "100px",
+                  height: "100px",
+                  borderRadius: "8px",
+                }}
+              />
+              <button
+                type="button"
+                onClick={clearImage}
+                style={{
+                  position: "absolute",
+                  top: "5px",
+                  right: "5px",
+                  background: "transparent",
+                  border: "none",
+                  color: "red",
+                  fontSize: "16px",
+                  cursor: "pointer",
+                  zIndex: 10,
+                }}
+              >
+                <FaTrash />
+              </button>
+            </div>
+          )}
+
+          {/* Display Packet Image */}
+          {packetImage && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '10px' }}>
+              <img
+                src={packetImage}
+                alt="Packet"
+                style={{
+                  width: '60px',
+                  height: '60px',
                   borderRadius: '8px',
-                  backgroundColor: '#f9f9f9'
-                }}>
-                  <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#333' }}>
-                    Packet Summary
+                  border: '1px solid #ddd',
+                  padding: '5px',
+                  objectFit: 'cover'
+                }}
+                onError={(e) => {
+                  e.target.style.display = 'none';
+                  setPacketImage(null);
+                }}
+              />
+              <span style={{ fontSize: '12px', color: '#666' }}>Packet Image</span>
+            </div>
+          )}
+
+          {/* Display Packet Totals */}
+          {(packetTotals.grossWeight > 0 || packetTotals.packingWt > 0) && (
+            <div style={{ marginTop: '10px' }}>
+              <div style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '5px',
+                padding: '8px 12px',
+                border: '1px solid #e0e0e0',
+                borderRadius: '8px',
+                backgroundColor: '#f9f9f9'
+              }}>
+                <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#333' }}>
+                  Packet Summary
+                </div>
+                <div style={{ display: 'flex', gap: '20px' }}>
+                  <div>
+                    <span style={{ fontSize: '12px', color: '#666' }}>Total Gross Wt: </span>
+                    <span style={{ fontSize: '14px', fontWeight: 'bold', color: '#28a745' }}>
+                      {packetTotals.grossWeight.toFixed(2)}g
+                    </span>
                   </div>
-                  <div style={{ display: 'flex', gap: '20px' }}>
-                    <div>
-                      <span style={{ fontSize: '12px', color: '#666' }}>Total Gross Wt: </span>
-                      <span style={{ fontSize: '14px', fontWeight: 'bold', color: '#28a745' }}>
-                        {packetTotals.grossWeight.toFixed(2)}g
-                      </span>
-                    </div>
-                    <div>
-                      <span style={{ fontSize: '12px', color: '#666' }}>Total Packing Wt: </span>
-                      <span style={{ fontSize: '14px', fontWeight: 'bold', color: '#007bff' }}>
-                        {packetTotals.packingWt.toFixed(2)}g
-                      </span>
-                    </div>
+                  <div>
+                    <span style={{ fontSize: '12px', color: '#666' }}>Total Packing Wt: </span>
+                    <span style={{ fontSize: '14px', fontWeight: 'bold', color: '#007bff' }}>
+                      {packetTotals.packingWt.toFixed(2)}g
+                    </span>
                   </div>
                 </div>
               </div>
-            )}
+            </div>
+          )}
 
-          </div>
+          {/* ============= DISPLAY EXTRACTED WEIGHT INFO ============= */}
+          {extractedWeight && (
+            <div style={{ marginTop: '10px', padding: '8px 15px', backgroundColor: '#d4edda', border: '1px solid #c3e6cb', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '20px', flexWrap: 'wrap' }}>
+              <span style={{ fontWeight: 'bold', color: '#155724' }}>✅ Weight Captured:</span>
+              <span style={{ fontWeight: 'bold', fontSize: '18px', color: '#0d47a1' }}>
+                {extractedWeight.total_grams?.toFixed(3)} g
+              </span>
+              <span style={{ fontSize: '14px', color: '#155724' }}>
+                ({extractedWeight.grams} g / {extractedWeight.milligrams} mg)
+              </span>
+              <span style={{ fontSize: '12px', color: '#666' }}>
+                Raw: {extractedWeight.raw_text}
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  setExtractedWeight(null);
+                }}
+                style={{
+                  background: '#dc3545',
+                  border: 'none',
+                  color: 'white',
+                  borderRadius: '4px',
+                  padding: '2px 10px',
+                  cursor: 'pointer',
+                  marginLeft: 'auto'
+                }}
+              >
+                ✕ Close
+              </button>
+            </div>
+          )}
+
+          {/* ============= WEIGHT CAPTURE ERROR ============= */}
+          {weightCaptureError && (
+            <div style={{ marginTop: '10px', padding: '8px 15px', backgroundColor: '#f8d7da', border: '1px solid #f5c6cb', borderRadius: '8px', color: '#721c24' }}>
+              ⚠️ {weightCaptureError}
+              <button
+                type="button"
+                onClick={() => setWeightCaptureError(null)}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: '#721c24',
+                  marginLeft: '10px',
+                  cursor: 'pointer'
+                }}
+              >
+                ✕
+              </button>
+            </div>
+          )}
+
+          {/* ============= PROCESSING INDICATOR ============= */}
+          {isProcessingWeight && (
+            <div style={{ marginTop: '10px', display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 15px', backgroundColor: '#e3f2fd', borderRadius: '8px' }}>
+              <div className="spinner-border spinner-border-sm text-primary" role="status">
+                <span className="visually-hidden">Processing...</span>
+              </div>
+              <span style={{ color: '#0d47a1' }}>Processing weight image with Gemini AI...</span>
+            </div>
+          )}
         </Col>
 
         {/* Commented out Category field */}
@@ -1358,239 +1759,9 @@ const ProductDetails = ({
             <Col xs={12} md={1}>
               <InputField label="Qty" name="qty" value={formData.qty} onChange={handleChange} readOnly={!isQtyEditable} disabled={isPacketAdded} />
             </Col>
-            <Col xs={12} md={5}>
-              {/* Choose/Capture Image, Add and Clear buttons moved beside Scan Packet */}
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                flexWrap: 'nowrap',
-                overflow: 'visible'
-              }}>
-                <DropdownButton
-                  id="dropdown-basic-button"
-                  title="Choose / Capture Image"
-                  variant="primary"
-                  size="sm"
-                  onClick={() => setShowOptions(!showOptions)}
-                  style={{ minWidth: '155px', flexShrink: 0 }}
-                  disabled={isPacketAdded}
-                >
-                  {showOptions && (
-                    <>
-                      <Dropdown.Item onClick={() => fileInputRef.current && fileInputRef.current.click()}><FaUpload /> Choose Image</Dropdown.Item>
-                      <Dropdown.Item onClick={() => setShowWebcam(true)}><FaCamera /> Capture Image</Dropdown.Item>
-                    </>
-                  )}
-                </DropdownButton>
-
-                <Button
-                  onClick={isEditing ? handleUpdate : handleAdd}
-                  style={{
-                    backgroundColor: "#a36e29",
-                    borderColor: "#a36e29",
-                    padding: "4px 10px",
-                    fontSize: "13px",
-                    whiteSpace: 'nowrap',
-                    minWidth: '50px',
-                    flexShrink: 0
-                  }}
-                  disabled={isPacketAdded}
-                >
-                  {isEditing ? "Update" : "Add"}
-                </Button>
-
-                <Button
-                  variant="secondary"
-                  onClick={handleClear}
-                  style={{
-                    backgroundColor: 'gray',
-                    padding: "4px 10px",
-                    fontSize: "13px",
-                    whiteSpace: 'nowrap',
-                    minWidth: '50px',
-                    flexShrink: 0
-                  }}
-                >
-                  Clear
-                </Button>
-              </div>
-
-              <input
-                type="file"
-                name="image"
-                accept="image/*"
-                ref={fileInputRef}
-                style={{ display: "none" }}
-                onChange={handleImageChange}
-              />
-
-              {showWebcam && (
-                <div>
-                  <Webcam
-                    audio={false}
-                    ref={webcamRef}
-                    screenshotFormat="image/jpeg"
-                    width={150}
-                    height={150}
-                  />
-                  <Button variant="success" size="sm" onClick={captureImage} style={{ marginRight: "5px" }}>
-                    Capture
-                  </Button>
-                  <Button variant="secondary" size="sm" onClick={() => setShowWebcam(false)}>
-                    Cancel
-                  </Button>
-                </div>
-              )}
-              {formData.imagePreview && (
-                <div style={{ position: "relative", display: "inline-block", marginTop: "10px" }}>
-                  <img
-                    src={formData.imagePreview}
-                    alt="Selected"
-                    style={{
-                      width: "100px",
-                      height: "100px",
-                      borderRadius: "8px",
-                    }}
-                  />
-                  <button
-                    type="button"
-                    onClick={clearImage}
-                    style={{
-                      position: "absolute",
-                      top: "5px",
-                      right: "5px",
-                      background: "transparent",
-                      border: "none",
-                      color: "red",
-                      fontSize: "16px",
-                      cursor: "pointer",
-                      zIndex: 10,
-                    }}
-                  >
-                    <FaTrash />
-                  </button>
-                </div>
-              )}
-            </Col>
           </>
         ) : (
-          <>
-            <Col xs={12} md={5}>
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                flexWrap: 'nowrap',
-                overflow: 'visible'
-              }}>
-                <DropdownButton
-                  id="dropdown-basic-button"
-                  title="Choose / Capture Image"
-                  variant="primary"
-                  size="sm"
-                  onClick={() => setShowOptions(!showOptions)}
-                  style={{ minWidth: '155px', flexShrink: 0 }}
-                  disabled={isPacketAdded}
-                >
-                  {showOptions && (
-                    <>
-                      <Dropdown.Item onClick={() => fileInputRef.current && fileInputRef.current.click()}><FaUpload /> Choose Image</Dropdown.Item>
-                      <Dropdown.Item onClick={() => setShowWebcam(true)}><FaCamera /> Capture Image</Dropdown.Item>
-                    </>
-                  )}
-                </DropdownButton>
-
-                <Button
-                  onClick={isEditing ? handleUpdate : handleAdd}
-                  style={{
-                    backgroundColor: "#a36e29",
-                    borderColor: "#a36e29",
-                    padding: "4px 10px",
-                    fontSize: "13px",
-                    whiteSpace: 'nowrap',
-                    minWidth: '50px',
-                    flexShrink: 0
-                  }}
-                  disabled={isPacketAdded}
-                >
-                  {isEditing ? "Update" : "Add"}
-                </Button>
-
-                <Button
-                  variant="secondary"
-                  onClick={handleClear}
-                  style={{
-                    backgroundColor: 'gray',
-                    padding: "4px 10px",
-                    fontSize: "13px",
-                    whiteSpace: 'nowrap',
-                    minWidth: '50px',
-                    flexShrink: 0
-                  }}
-                >
-                  Clear
-                </Button>
-              </div>
-
-              <input
-                type="file"
-                name="image"
-                accept="image/*"
-                ref={fileInputRef}
-                style={{ display: "none" }}
-                onChange={handleImageChange}
-              />
-
-              {showWebcam && (
-                <div>
-                  <Webcam
-                    audio={false}
-                    ref={webcamRef}
-                    screenshotFormat="image/jpeg"
-                    width={150}
-                    height={150}
-                  />
-                  <Button variant="success" size="sm" onClick={captureImage} style={{ marginRight: "5px" }}>
-                    Capture
-                  </Button>
-                  <Button variant="secondary" size="sm" onClick={() => setShowWebcam(false)}>
-                    Cancel
-                  </Button>
-                </div>
-              )}
-              {formData.imagePreview && (
-                <div style={{ position: "relative", display: "inline-block", marginTop: "10px" }}>
-                  <img
-                    src={formData.imagePreview}
-                    alt="Selected"
-                    style={{
-                      width: "100px",
-                      height: "100px",
-                      borderRadius: "8px",
-                    }}
-                  />
-                  <button
-                    type="button"
-                    onClick={clearImage}
-                    style={{
-                      position: "absolute",
-                      top: "5px",
-                      right: "5px",
-                      background: "transparent",
-                      border: "none",
-                      color: "red",
-                      fontSize: "16px",
-                      cursor: "pointer",
-                      zIndex: 10,
-                    }}
-                  >
-                    <FaTrash />
-                  </button>
-                </div>
-              )}
-            </Col>
-          </>
+          <></>
         )}
       </Row>
 
@@ -1623,6 +1794,60 @@ const ProductDetails = ({
           <Button variant="secondary" onClick={stopPacketScanner}>Cancel Scan</Button>
         </Modal.Footer>
       </Modal>
+
+      {/* ============= WEIGHT CAMERA MODAL ============= */}
+      <Modal show={showWeightCamera} onHide={stopWeightCamera} centered size="lg">
+        <Modal.Header closeButton>
+          <Modal.Title>Capture Weight Machine Display</Modal.Title>
+        </Modal.Header>
+        <Modal.Body style={{ textAlign: 'center' }}>
+          <video 
+            ref={weightVideoRef} 
+            autoPlay 
+            playsInline 
+            style={{ 
+              width: '100%', 
+              maxHeight: '400px', 
+              objectFit: 'contain' 
+            }} 
+          />
+          <canvas ref={weightCanvasRef} style={{ display: 'none' }} />
+          <p className="mt-2 text-muted">
+            Point the camera at the weight machine display to capture and extract the weight using Gemini AI
+          </p>
+          <p className="text-muted" style={{ fontSize: '12px' }}>
+            Or use the "Upload Weight" button below to select an image from your device
+          </p>
+          <Button 
+            variant="outline-secondary" 
+            size="sm" 
+            onClick={triggerWeightFileUpload}
+            style={{ marginTop: '5px' }}
+          >
+            📤 Upload Weight Image
+          </Button>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={stopWeightCamera}>Cancel</Button>
+          <Button 
+            variant="primary" 
+            onClick={captureWeightImage} 
+            disabled={isProcessingWeight}
+            style={{ backgroundColor: '#28a745', borderColor: '#28a745' }}
+          >
+            {isProcessingWeight ? 'Processing...' : 'Capture & Extract Weight'}
+          </Button>
+        </Modal.Footer>
+      </Modal>
+
+      {/* Hidden file input for weight upload */}
+      <input
+        ref={weightFileInputRef}
+        type="file"
+        accept="image/*"
+        onChange={handleWeightFileUpload}
+        style={{ display: 'none' }}
+      />
     </Col>
   );
 };

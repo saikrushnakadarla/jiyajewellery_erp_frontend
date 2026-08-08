@@ -1,10 +1,18 @@
 import React, { useState } from 'react';
 import { Table, Button, Modal, Row, Col } from 'react-bootstrap';
-import { FaEdit, FaTrash, FaEye } from 'react-icons/fa';
+import { FaEdit, FaTrash, FaEye, FaWeightHanging } from 'react-icons/fa';
 import baseURL from './../../../../Url/NodeBaseURL';
 import "./ProductTable.css";
 
-const ProductTable = ({ repairDetails, onDelete, onEdit }) => {
+const ProductTable = ({ 
+  repairDetails, 
+  onDelete, 
+  onEdit,
+  // NEW: Weight capture props
+  capturedWeights = {},
+  isWeightProcessing = false,
+  onCaptureWeightFromTable
+}) => {
   console.log("repairDetails=", repairDetails)
 
   const [showModal, setShowModal] = useState(false);
@@ -27,6 +35,19 @@ const ProductTable = ({ repairDetails, onDelete, onEdit }) => {
     return `${baseURL}/${imagePath}`;
   };
 
+  // Check if weight is captured for an item
+  const hasWeight = (itemId) => {
+    return capturedWeights[itemId] && capturedWeights[itemId].total_grams > 0;
+  };
+
+  // Handle capture weight button click from table
+  const handleCaptureWeightClick = (detail, index) => {
+    const itemId = detail.item_id || detail.id || index;
+    if (onCaptureWeightFromTable) {
+      onCaptureWeightFromTable(itemId, detail);
+    }
+  };
+
   return (
     <div>
       <Table className='dataTable_headerCell1' bordered hover responsive>
@@ -46,6 +67,7 @@ const ProductTable = ({ repairDetails, onDelete, onEdit }) => {
             <th>MC</th>
             <th>Total Price</th>
             <th>Image</th>
+            <th>Weight</th>
             <th>Action</th>
           </tr>
         </thead>
@@ -54,6 +76,8 @@ const ProductTable = ({ repairDetails, onDelete, onEdit }) => {
             repairDetails.map((detail, index) => {
               // Check if this product has a packet barcode from estimate
               const hasPacketBarcode = detail.packet_barcode && detail.packet_barcode !== '';
+              const itemId = detail.item_id || detail.id || index;
+              const hasWeightData = hasWeight(itemId);
               
               // Get image URL from detail
               let imageUrl = null;
@@ -114,6 +138,32 @@ const ProductTable = ({ repairDetails, onDelete, onEdit }) => {
                     )}
                   </td>
                   <td>
+                    <Button
+                      variant={hasWeightData ? "success" : "outline-secondary"}
+                      size="sm"
+                      onClick={() => handleCaptureWeightClick(detail, index)}
+                      disabled={isWeightProcessing}
+                      style={{
+                        padding: "2px 8px",
+                        fontSize: "11px",
+                        whiteSpace: "nowrap"
+                      }}
+                      title={hasWeightData ? "Weight already captured" : "Click to capture weight for this item"}
+                    >
+                      <FaWeightHanging /> {hasWeightData ? "✓" : "Capture"}
+                    </Button>
+                    {hasWeightData && (
+                      <span style={{ 
+                        fontSize: '10px', 
+                        color: '#28a745', 
+                        display: 'block',
+                        marginTop: '2px'
+                      }}>
+                        {capturedWeights[itemId]?.total_grams?.toFixed(3)}g
+                      </span>
+                    )}
+                  </td>
+                  <td>
                     <div style={{ display: "flex", alignItems: "center" }}>
                       <FaEye
                         onClick={() => handleView(detail)}
@@ -137,7 +187,7 @@ const ProductTable = ({ repairDetails, onDelete, onEdit }) => {
             })
           ) : (
             <tr>
-              <td colSpan="15" className="text-center">
+              <td colSpan="16" className="text-center">
                 No data available
               </td>
             </tr>
@@ -158,7 +208,7 @@ const ProductTable = ({ repairDetails, onDelete, onEdit }) => {
               <td>
                 {repairDetails.reduce((sum, item) => sum + parseFloat(item.total_weight_av || 0), 0).toFixed(3)}
               </td>
-              <td colSpan="8"></td>
+              <td colSpan="9"></td>
             </tr>
           </tfoot>
         )}

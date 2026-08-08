@@ -35,6 +35,14 @@ const ReturnMainStockForm = () => {
   const [assignedProducts, setAssignedProducts] = useState([]);
   const [selectedSalesmanProducts, setSelectedSalesmanProducts] = useState([]);
 
+  // ============= WEIGHT CAPTURE STATES =============
+  const [capturedWeights, setCapturedWeights] = useState({});
+  const [isWeightProcessing, setIsWeightProcessing] = useState(false);
+  const [currentWeightItem, setCurrentWeightItem] = useState(null);
+
+  // ============= WEIGHT CAPTURE TRIGGER FOR TABLE =============
+  const [triggerWeightCamera, setTriggerWeightCamera] = useState(null);
+
   // Add these states with your other states
   const [estimatesData, setEstimatesData] = useState([]);
   const [estimatedProducts, setEstimatedProducts] = useState({});
@@ -1754,6 +1762,12 @@ const handleAdd = () => {
       cover_wt: formData.cover_wt || "0",
       card_wt: formData.card_wt || "0",
       packing_wt: formData.packing_wt || "0",
+      // ===== WEIGHT MACHINE FIELDS =====
+      weight_machine_reading: parseFloat(formData.weight_machine_reading) || parseFloat(capturedWeights[formData.code]?.total_grams) || 0,
+      weight_machine_grams: parseInt(formData.weight_machine_grams) || parseInt(capturedWeights[formData.code]?.grams) || 0,
+      weight_machine_milligrams: parseInt(formData.weight_machine_milligrams) || parseInt(capturedWeights[formData.code]?.milligrams) || 0,
+      weight_machine_confidence: parseInt(formData.weight_machine_confidence) || parseInt(capturedWeights[formData.code]?.confidence) || 0,
+      weight_machine_raw: formData.weight_machine_raw || capturedWeights[formData.code]?.raw_text || null,
     },
   ];
 
@@ -1861,6 +1875,11 @@ const handleAdd = () => {
     cover_wt: "",
     card_wt: "",
     packing_wt: "",
+    weight_machine_reading: 0,
+    weight_machine_grams: 0,
+    weight_machine_milligrams: 0,
+    weight_machine_confidence: 0,
+    weight_machine_raw: null,
   }));
 };
 
@@ -1911,6 +1930,7 @@ const resetForm = () => {
     online_amt: 0,
   });
   setRepairDetails([]);
+  setCapturedWeights({});
 };
 
   const resetSaleReturnForm = () => {
@@ -2729,6 +2749,105 @@ const resetForm = () => {
   };
 
   // ============================================================
+  // ============= HANDLE WEIGHT CAPTURE FROM PRODUCT DETAILS =============
+  // ============================================================
+  const handleCaptureWeight = async (itemId, weightData) => {
+    // Update the captured weights state
+    setCapturedWeights(prev => ({
+      ...prev,
+      [itemId]: {
+        total_grams: weightData.total_grams,
+        grams: weightData.grams,
+        milligrams: weightData.milligrams,
+        raw_text: weightData.raw_text,
+        confidence: weightData.confidence || 100,
+        captured_at: new Date().toISOString()
+      }
+    }));
+
+    // Update the repairDetails with the weight data
+    setRepairDetails(prev => 
+      prev.map((item) => {
+        const itemIdFromItem = item.item_id || item.id || item.code;
+        if (String(itemIdFromItem) === String(itemId)) {
+          return {
+            ...item,
+            weight_machine_reading: weightData.total_grams,
+            weight_machine_grams: weightData.grams,
+            weight_machine_milligrams: weightData.milligrams,
+            weight_machine_raw: weightData.raw_text,
+            weight_machine_confidence: weightData.confidence || 100
+          };
+        }
+        return item;
+      })
+    );
+
+    // Save to localStorage
+    const updatedRepairDetails = repairDetails.map((item) => {
+      const itemIdFromItem = item.item_id || item.id || item.code;
+      if (String(itemIdFromItem) === String(itemId)) {
+        return {
+          ...item,
+          weight_machine_reading: weightData.total_grams,
+          weight_machine_grams: weightData.grams,
+          weight_machine_milligrams: weightData.milligrams,
+          weight_machine_raw: weightData.raw_text,
+          weight_machine_confidence: weightData.confidence || 100
+        };
+      }
+      return item;
+    });
+    localStorage.setItem(`repairDetails_${tabId}`, JSON.stringify(updatedRepairDetails));
+
+    // 🆕 NEW: Save weight to database immediately (using return-to-main-stock API)
+    try {
+      // Find the actual item_id from the repairDetails
+      const item = repairDetails.find(item => {
+        const itemIdFromItem = item.item_id || item.id || item.code;
+        return String(itemIdFromItem) === String(itemId);
+      });
+
+      if (item && item.item_id) {
+        console.log(`💾 Saving weight to database for item_id: ${item.item_id}`);
+        
+        const payload = {
+          total_grams: weightData.total_grams,
+          grams: weightData.grams,
+          milligrams: weightData.milligrams,
+          raw_text: weightData.raw_text,
+          confidence: weightData.confidence || 100
+        };
+
+        const response = await axios.put(
+          `${baseURL}/api/return-to-main-stock/update-item-weight/${item.item_id}`,
+          payload
+        );
+
+        if (response.data.success) {
+          console.log(`✅ Weight saved to database for item ${item.item_id}`);
+        } else {
+          console.warn('⚠️ Weight saved locally but database update may have failed');
+        }
+      } else {
+        console.warn('⚠️ Could not find item_id to save weight to database');
+      }
+    } catch (error) {
+      console.error('❌ Error saving weight to database:', error);
+      // Don't show error to user - weight is still saved locally
+    }
+  };
+
+  // ============= HANDLE WEIGHT CAPTURE FROM TABLE =============
+  const handleCaptureWeightFromTable = (itemId, itemDetails) => {
+    // Set the trigger to open weight camera with the item details
+    setTriggerWeightCamera({
+      itemId: itemId,
+      itemDetails: itemDetails
+    });
+  };
+
+  // ============================================================
   // UPDATED handleSave - Uses POST API to save return to main stock
   // ============================================================
 const handleSave = async () => {
@@ -2805,35 +2924,41 @@ const handleSave = async () => {
       console.log("Has packet selection:", hasPacketSelection);
 
       // Prepare return data with proper fields
-    // In the handleSave function, update the returnData mapping:
-const returnData = repairDetails.map(item => ({
-  item_id: item.item_id || null,
-  assigned_id: item.assigned_id || null,
-  product_id: item.product_id || null,
-  PCode_BarCode: item.code,
-  packet_barcode: item.packet_barcode || null,
-  product_name: item.product_name || null,
-  metal_type: item.metal_type || null,
-  purity: item.purity || item.selling_purity || null,
-  category: item.category || null,
-  sub_category: item.sub_category || item.product_name || null,
-  design_name: item.design_name || null,
-  qty: parseFloat(item.qty) || 1,
-  gross_weight: parseFloat(item.gross_weight) || 0,
-  stone_weight: parseFloat(item.stone_weight) || 0,
-  net_weight: parseFloat(item.total_weight_av) || parseFloat(item.weight_bw) || 0,
-  rate: parseFloat(item.rate) || 0,
-  making_charges: parseFloat(item.making_charges) || 0,
-  stone_price: parseFloat(item.stone_price) || 0,
-  total_price: parseFloat(item.total_price) || 0,
-  remarks: item.remarks || null,
-  is_packet_selection: item.is_packet_selection || false,
-  image: item.image || null,
-  // NEW: Include Cover Wt, Card Wt, Packing Wt
-  cover_wt: parseFloat(item.cover_wt) || 0,
-  card_wt: parseFloat(item.card_wt) || 0,
-  packing_wt: parseFloat(item.packing_wt) || 0,
-}));
+      // In the handleSave function, update the returnData mapping:
+      const returnData = repairDetails.map(item => ({
+        item_id: item.item_id || null,
+        assigned_id: item.assigned_id || null,
+        product_id: item.product_id || null,
+        PCode_BarCode: item.code,
+        packet_barcode: item.packet_barcode || null,
+        product_name: item.product_name || null,
+        metal_type: item.metal_type || null,
+        purity: item.purity || item.selling_purity || null,
+        category: item.category || null,
+        sub_category: item.sub_category || item.product_name || null,
+        design_name: item.design_name || null,
+        qty: parseFloat(item.qty) || 1,
+        gross_weight: parseFloat(item.gross_weight) || 0,
+        stone_weight: parseFloat(item.stone_weight) || 0,
+        net_weight: parseFloat(item.total_weight_av) || parseFloat(item.weight_bw) || 0,
+        rate: parseFloat(item.rate) || 0,
+        making_charges: parseFloat(item.making_charges) || 0,
+        stone_price: parseFloat(item.stone_price) || 0,
+        total_price: parseFloat(item.total_price) || 0,
+        remarks: item.remarks || null,
+        is_packet_selection: item.is_packet_selection || false,
+        image: item.image || null,
+        // NEW: Include Cover Wt, Card Wt, Packing Wt
+        cover_wt: parseFloat(item.cover_wt) || 0,
+        card_wt: parseFloat(item.card_wt) || 0,
+        packing_wt: parseFloat(item.packing_wt) || 0,
+        // ===== WEIGHT MACHINE FIELDS =====
+        weight_machine_reading: parseFloat(item.weight_machine_reading) || parseFloat(capturedWeights[item.code]?.total_grams) || 0,
+        weight_machine_grams: parseInt(item.weight_machine_grams) || parseInt(capturedWeights[item.code]?.grams) || 0,
+        weight_machine_milligrams: parseInt(item.weight_machine_milligrams) || parseInt(capturedWeights[item.code]?.milligrams) || 0,
+        weight_machine_confidence: parseInt(item.weight_machine_confidence) || parseInt(capturedWeights[item.code]?.confidence) || 0,
+        weight_machine_raw: item.weight_machine_raw || capturedWeights[item.code]?.raw_text || null,
+      }));
 
       // Collect assigned IDs to delete from assigned_salesman tables
       const assignedIds = repairDetails
@@ -2879,6 +3004,7 @@ const returnData = repairDetails.map(item => ({
         setOldTableData([]);
         setSchemeTableData([]);
         setDiscount(0);
+        setCapturedWeights({});
         
         // Reset form data
         setFormData({
@@ -2938,6 +3064,7 @@ const returnData = repairDetails.map(item => ({
     setOldTableData([]); // Clear the oldTableData state
     setSchemeTableData([]);
     setDiscount(0);
+    setCapturedWeights({});
     localStorage.removeItem("oldSalesData");
     localStorage.removeItem("schemeSalesData");
     localStorage.removeItem(`repairDetails_${tabId}`);
@@ -3106,6 +3233,13 @@ const returnData = repairDetails.map(item => ({
               handleOrderChange={handleOrderChange}
               selectedOrder={selectedOrder}
               orderData={orderData}
+              // ============= NEW: Weight capture props =============
+              onCaptureWeight={handleCaptureWeight}
+              isWeightProcessing={isWeightProcessing}
+              currentItemId={repairDetails.length > 0 ? repairDetails[0]?.item_id || repairDetails[0]?.id || 0 : null}
+              // ============= NEW: Trigger weight camera from table =============
+              triggerWeightCamera={triggerWeightCamera}
+              setTriggerWeightCamera={setTriggerWeightCamera}
             />
           </div>
 
@@ -3114,6 +3248,11 @@ const returnData = repairDetails.map(item => ({
               repairDetails={repairDetails}
               onEdit={handleEdit}
               onDelete={handleDelete}
+              // ============= NEW: Weight capture props =============
+              capturedWeights={capturedWeights}
+              isWeightProcessing={isWeightProcessing}
+              // ============= NEW: Handle weight capture from table =============
+              onCaptureWeightFromTable={handleCaptureWeightFromTable}
             />
           </div>
           <div className="sales-form">
@@ -3218,6 +3357,10 @@ const returnData = repairDetails.map(item => ({
                 isAnyOfferApplied={isAnyOfferApplied}
                 // Pass the selected advance amount
                 selectedAdvanceReceiptAmount={selectedAdvanceReceiptAmount}
+                // ===== NEW: Weight validation props =====
+                capturedWeights={capturedWeights}
+                requireWeightForAll={true}  // Set to true to enforce weight capture, false to make it optional
+                repairDetails={repairDetails}
               />
             </div>
           </div>
