@@ -5,9 +5,12 @@ import { useNavigate } from "react-router-dom";
 const PaymentDetails = ({
   handleSave,
   handleBack,
-  isAllProductsSelected,  // <-- NEW: Receive validation state
-  selectedTransferItems,   // <-- NEW: For showing count
-  repairDetails,          // <-- NEW: For showing count
+  isAllProductsSelected,
+  selectedTransferItems,
+  repairDetails,
+  // ===== NEW: Weight validation props =====
+  capturedWeights = {},
+  requireWeightForAll = false
 }) => {
   const navigate = useNavigate();
 
@@ -15,8 +18,25 @@ const PaymentDetails = ({
     navigate("/assign-to-salesman");
   };
 
+  // Check if all items have weights captured
+  const allItemsHaveWeights = () => {
+    if (!requireWeightForAll || repairDetails.length === 0) return true;
+    
+    return repairDetails.every((item, index) => {
+      const itemId = item.item_id || item.id || item.code;
+      return capturedWeights[itemId] && capturedWeights[itemId].total_grams > 0;
+    });
+  };
+
+  const hasMissingWeights = repairDetails.some((item, index) => {
+    const itemId = item.item_id || item.id || item.code;
+    return !capturedWeights[itemId] || capturedWeights[itemId].total_grams <= 0;
+  });
+
   // Determine if Save should be disabled
-  const isSaveDisabled = !isAllProductsSelected || (selectedTransferItems?.length > 0 && repairDetails?.length === 0);
+  const isSaveDisabled = !isAllProductsSelected || 
+    (selectedTransferItems?.length > 0 && repairDetails?.length === 0) ||
+    (requireWeightForAll && !allItemsHaveWeights());
 
   return (
     <div>
@@ -34,7 +54,11 @@ const PaymentDetails = ({
                 marginRight: "10px",
                 cursor: isSaveDisabled ? "not-allowed" : "pointer",
               }}
-              title={isSaveDisabled ? "Please add ALL products from the stock transfer first" : "Save & Send for Approval"}
+              title={isSaveDisabled ? 
+                (requireWeightForAll && !allItemsHaveWeights() ? 
+                  "Please capture weight for all items first" : 
+                  "Please add ALL products from the stock transfer first") : 
+                "Save & Send for Approval"}
             >
               Save & Send for Approval
             </Button>
@@ -67,8 +91,32 @@ const PaymentDetails = ({
             </Button>
           </Col>
         </Row>
-        {/* Show info message */}
-        {!isSaveDisabled && (
+        
+        {/* ===== Show weight validation message ===== */}
+        {requireWeightForAll && hasMissingWeights && (
+          <Row className="mt-2">
+            <Col>
+              <div style={{ 
+                color: "#856404", 
+                backgroundColor: "#fff3cd", 
+                padding: "8px 12px", 
+                borderRadius: "4px",
+                fontSize: "13px",
+                border: "1px solid #ffeeba"
+              }}>
+                <strong>⚠️ Weight Required:</strong> Please capture weight for all items before saving.
+                <span style={{ marginLeft: '10px' }}>
+                  ({repairDetails.filter((item, index) => {
+                    const itemId = item.item_id || item.id || item.code;
+                    return !capturedWeights[itemId] || capturedWeights[itemId].total_grams <= 0;
+                  }).length} items pending)
+                </span>
+              </div>
+            </Col>
+          </Row>
+        )}
+
+        {!isSaveDisabled && !requireWeightForAll && (
           <Row className="mt-2">
             <Col>
               <div style={{ 

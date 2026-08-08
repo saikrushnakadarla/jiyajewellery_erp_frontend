@@ -6,7 +6,7 @@ import { AiOutlinePlus } from "react-icons/ai";
 import baseURL from "../../../../Url/NodeBaseURL";
 import baseURL2 from "../../../../Url/NodeBaseURL2";
 import { useNavigate } from "react-router-dom";
-import { FaTrash, FaCamera, FaUpload, FaQrcode, FaBarcode } from "react-icons/fa";
+import { FaTrash, FaCamera, FaUpload, FaQrcode, FaBarcode, FaWeightHanging } from "react-icons/fa";
 import Webcam from "react-webcam";
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import Swal from 'sweetalert2';
@@ -61,7 +61,13 @@ const ProductDetails = ({
   handleOrderChange,
   selectedOrder,
   orderData,
-  selectedSalesmanProducts = []
+  selectedSalesmanProducts = [],
+  // ============= WEIGHT CAPTURE PROPS =============
+  onCaptureWeight,
+  isWeightProcessing = false,
+  currentItemId,
+  triggerWeightCamera,
+  setTriggerWeightCamera,
 }) => {
 
   const [showModal, setShowModal] = useState(false);
@@ -84,6 +90,17 @@ const ProductDetails = ({
   const [showPacketScanner, setShowPacketScanner] = useState(false);
   const [isPacketScannerInitialized, setIsPacketScannerInitialized] = useState(false);
   const packetScannerRef = useRef(null);
+
+  // ============= WEIGHT CAPTURE STATES =============
+  const [showWeightCamera, setShowWeightCamera] = useState(false);
+  const [weightCameraStream, setWeightCameraStream] = useState(null);
+  const weightVideoRef = useRef(null);
+  const weightCanvasRef = useRef(null);
+  const weightFileInputRef = useRef(null);
+  const [isProcessingWeight, setIsProcessingWeight] = useState(false);
+  const [extractedWeight, setExtractedWeight] = useState(null);
+  const [weightCaptureError, setWeightCaptureError] = useState(null);
+  const [weightCaptureItemId, setWeightCaptureItemId] = useState(null);
 
   useEffect(() => {
     const userId = localStorage.getItem('userId');
@@ -110,6 +127,199 @@ const ProductDetails = ({
       return () => clearTimeout(timer);
     }
   }, [showPacketScanner, isPacketScannerInitialized]);
+
+  // ============= WEIGHT CAMERA FUNCTIONS =============
+
+  // Process weight image using Gemini API
+  const processWeightImage = async (imageFile) => {
+    const targetItemId = weightCaptureItemId || formData.code;
+    
+    if (!targetItemId) {
+      alert("Please select a product first before capturing weight.");
+      return;
+    }
+
+    setIsProcessingWeight(true);
+    setExtractedWeight(null);
+    setWeightCaptureError(null);
+
+    try {
+      const formDataObj = new FormData();
+      formDataObj.append('image', imageFile);
+      formDataObj.append('estimate_number', '');
+      formDataObj.append('item_id', targetItemId);
+
+      const response = await axios.post(`${baseURL2}/api/extract-weight-gemini`, formDataObj, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+
+      if (response.data.success && response.data.record) {
+        const record = response.data.record;
+
+        const weightData = {
+          total_grams: record.total_grams,
+          grams: record.grams,
+          milligrams: record.milligrams,
+          raw_text: record.raw_text,
+          confidence: record.confidence || 100
+        };
+
+        setExtractedWeight(weightData);
+
+        // Notify parent component about the captured weight
+        if (onCaptureWeight) {
+          onCaptureWeight(targetItemId, weightData);
+        }
+
+        // Close weight camera after successful capture
+        stopWeightCamera();
+
+        Swal.fire({
+          icon: 'success',
+          title: '✅ Weight Extracted!',
+          html: `
+            <div style="font-size: 24px; padding: 10px 0;">
+              <strong>${record.total_grams.toFixed(3)} g</strong>
+              <div style="font-size: 14px; color: #666; margin-top: 5px;">
+                ${record.grams} g / ${record.milligrams} mg
+              </div>
+              <div style="font-size: 12px; color: #888; margin-top: 5px;">
+                Raw: ${record.raw_text}
+              </div>
+            </div>
+          `,
+          timer: 3000,
+          showConfirmButton: false
+        });
+
+        setWeightCaptureItemId(null);
+
+      } else {
+        setWeightCaptureError(response.data.message || 'Could not extract weight from image');
+        Swal.fire({
+          icon: 'warning',
+          title: 'Could Not Detect Weight',
+          text: response.data.message || 'Please try a clearer photo of the weight machine display.',
+          confirmButtonText: 'OK'
+        });
+      }
+    } catch (error) {
+      console.error('Gemini API Error:', error);
+      let errorMessage = 'Error processing weight image.';
+      if (error.response) {
+        errorMessage = error.response.data?.message || errorMessage;
+      }
+      setWeightCaptureError(errorMessage);
+      Swal.fire({
+        icon: 'error',
+        title: 'Extraction Failed',
+        text: errorMessage,
+        confirmButtonText: 'OK'
+      });
+    } finally {
+      setIsProcessingWeight(false);
+    }
+  };
+
+  // Start weight camera for a specific item (called from ProductTable)
+  const startWeightCameraForItem = (itemId, itemDetails = null) => {
+    setWeightCaptureItemId(itemId);
+    
+    // Open the camera
+    navigator.mediaDevices.getUserMedia({ 
+      video: { facingMode: 'environment' } 
+    })
+    .then(stream => {
+      setWeightCameraStream(stream);
+      setShowWeightCamera(true);
+      setTimeout(() => { 
+        if (weightVideoRef.current) weightVideoRef.current.srcObject = stream; 
+      }, 100);
+    })
+    .catch(error => {
+      console.error('Error accessing camera:', error);
+      alert('Failed to access camera. Please check permissions.');
+    });
+  };
+
+  // Start weight camera - called from the Capture Weight button
+  const startWeightCamera = () => {
+    // If no product is selected in the form, show alert
+    if (!formData.code) {
+      alert("Please select a product first using the barcode dropdown or scan button.");
+      return;
+    }
+
+    const itemId = currentItemId || formData.code;
+    
+    // Open the camera
+    navigator.mediaDevices.getUserMedia({ 
+      video: { facingMode: 'environment' } 
+    })
+    .then(stream => {
+      setWeightCameraStream(stream);
+      setShowWeightCamera(true);
+      setTimeout(() => { 
+        if (weightVideoRef.current) weightVideoRef.current.srcObject = stream; 
+      }, 100);
+    })
+    .catch(error => {
+      console.error('Error accessing camera:', error);
+      alert('Failed to access camera. Please check permissions.');
+    });
+  };
+
+  const stopWeightCamera = () => {
+    if (weightCameraStream) {
+      weightCameraStream.getTracks().forEach(track => track.stop());
+      setWeightCameraStream(null);
+    }
+    setShowWeightCamera(false);
+    setWeightCaptureError(null);
+  };
+
+  const captureWeightImage = () => {
+    if (weightVideoRef.current && weightCanvasRef.current) {
+      const video = weightVideoRef.current;
+      const canvas = weightCanvasRef.current;
+      const context = canvas.getContext('2d');
+
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      canvas.toBlob((blob) => {
+        const file = new File([blob], `weight_capture_${Date.now()}.jpg`, { type: 'image/jpeg' });
+        processWeightImage(file);
+      }, 'image/jpeg');
+    }
+  };
+
+  // Trigger weight file upload
+  const triggerWeightFileUpload = () => {
+    weightFileInputRef.current?.click();
+  };
+
+  const handleWeightFileUpload = (event) => {
+    const file = event.target.files[0];
+    if (file) {
+      processWeightImage(file);
+    }
+    event.target.value = '';
+  };
+
+  // Watch for trigger from parent (ProductTable)
+  useEffect(() => {
+    if (triggerWeightCamera && setTriggerWeightCamera) {
+      if (triggerWeightCamera.itemId) {
+        setWeightCaptureItemId(triggerWeightCamera.itemId);
+        // Open weight camera
+        startWeightCameraForItem(triggerWeightCamera.itemId);
+      }
+      // Reset trigger
+      setTriggerWeightCamera(null);
+    }
+  }, [triggerWeightCamera]);
 
   const initializeScanner = () => {
     const element = document.getElementById('barcode-reader');
@@ -542,104 +752,103 @@ const ProductDetails = ({
   };
 
   // Fetch estimates data from baseURL2
-// Fetch estimates data from baseURL2
-useEffect(() => {
-  const fetchEstimates = async () => {
-    try {
-      const response = await axios.get(`${baseURL2}/get/estimates`);
-      console.log("Estimates data fetched in ProductDetails:", response.data);
-      setEstimatesData(response.data);
-      
-      // Group products by packet barcode - ONLY for products assigned to the selected salesman
-      const grouped = {};
-      const packetImages = {}; // Store packet images
-      
-      response.data.forEach(est => {
-        if (est.code && est.packet_barcode) {
-          // Check if this product is assigned to the selected salesman
-          const isAssignedToSalesman = selectedSalesmanProducts.some(
-            assigned => assigned.PCode_BarCode === est.code
-          );
-          
-          // Only include if assigned to the selected salesman
-          if (isAssignedToSalesman) {
-            if (!grouped[est.packet_barcode]) {
-              grouped[est.packet_barcode] = [];
-            }
-            // Add product info to the group
-            grouped[est.packet_barcode].push({
-              code: est.code,
-              product_name: est.product_name,
-              metal_type: est.metal_type,
-              purity: est.purity,
-              category: est.category,
-              sub_category: est.sub_category,
-              gross_weight: est.gross_weight,
-              stone_weight: est.stone_weight,
-              stone_price: est.stone_price,
-              weight_bw: est.weight_bw,
-              va_on: est.va_on,
-              va_percent: est.va_percent,
-              wastage_weight: est.wastage_weight,
-              total_weight_av: est.total_weight_av,
-              mc_on: est.mc_on,
-              mc_per_gram: est.mc_per_gram,
-              making_charges: est.making_charges,
-              rate: est.rate,
-              rate_amt: est.rate_amt,
-              tax_percent: est.tax_percent,
-              tax_amt: est.tax_amt,
-              total_price: est.total_price,
-              pricing: est.pricing,
-              qty: est.qty || 1,
-              packet_barcode: est.packet_barcode,
-              is_estimated: true,
-              design_name: est.design_name,
-              stone_price_per_carat: est.stone_price_per_carat,
-              deduct_st_Wt: est.deduct_st_Wt,
-              pur_Gross_Weight: est.pur_Gross_Weight,
-              pur_Stones_Weight: est.pur_Stones_Weight,
-              pur_deduct_st_Wt: est.pur_deduct_st_Wt,
-              pur_stone_price_per_carat: est.pur_stone_price_per_carat,
-              pur_Stones_Price: est.pur_Stones_Price,
-              pur_Weight_BW: est.pur_Weight_BW,
-              pur_Making_Charges_On: est.pur_Making_Charges_On,
-              pur_MC_Per_Gram: est.pur_MC_Per_Gram,
-              pur_Making_Charges: est.pur_Making_Charges,
-              pur_Wastage_On: est.pur_Wastage_On,
-              pur_Wastage_Percentage: est.pur_Wastage_Percentage,
-              pur_WastageWeight: est.pur_WastageWeight,
-              pur_TotalWeight_AW: est.pur_TotalWeight_AW
-            });
+  useEffect(() => {
+    const fetchEstimates = async () => {
+      try {
+        const response = await axios.get(`${baseURL2}/get/estimates`);
+        console.log("Estimates data fetched in ProductDetails:", response.data);
+        setEstimatesData(response.data);
+        
+        // Group products by packet barcode - ONLY for products assigned to the selected salesman
+        const grouped = {};
+        const packetImages = {}; // Store packet images
+        
+        response.data.forEach(est => {
+          if (est.code && est.packet_barcode) {
+            // Check if this product is assigned to the selected salesman
+            const isAssignedToSalesman = selectedSalesmanProducts.some(
+              assigned => assigned.PCode_BarCode === est.code
+            );
             
-            // Store packet image
-            if (est.pack_images) {
-              try {
-                const images = JSON.parse(est.pack_images);
-                if (images && images.length > 0) {
-                  packetImages[est.packet_barcode] = images[0]; // Get first image
+            // Only include if assigned to the selected salesman
+            if (isAssignedToSalesman) {
+              if (!grouped[est.packet_barcode]) {
+                grouped[est.packet_barcode] = [];
+              }
+              // Add product info to the group
+              grouped[est.packet_barcode].push({
+                code: est.code,
+                product_name: est.product_name,
+                metal_type: est.metal_type,
+                purity: est.purity,
+                category: est.category,
+                sub_category: est.sub_category,
+                gross_weight: est.gross_weight,
+                stone_weight: est.stone_weight,
+                stone_price: est.stone_price,
+                weight_bw: est.weight_bw,
+                va_on: est.va_on,
+                va_percent: est.va_percent,
+                wastage_weight: est.wastage_weight,
+                total_weight_av: est.total_weight_av,
+                mc_on: est.mc_on,
+                mc_per_gram: est.mc_per_gram,
+                making_charges: est.making_charges,
+                rate: est.rate,
+                rate_amt: est.rate_amt,
+                tax_percent: est.tax_percent,
+                tax_amt: est.tax_amt,
+                total_price: est.total_price,
+                pricing: est.pricing,
+                qty: est.qty || 1,
+                packet_barcode: est.packet_barcode,
+                is_estimated: true,
+                design_name: est.design_name,
+                stone_price_per_carat: est.stone_price_per_carat,
+                deduct_st_Wt: est.deduct_st_Wt,
+                pur_Gross_Weight: est.pur_Gross_Weight,
+                pur_Stones_Weight: est.pur_Stones_Weight,
+                pur_deduct_st_Wt: est.pur_deduct_st_Wt,
+                pur_stone_price_per_carat: est.pur_stone_price_per_carat,
+                pur_Stones_Price: est.pur_Stones_Price,
+                pur_Weight_BW: est.pur_Weight_BW,
+                pur_Making_Charges_On: est.pur_Making_Charges_On,
+                pur_MC_Per_Gram: est.pur_MC_Per_Gram,
+                pur_Making_Charges: est.pur_Making_Charges,
+                pur_Wastage_On: est.pur_Wastage_On,
+                pur_Wastage_Percentage: est.pur_Wastage_Percentage,
+                pur_WastageWeight: est.pur_WastageWeight,
+                pur_TotalWeight_AW: est.pur_TotalWeight_AW
+              });
+              
+              // Store packet image
+              if (est.pack_images) {
+                try {
+                  const images = JSON.parse(est.pack_images);
+                  if (images && images.length > 0) {
+                    packetImages[est.packet_barcode] = images[0]; // Get first image
+                  }
+                } catch (e) {
+                  // If not JSON, treat as single string
+                  packetImages[est.packet_barcode] = est.pack_images;
                 }
-              } catch (e) {
-                // If not JSON, treat as single string
-                packetImages[est.packet_barcode] = est.pack_images;
               }
             }
           }
-        }
-      });
-      setGroupedPacketProducts(grouped);
-      
-      // Store packet images in window object for later use
-      window.packetImages = packetImages;
-      
-      console.log("Grouped packet products for salesman:", grouped);
-      console.log("Packet images:", packetImages);
-    } catch (error) {
-      console.error("Error fetching estimates:", error);
-    }
-  };
-  fetchEstimates();
-}, [selectedSalesmanProducts]);
+        });
+        setGroupedPacketProducts(grouped);
+        
+        // Store packet images in window object for later use
+        window.packetImages = packetImages;
+        
+        console.log("Grouped packet products for salesman:", grouped);
+        console.log("Packet images:", packetImages);
+      } catch (error) {
+        console.error("Error fetching estimates:", error);
+      }
+    };
+    fetchEstimates();
+  }, [selectedSalesmanProducts]);
 
   // Get packet barcode from estimates for a given product code
   const getPacketBarcode = (productCode) => {
@@ -739,235 +948,236 @@ useEffect(() => {
   };
 
   // Handle barcode selection - for packet barcodes, add all products
-// Handle barcode selection - for packet barcodes, add all products
-const handleBarcodeSelect = (selectedValue) => {
-  const selectedOption = uniqueBarcodeOptions.find(opt => opt.value === selectedValue);
-  
-  if (selectedOption) {
-    // Set packet image if available
-    let packetImageUrl = null;
-    let totalGrossWeight = 0;
-    let totalPackingWt = 0;
+  const handleBarcodeSelect = (selectedValue) => {
+    const selectedOption = uniqueBarcodeOptions.find(opt => opt.value === selectedValue);
     
-    if (selectedOption.type === "packet" && selectedOption.packetBarcode) {
-      const imageFileName = window.packetImages?.[selectedOption.packetBarcode];
-      if (imageFileName) {
-        packetImageUrl = `${baseURL2}/uploads/pack-images/${imageFileName}`;
-      }
+    if (selectedOption) {
+      // Set packet image if available
+      let packetImageUrl = null;
+      let totalGrossWeight = 0;
+      let totalPackingWt = 0;
       
-      // Calculate totals for products in this packet
-      if (selectedOption.products && selectedOption.products.length > 0) {
-        selectedOption.products.forEach(product => {
-          // Get gross_weight - convert to number
-          const grossWt = parseFloat(product.gross_weight) || 0;
-          totalGrossWeight += grossWt;
-          
-          // Get packing_wt from estimatesData for this product
-          const estimateProduct = estimatesData.find(est => est.code === product.code);
-          const packingWt = parseFloat(estimateProduct?.packing_wt) || 0;
-          totalPackingWt += packingWt;
-        });
-      }
-      
-      // Calculate Total Packing Wt as grossWeight + packingWt
-      const totalPackingWtFinal = totalGrossWeight + totalPackingWt;
-      
-      // Update packet totals
-      setPacketTotals({
-        grossWeight: totalGrossWeight,
-        packingWt: totalPackingWtFinal
-      });
-    } else {
-      // Reset packet totals if not a packet
-      setPacketTotals({ grossWeight: 0, packingWt: 0 });
-      setPacketImage(null);
-    }
-    
-    setPacketImage(packetImageUrl);
-    
-    if (selectedOption.type === "packet" && selectedOption.products && selectedOption.products.length > 0) {
-      // This is a packet barcode - add all products to the table
-      console.log("Packet selected with products:", selectedOption.products);
-      console.log("Total Gross Weight:", totalGrossWeight);
-      console.log("Total Packing Weight (Gross + Packing):", totalGrossWeight + totalPackingWt);
-      
-      // Get existing repair details from localStorage
-      const storedRepairDetails = JSON.parse(localStorage.getItem(`repairDetails_${tabId}`)) || [];
-      
-      // Check for duplicates before adding
-      const existingCodes = new Set(storedRepairDetails.map(item => item.code));
-      const newProducts = selectedOption.products.filter(product => !existingCodes.has(product.code));
-      
-      if (newProducts.length === 0) {
-        alert("All products in this packet are already added");
-        setFormData(prev => ({
-          ...prev,
-          code: selectedValue,
-          packet_barcode: selectedOption.packetBarcode,
-          is_estimated: true,
-          is_packet_selection: true
-        }));
-        return;
-      }
-      
-      // Get the image for each product from selectedSalesmanProducts
-      const productsWithImages = newProducts.map(product => {
-        // Find the assigned product to get its image
-        const assignedProduct = selectedSalesmanProducts?.find(
-          p => p.PCode_BarCode === product.code
-        );
-        
-        let imagePath = assignedProduct?.image || null;
-        let imagePreview = null;
-        
-        if (imagePath) {
-          imagePreview = getImageUrl(imagePath);
+      if (selectedOption.type === "packet" && selectedOption.packetBarcode) {
+        const imageFileName = window.packetImages?.[selectedOption.packetBarcode];
+        if (imageFileName) {
+          packetImageUrl = `${baseURL2}/uploads/pack-images/${imageFileName}`;
         }
         
-        // Get packing_wt from estimatesData
-        const estimateProduct = estimatesData.find(est => est.code === product.code);
-        const packingWt = estimateProduct?.packing_wt || "";
+        // Calculate totals for products in this packet
+        if (selectedOption.products && selectedOption.products.length > 0) {
+          selectedOption.products.forEach(product => {
+            // Get gross_weight - convert to number
+            const grossWt = parseFloat(product.gross_weight) || 0;
+            totalGrossWeight += grossWt;
+            
+            // Get packing_wt from estimatesData for this product
+            const estimateProduct = estimatesData.find(est => est.code === product.code);
+            const packingWt = parseFloat(estimateProduct?.packing_wt) || 0;
+            totalPackingWt += packingWt;
+          });
+        }
         
-        return {
-          ...product,
-          // Map fields to match formData structure
-          code: product.code,
-          product_name: product.product_name || product.sub_category,
-          metal_type: product.metal_type,
-          purity: product.purity,
-          category: product.category,
-          sub_category: product.sub_category,
-          gross_weight: product.gross_weight,
-          stone_weight: product.stone_weight,
-          stone_price: product.stone_price,
-          weight_bw: product.weight_bw,
-          va_on: product.va_on || "Gross Weight",
-          va_percent: product.va_percent,
-          wastage_weight: product.wastage_weight,
-          total_weight_av: product.total_weight_av,
-          mc_on: product.mc_on || "MC %",
-          mc_per_gram: product.mc_per_gram,
-          making_charges: product.making_charges,
-          rate: product.rate,
-          rate_amt: product.rate_amt,
-          tax_percent: product.tax_percent || "03% GST",
-          tax_amt: product.tax_amt,
-          total_price: product.total_price,
-          pricing: product.pricing || "By Weight",
-          qty: product.qty || 1,
+        // Calculate Total Packing Wt as grossWeight + packingWt
+        const totalPackingWtFinal = totalGrossWeight + totalPackingWt;
+        
+        // Update packet totals
+        setPacketTotals({
+          grossWeight: totalGrossWeight,
+          packingWt: totalPackingWtFinal
+        });
+      } else {
+        // Reset packet totals if not a packet
+        setPacketTotals({ grossWeight: 0, packingWt: 0 });
+        setPacketImage(null);
+      }
+      
+      setPacketImage(packetImageUrl);
+      
+      if (selectedOption.type === "packet" && selectedOption.products && selectedOption.products.length > 0) {
+        // This is a packet barcode - add all products to the table
+        console.log("Packet selected with products:", selectedOption.products);
+        console.log("Total Gross Weight:", totalGrossWeight);
+        console.log("Total Packing Weight (Gross + Packing):", totalGrossWeight + totalPackingWt);
+        
+        // Get existing repair details from localStorage
+        const storedRepairDetails = JSON.parse(localStorage.getItem(`repairDetails_${tabId}`)) || [];
+        
+        // Check for duplicates before adding
+        const existingCodes = new Set(storedRepairDetails.map(item => item.code));
+        const newProducts = selectedOption.products.filter(product => !existingCodes.has(product.code));
+        
+        if (newProducts.length === 0) {
+          alert("All products in this packet are already added");
+          setFormData(prev => ({
+            ...prev,
+            code: selectedValue,
+            packet_barcode: selectedOption.packetBarcode,
+            is_estimated: true,
+            is_packet_selection: true
+          }));
+          return;
+        }
+        
+        // Get the image for each product from selectedSalesmanProducts
+        const productsWithImages = newProducts.map(product => {
+          // Find the assigned product to get its image
+          const assignedProduct = selectedSalesmanProducts?.find(
+            p => p.PCode_BarCode === product.code
+          );
+          
+          let imagePath = assignedProduct?.image || null;
+          let imagePreview = null;
+          
+          if (imagePath) {
+            imagePreview = getImageUrl(imagePath);
+          }
+          
+          // Get packing_wt from estimatesData
+          const estimateProduct = estimatesData.find(est => est.code === product.code);
+          const packingWt = estimateProduct?.packing_wt || "";
+          
+          return {
+            ...product,
+            // Map fields to match formData structure
+            code: product.code,
+            product_name: product.product_name || product.sub_category,
+            metal_type: product.metal_type,
+            purity: product.purity,
+            category: product.category,
+            sub_category: product.sub_category,
+            gross_weight: product.gross_weight,
+            stone_weight: product.stone_weight,
+            stone_price: product.stone_price,
+            weight_bw: product.weight_bw,
+            va_on: product.va_on || "Gross Weight",
+            va_percent: product.va_percent,
+            wastage_weight: product.wastage_weight,
+            total_weight_av: product.total_weight_av,
+            mc_on: product.mc_on || "MC %",
+            mc_per_gram: product.mc_per_gram,
+            making_charges: product.making_charges,
+            rate: product.rate,
+            rate_amt: product.rate_amt,
+            tax_percent: product.tax_percent || "03% GST",
+            tax_amt: product.tax_amt,
+            total_price: product.total_price,
+            pricing: product.pricing || "By Weight",
+            qty: product.qty || 1,
+            packet_barcode: selectedOption.packetBarcode,
+            is_estimated: true,
+            design_name: product.design_name,
+            imagePreview: imagePreview,
+            image: imagePath,
+            sale_status: "Delivered",
+            piece_taxable_amt: product.piece_taxable_amt || "",
+            festival_discount: product.festival_discount || "",
+            disscount: product.disscount || "",
+            disscount_percentage: product.disscount_percentage || "",
+            hm_charges: product.hm_charges || "60.00",
+            remarks: product.remarks || "",
+            printing_purity: product.printing_purity || "",
+            selling_purity: product.selling_purity || "",
+            is_packet_selection: true,
+            assigned_id: assignedProduct?.assigned_id || null,
+            item_id: assignedProduct?.item_id || null,
+            packing_wt: packingWt || ""
+          };
+        });
+        
+        // Add all new products to repairDetails
+        const updatedRepairDetails = [
+          ...storedRepairDetails,
+          ...productsWithImages
+        ];
+        
+        // Use setRepairDetails to update state
+        setRepairDetails(updatedRepairDetails);
+        localStorage.setItem(`repairDetails_${tabId}`, JSON.stringify(updatedRepairDetails));
+        
+        // Set isPacketAdded to true to clear the form fields
+        setIsPacketAdded(true);
+        
+        // Clear form fields after packet selection - only show packet barcode info
+        setFormData(prev => ({
+          ...prev,
+          code: selectedValue,
           packet_barcode: selectedOption.packetBarcode,
           is_estimated: true,
-          design_name: product.design_name,
-          imagePreview: imagePreview,
-          image: imagePath,
-          sale_status: "Delivered",
-          piece_taxable_amt: product.piece_taxable_amt || "",
-          festival_discount: product.festival_discount || "",
-          disscount: product.disscount || "",
-          disscount_percentage: product.disscount_percentage || "",
-          hm_charges: product.hm_charges || "60.00",
-          remarks: product.remarks || "",
-          printing_purity: product.printing_purity || "",
-          selling_purity: product.selling_purity || "",
           is_packet_selection: true,
-          assigned_id: assignedProduct?.assigned_id || null,
-          item_id: assignedProduct?.item_id || null,
-          packing_wt: packingWt || ""
-        };
-      });
-      
-      // Add all new products to repairDetails
-      const updatedRepairDetails = [
-        ...storedRepairDetails,
-        ...productsWithImages
-      ];
-      
-      // Use setRepairDetails to update state
-      setRepairDetails(updatedRepairDetails);
-      localStorage.setItem(`repairDetails_${tabId}`, JSON.stringify(updatedRepairDetails));
-      
-      // Set isPacketAdded to true to clear the form fields
-      setIsPacketAdded(true);
-      
-      // Clear form fields after packet selection - only show packet barcode info
-      setFormData(prev => ({
-        ...prev,
-        code: selectedValue,
-        packet_barcode: selectedOption.packetBarcode,
-        is_estimated: true,
-        is_packet_selection: true,
-        product_name: '',
-        metal_type: '',
-        purity: '',
-        category: '',
-        sub_category: '',
-        gross_weight: '',
-        stone_weight: '',
-        stone_price: '',
-        weight_bw: '',
-        va_on: 'Gross Weight',
-        va_percent: '',
-        wastage_weight: '',
-        total_weight_av: '',
-        mc_on: 'MC %',
-        mc_per_gram: '',
-        making_charges: '',
-        rate: '',
-        rate_amt: '',
-        tax_percent: '03% GST',
-        tax_amt: '',
-        total_price: '',
-        pricing: 'By Weight',
-        qty: '1',
-        design_name: '',
-        selling_purity: '',
-        printing_purity: '',
-        imagePreview: null,
-        image: null,
-        disscount: '',
-        disscount_percentage: '',
-        pieace_cost: '',
-        hm_charges: '60.00',
-        remarks: '',
-        piece_taxable_amt: '',
-        festival_discount: '',
-        custom_purity: ''
-      }));
-      
-      const totalPackingWtFinal = totalGrossWeight + totalPackingWt;
-      alert(`Added ${newProducts.length} product(s) from packet ${selectedOption.packetBarcode}\nTotal Gross Weight: ${totalGrossWeight.toFixed(2)}g\nTotal Packing Weight: ${totalPackingWtFinal.toFixed(2)}g`);
-      
-    } else {
-      // Regular barcode selection (non-packet)
-      setIsPacketAdded(false);
-      setPacketImage(null);
-      setPacketTotals({ grossWeight: 0, packingWt: 0 });
-      if (selectedOption.packetBarcode) {
-        setFormData(prev => ({
-          ...prev,
-          code: selectedValue,
-          packet_barcode: selectedOption.packetBarcode,
-          is_estimated: selectedOption.isEstimated || false,
-          is_packet_selection: false
+          product_name: '',
+          metal_type: '',
+          purity: '',
+          category: '',
+          sub_category: '',
+          gross_weight: '',
+          stone_weight: '',
+          stone_price: '',
+          weight_bw: '',
+          va_on: 'Gross Weight',
+          va_percent: '',
+          wastage_weight: '',
+          total_weight_av: '',
+          mc_on: 'MC %',
+          mc_per_gram: '',
+          making_charges: '',
+          rate: '',
+          rate_amt: '',
+          tax_percent: '03% GST',
+          tax_amt: '',
+          total_price: '',
+          pricing: 'By Weight',
+          qty: '1',
+          design_name: '',
+          selling_purity: '',
+          printing_purity: '',
+          imagePreview: null,
+          image: null,
+          disscount: '',
+          disscount_percentage: '',
+          pieace_cost: '',
+          hm_charges: '60.00',
+          remarks: '',
+          piece_taxable_amt: '',
+          festival_discount: '',
+          custom_purity: ''
         }));
+        
+        const totalPackingWtFinal = totalGrossWeight + totalPackingWt;
+        alert(`Added ${newProducts.length} product(s) from packet ${selectedOption.packetBarcode}\nTotal Gross Weight: ${totalGrossWeight.toFixed(2)}g\nTotal Packing Weight: ${totalPackingWtFinal.toFixed(2)}g`);
+        
       } else {
-        setFormData(prev => ({
-          ...prev,
-          code: selectedValue,
-          packet_barcode: null,
-          is_estimated: false,
-          is_packet_selection: false
-        }));
+        // Regular barcode selection (non-packet)
+        setIsPacketAdded(false);
+        setPacketImage(null);
+        setPacketTotals({ grossWeight: 0, packingWt: 0 });
+        if (selectedOption.packetBarcode) {
+          setFormData(prev => ({
+            ...prev,
+            code: selectedValue,
+            packet_barcode: selectedOption.packetBarcode,
+            is_estimated: selectedOption.isEstimated || false,
+            is_packet_selection: false
+          }));
+        } else {
+          setFormData(prev => ({
+            ...prev,
+            code: selectedValue,
+            packet_barcode: null,
+            is_estimated: false,
+            is_packet_selection: false
+          }));
+        }
+        handleBarcodeChange(selectedValue);
       }
-      handleBarcodeChange(selectedValue);
     }
-  }
-};
+  };
 
   const handleClear = () => {
     setIsPacketAdded(false); 
-     setPacketImage(null); // Add this line
-  setPacketTotals({ grossWeight: 0, packingWt: 0 });
+    setPacketImage(null);
+    setPacketTotals({ grossWeight: 0, packingWt: 0 });
+    setExtractedWeight(null);
+    setWeightCaptureError(null);
     setFormData(prevFormData => ({
       ...prevFormData,
       code: "",
@@ -1011,6 +1221,14 @@ const handleBarcodeSelect = (selectedValue) => {
       packet_barcode: null,
       is_estimated: false,
       is_packet_selection: false,
+      cover_wt: "",
+      card_wt: "",
+      packing_wt: "",
+      weight_machine_reading: 0,
+      weight_machine_grams: 0,
+      weight_machine_milligrams: 0,
+      weight_machine_confidence: 0,
+      weight_machine_raw: null,
     }));
   };
 
@@ -1124,116 +1342,163 @@ const handleBarcodeSelect = (selectedValue) => {
     <Col>
       <Row>
         {/* Barcode with Scan Packet Button */}
-      <Col xs={12} md={4}>
-  <div style={{ display: 'flex', alignItems: 'flex-end', gap: '6px' }}>
-    <div style={{ flex: 1, minWidth: '80px' }}>
-      <InputField
-        label="BarCode/Rbarcode"
-        name="code"
-        value={formData.code || defaultBarcode}
-        onChange={(e) => handleBarcodeSelect(e.target.value)}
-        type="select"
-        options={uniqueBarcodeOptions}
-      />
-      {/* Display packet barcode if available */}
-      {/* {formData.packet_barcode && (
-        <div style={{ fontSize: "12px", color: "#a36e29", marginTop: "2px", fontWeight: "bold" }}>
-          Packet: {formData.packet_barcode}
-        </div>
-      )} */}
-      {/* {formData.is_estimated && (
-        <div style={{ fontSize: "11px", color: "#28a745", marginTop: "2px" }}>
-          ✓ Estimated
-        </div>
-      )}
-      {isPacketAdded && (
-        <div style={{ fontSize: "11px", color: "#a36e29", marginTop: "2px", fontWeight: "bold" }}>
-          ✓ Packet Added - Select another or clear
-        </div>
-      )} */}
-    </div>
-    <Button
-      variant="success"
-      size="sm"
-      onClick={startPacketScanner}
-      style={{ 
-        backgroundColor: '#28a745',
-        borderColor: '#28a745',
-        whiteSpace: 'nowrap',
-        padding: '4px 8px',
-        fontSize: '15px',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '10px',
-        flexShrink: 0,
-        minWidth: '150px',
-        height: '38px',
-        marginBottom: '8px',
-      }}
-      title="Scan Packet"
-    >
-      <FaBarcode size={13} /> Scan Packet
-    </Button>
-  </div>
-  
-  {/* Display Packet Image */}
-  {packetImage && (
-    <div style={{ marginTop: '8px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-        <img 
-          src={packetImage} 
-          alt="Packet" 
-          style={{ 
-            width: '80px', 
-            height: '80px', 
-            borderRadius: '8px',
-            border: '1px solid #ddd',
-            padding: '5px',
-            objectFit: 'cover'
-          }} 
-          onError={(e) => {
-            e.target.style.display = 'none';
-            setPacketImage(null);
-          }}
-        />
-        <span style={{ fontSize: '12px', color: '#666' }}>Packet Image</span>
-      </div>
-    </div>
-  )}
-  
-  {/* Display Packet Totals */}
-  {(packetTotals.grossWeight > 0 || packetTotals.packingWt > 0) && (
-    <div style={{ marginTop: '8px' }}>
-      <div style={{ 
-        display: 'flex', 
-        flexDirection: 'column',
-        gap: '5px',
-        padding: '8px 12px',
-        border: '1px solid #e0e0e0',
-        borderRadius: '8px',
-        backgroundColor: '#f9f9f9'
-      }}>
-        <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#333' }}>
-          Packet Summary
-        </div>
-        <div style={{ display: 'flex', gap: '20px' }}>
-          <div>
-            <span style={{ fontSize: '12px', color: '#666' }}>Total Gross Wt: </span>
-            <span style={{ fontSize: '14px', fontWeight: 'bold', color: '#28a745' }}>
-              {packetTotals.grossWeight.toFixed(2)}g
-            </span>
+        <Col xs={12} md={4}>
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: '6px' }}>
+            <div style={{ flex: 1, minWidth: '80px' }}>
+              <InputField
+                label="BarCode/Rbarcode"
+                name="code"
+                value={formData.code || defaultBarcode}
+                onChange={(e) => handleBarcodeSelect(e.target.value)}
+                type="select"
+                options={uniqueBarcodeOptions}
+              />
+            </div>
+            <Button
+              variant="success"
+              size="sm"
+              onClick={startPacketScanner}
+              style={{ 
+                backgroundColor: '#28a745',
+                borderColor: '#28a745',
+                whiteSpace: 'nowrap',
+                padding: '4px 8px',
+                fontSize: '15px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px',
+                flexShrink: 0,
+                minWidth: '150px',
+                height: '38px',
+                marginBottom: '8px',
+              }}
+              title="Scan Packet"
+            >
+              <FaBarcode size={13} /> Scan Packet
+            </Button>
           </div>
-          <div>
-            <span style={{ fontSize: '12px', color: '#666' }}>Total Packing Wt: </span>
-            <span style={{ fontSize: '14px', fontWeight: 'bold', color: '#007bff' }}>
-              {packetTotals.packingWt.toFixed(2)}g
-            </span>
-          </div>
-        </div>
-      </div>
-    </div>
-  )}
-</Col>
+          
+          {/* Display Packet Image */}
+          {packetImage && (
+            <div style={{ marginTop: '8px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <img 
+                  src={packetImage} 
+                  alt="Packet" 
+                  style={{ 
+                    width: '80px', 
+                    height: '80px', 
+                    borderRadius: '8px',
+                    border: '1px solid #ddd',
+                    padding: '5px',
+                    objectFit: 'cover'
+                  }} 
+                  onError={(e) => {
+                    e.target.style.display = 'none';
+                    setPacketImage(null);
+                  }}
+                />
+                <span style={{ fontSize: '12px', color: '#666' }}>Packet Image</span>
+              </div>
+            </div>
+          )}
+          
+          {/* Display Packet Totals */}
+          {(packetTotals.grossWeight > 0 || packetTotals.packingWt > 0) && (
+            <div style={{ marginTop: '8px' }}>
+              <div style={{ 
+                display: 'flex', 
+                flexDirection: 'column',
+                gap: '5px',
+                padding: '8px 12px',
+                border: '1px solid #e0e0e0',
+                borderRadius: '8px',
+                backgroundColor: '#f9f9f9'
+              }}>
+                <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#333' }}>
+                  Packet Summary
+                </div>
+                <div style={{ display: 'flex', gap: '20px' }}>
+                  <div>
+                    <span style={{ fontSize: '12px', color: '#666' }}>Total Gross Wt: </span>
+                    <span style={{ fontSize: '14px', fontWeight: 'bold', color: '#28a745' }}>
+                      {packetTotals.grossWeight.toFixed(2)}g
+                    </span>
+                  </div>
+                  <div>
+                    <span style={{ fontSize: '12px', color: '#666' }}>Total Packing Wt: </span>
+                    <span style={{ fontSize: '14px', fontWeight: 'bold', color: '#007bff' }}>
+                      {packetTotals.packingWt.toFixed(2)}g
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ============= DISPLAY EXTRACTED WEIGHT INFO ============= */}
+          {extractedWeight && (
+            <div style={{ marginTop: '10px', padding: '8px 15px', backgroundColor: '#d4edda', border: '1px solid #c3e6cb', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '20px', flexWrap: 'wrap' }}>
+              <span style={{ fontWeight: 'bold', color: '#155724' }}>✅ Weight Captured:</span>
+              <span style={{ fontWeight: 'bold', fontSize: '18px', color: '#0d47a1' }}>
+                {extractedWeight.total_grams?.toFixed(3)} g
+              </span>
+              <span style={{ fontSize: '14px', color: '#155724' }}>
+                ({extractedWeight.grams} g / {extractedWeight.milligrams} mg)
+              </span>
+              <span style={{ fontSize: '12px', color: '#666' }}>
+                Raw: {extractedWeight.raw_text}
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  setExtractedWeight(null);
+                }}
+                style={{
+                  background: '#dc3545',
+                  border: 'none',
+                  color: 'white',
+                  borderRadius: '4px',
+                  padding: '2px 10px',
+                  cursor: 'pointer',
+                  marginLeft: 'auto'
+                }}
+              >
+                ✕ Close
+              </button>
+            </div>
+          )}
+
+          {/* ============= WEIGHT CAPTURE ERROR ============= */}
+          {weightCaptureError && (
+            <div style={{ marginTop: '10px', padding: '8px 15px', backgroundColor: '#f8d7da', border: '1px solid #f5c6cb', borderRadius: '8px', color: '#721c24' }}>
+              ⚠️ {weightCaptureError}
+              <button
+                type="button"
+                onClick={() => setWeightCaptureError(null)}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: '#721c24',
+                  marginLeft: '10px',
+                  cursor: 'pointer'
+                }}
+              >
+                ✕
+              </button>
+            </div>
+          )}
+
+          {/* ============= PROCESSING INDICATOR ============= */}
+          {isProcessingWeight && (
+            <div style={{ marginTop: '10px', display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 15px', backgroundColor: '#e3f2fd', borderRadius: '8px' }}>
+              <div className="spinner-border spinner-border-sm text-primary" role="status">
+                <span className="visually-hidden">Processing...</span>
+              </div>
+              <span style={{ color: '#0d47a1' }}>Processing weight image with Gemini AI...</span>
+            </div>
+          )}
+        </Col>
 
         {/* Commented out Category field */}
         {/*
@@ -1389,21 +1654,6 @@ const handleBarcodeSelect = (selectedValue) => {
                   )}
                 </DropdownButton>
 
-                {/* <Button
-                  variant="primary"
-                  size="sm"
-                  onClick={startScanner}
-                  style={{ 
-                    backgroundColor: '#007bff',
-                    borderColor: '#007bff',
-                    whiteSpace: 'nowrap',
-                    minWidth: '105px',
-                    flexShrink: 0
-                  }}
-                >
-                  <FaQrcode /> Scan Barcode
-                </Button> */}
-
                 <Button
                   onClick={isEditing ? handleUpdate : handleAdd}
                   style={{
@@ -1502,165 +1752,6 @@ const handleBarcodeSelect = (selectedValue) => {
           </>
         ) : (
           <>
-            {/* ================================================ */}
-            {/* COMMENTED OUT: All fields from Selling Purity to Total MC */}
-            {/* ================================================ */}
-            {/* 
-            <Col xs={12} md={2}>
-              <InputField
-                label="Selling Purity"
-                name="selling_purity"
-                type="select"
-                value={formData.selling_purity}
-                onChange={handleChange}
-                options={[
-                  ...(formData.product_name
-                    ? [{
-                        label: subcategoryOptions.find(option => option.value === formData.product_name)?.selling_purity || "Default Purity",
-                        value: subcategoryOptions.find(option => option.value === formData.product_name)?.selling_purity || ""
-                      }]
-                    : []),
-                  { label: "Manual", value: "Manual" }
-                ]}
-                disabled={isPacketAdded}
-              />
-            </Col>
-
-            {formData.selling_purity === "Manual" && (
-              <Col xs={12} md={2}>
-                <InputField
-                  label="Custom Purity %"
-                  name="custom_purity"
-                  value={formData.custom_purity || ""}
-                  onChange={handleChange}
-                  disabled={isPacketAdded}
-                />
-              </Col>
-            )}
-
-            <Col xs={12} md={1}>
-              <InputField
-                label="Gross Wt"
-                name="gross_weight"
-                type='number'
-                value={formData.gross_weight || ""}
-                onChange={handleChange}
-                disabled={isPacketAdded}
-              />
-            </Col>
-            <Col xs={12} md={1}>
-              <InputField
-                label="Stone Wt"
-                name="stone_weight"
-                type='number'
-                value={formData.stone_weight || ""}
-                onChange={handleChange}
-                disabled={isPacketAdded}
-              />
-            </Col>
-            <Col xs={12} md={1}>
-              <InputField
-                label="Weight BW"
-                name="weight_bw"
-                value={formData.weight_bw || ""}
-                onChange={handleChange}
-                readOnly
-                disabled={isPacketAdded}
-              />
-            </Col>
-
-            <Col xs={12} md={2}>
-              <InputField
-                label="Wastage On"
-                name="va_on"
-                type="select"
-                value={formData.va_on || ""}
-                onChange={handleChange}
-                options={[
-                  { value: "Gross Weight", label: "Gross Weight" },
-                  { value: "Weight BW", label: "Weight BW" },
-                  ...(formData.va_on &&
-                    !["Gross Weight", "Weight BW"].includes(formData.va_on)
-                    ? [{ value: formData.va_on, label: formData.va_on }]
-                    : []),
-                ]}
-                disabled={isPacketAdded}
-              />
-            </Col>
-            <Col xs={12} md={1}>
-              <InputField
-                label="Wastage%"
-                name="va_percent"
-                type='number'
-                value={formData.va_percent || "0"}
-                onChange={handleChange}
-                disabled={isPacketAdded}
-              />
-            </Col>
-            <Col xs={12} md={1}>
-              <InputField
-                label="W.Wt"
-                name="wastage_weight"
-                value={formData.wastage_weight || "0.00"}
-                onChange={handleChange}
-                readOnly
-                disabled={isPacketAdded}
-              />
-            </Col>
-            <Col xs={12} md={2}>
-              <InputField
-                label="Total Weight AW"
-                name="total_weight_av"
-                value={formData.total_weight_av || ""}
-                onChange={handleChange}
-                readOnly
-                disabled={isPacketAdded}
-              />
-            </Col>
-
-            <Col xs={12} md={2}>
-              <InputField
-                label="MC On"
-                name="mc_on"
-                type="select"
-                value={formData.mc_on || ""}
-                onChange={handleChange}
-                options={[
-                  { value: "MC / Gram", label: "MC / Gram" },
-                  { value: "MC / Piece", label: "MC / Piece" },
-                  { value: "MC %", label: "MC %" },
-                  ...(formData.mc_on &&
-                    !["MC / Gram", "MC / Piece", "MC %"].includes(formData.mc_on)
-                    ? [{ value: formData.mc_on, label: formData.mc_on }]
-                    : []),
-                ]}
-                disabled={isPacketAdded}
-              />
-            </Col>
-
-            <Col xs={12} md={1}>
-              <InputField
-                label={formData.mc_on === "MC %" ? "MC %" : "MC/Gm"}
-                name="mc_per_gram"
-                type='number'
-                value={formData.mc_per_gram || ""}
-                onChange={handleChange}
-                readOnly={formData.mc_on === "MC / Piece"}
-                disabled={isPacketAdded}
-              />
-            </Col>
-            <Col xs={12} md={1}>
-              <InputField
-                label="Total MC"
-                name="making_charges"
-                type='number'
-                value={formData.making_charges || ""}
-                onChange={handleChange}
-                disabled={formData.mc_on === "MC / Gram" || isPacketAdded}
-              />
-            </Col>
-            */}
-
             <Col xs={12} md={5}>
               {/* All buttons in one row - Choose/Capture Image, Add, Clear beside Scan Packet */}
               <div style={{
@@ -1686,21 +1777,6 @@ const handleBarcodeSelect = (selectedValue) => {
                     </>
                   )}
                 </DropdownButton>
-
-                {/* <Button
-                  variant="primary"
-                  size="sm"
-                  onClick={startScanner}
-                  style={{ 
-                    backgroundColor: '#007bff',
-                    borderColor: '#007bff',
-                    whiteSpace: 'nowrap',
-                    minWidth: '105px',
-                    flexShrink: 0
-                  }}
-                >
-                  <FaQrcode /> Scan Barcode
-                </Button> */}
 
                 <Button
                   onClick={isEditing ? handleUpdate : handleAdd}
@@ -1830,6 +1906,60 @@ const handleBarcodeSelect = (selectedValue) => {
           <Button variant="secondary" onClick={stopPacketScanner}>Cancel Scan</Button>
         </Modal.Footer>
       </Modal>
+
+      {/* ============= WEIGHT CAMERA MODAL ============= */}
+      <Modal show={showWeightCamera} onHide={stopWeightCamera} centered size="lg">
+        <Modal.Header closeButton>
+          <Modal.Title>Capture Weight Machine Display</Modal.Title>
+        </Modal.Header>
+        <Modal.Body style={{ textAlign: 'center' }}>
+          <video 
+            ref={weightVideoRef} 
+            autoPlay 
+            playsInline 
+            style={{ 
+              width: '100%', 
+              maxHeight: '400px', 
+              objectFit: 'contain' 
+            }} 
+          />
+          <canvas ref={weightCanvasRef} style={{ display: 'none' }} />
+          <p className="mt-2 text-muted">
+            Point the camera at the weight machine display to capture and extract the weight using Gemini AI
+          </p>
+          <p className="text-muted" style={{ fontSize: '12px' }}>
+            Or use the "Upload Weight" button below to select an image from your device
+          </p>
+          <Button 
+            variant="outline-secondary" 
+            size="sm" 
+            onClick={triggerWeightFileUpload}
+            style={{ marginTop: '5px' }}
+          >
+            📤 Upload Weight Image
+          </Button>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={stopWeightCamera}>Cancel</Button>
+          <Button 
+            variant="primary" 
+            onClick={captureWeightImage} 
+            disabled={isProcessingWeight}
+            style={{ backgroundColor: '#28a745', borderColor: '#28a745' }}
+          >
+            {isProcessingWeight ? 'Processing...' : 'Capture & Extract Weight'}
+          </Button>
+        </Modal.Footer>
+      </Modal>
+
+      {/* Hidden file input for weight upload */}
+      <input
+        ref={weightFileInputRef}
+        type="file"
+        accept="image/*"
+        onChange={handleWeightFileUpload}
+        style={{ display: 'none' }}
+      />
     </Col>
   );
 };

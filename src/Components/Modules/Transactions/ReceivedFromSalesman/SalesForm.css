@@ -57,8 +57,8 @@
   background-color: #a36e29 !important;
   border-color: #a36e29 !important;
   color: white !important;
-  padding: 4px;
-  margin-top: 3px;
+  padding: 8px;
+  /* margin-top: -1px; */
   font-size: 13px;
 }
 #dropdown-basic-button:hover,
@@ -83,3 +83,5 @@
     flex: 1;
   }
 }
+
+
