@@ -240,7 +240,16 @@ function Navbar() {
               >
                 Customer Master
               </Link>
-              <Link
+                  <Link
+                    to="/salesmantable"
+                    onClick={handleItemClick}
+                    className={
+                      isActive("/salesmantable") || isActive("/salesmanmaster")
+                    }
+                  >
+                    Salesman Master
+                  </Link>
+                <Link
                 to="/suppliertable"
                 onClick={handleItemClick}
                 className={
