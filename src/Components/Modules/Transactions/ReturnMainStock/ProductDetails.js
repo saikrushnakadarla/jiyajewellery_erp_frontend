@@ -133,7 +133,7 @@ const ProductDetails = ({
   // Process weight image using Gemini API
   const processWeightImage = async (imageFile) => {
     const targetItemId = weightCaptureItemId || formData.code;
-    
+
     if (!targetItemId) {
       alert("Please select a product first before capturing weight.");
       return;
@@ -224,22 +224,22 @@ const ProductDetails = ({
   // Start weight camera for a specific item (called from ProductTable)
   const startWeightCameraForItem = (itemId, itemDetails = null) => {
     setWeightCaptureItemId(itemId);
-    
+
     // Open the camera
-    navigator.mediaDevices.getUserMedia({ 
-      video: { facingMode: 'environment' } 
+    navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'environment' }
     })
-    .then(stream => {
-      setWeightCameraStream(stream);
-      setShowWeightCamera(true);
-      setTimeout(() => { 
-        if (weightVideoRef.current) weightVideoRef.current.srcObject = stream; 
-      }, 100);
-    })
-    .catch(error => {
-      console.error('Error accessing camera:', error);
-      alert('Failed to access camera. Please check permissions.');
-    });
+      .then(stream => {
+        setWeightCameraStream(stream);
+        setShowWeightCamera(true);
+        setTimeout(() => {
+          if (weightVideoRef.current) weightVideoRef.current.srcObject = stream;
+        }, 100);
+      })
+      .catch(error => {
+        console.error('Error accessing camera:', error);
+        alert('Failed to access camera. Please check permissions.');
+      });
   };
 
   // Start weight camera - called from the Capture Weight button
@@ -251,22 +251,22 @@ const ProductDetails = ({
     }
 
     const itemId = currentItemId || formData.code;
-    
+
     // Open the camera
-    navigator.mediaDevices.getUserMedia({ 
-      video: { facingMode: 'environment' } 
+    navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'environment' }
     })
-    .then(stream => {
-      setWeightCameraStream(stream);
-      setShowWeightCamera(true);
-      setTimeout(() => { 
-        if (weightVideoRef.current) weightVideoRef.current.srcObject = stream; 
-      }, 100);
-    })
-    .catch(error => {
-      console.error('Error accessing camera:', error);
-      alert('Failed to access camera. Please check permissions.');
-    });
+      .then(stream => {
+        setWeightCameraStream(stream);
+        setShowWeightCamera(true);
+        setTimeout(() => {
+          if (weightVideoRef.current) weightVideoRef.current.srcObject = stream;
+        }, 100);
+      })
+      .catch(error => {
+        console.error('Error accessing camera:', error);
+        alert('Failed to access camera. Please check permissions.');
+      });
   };
 
   const stopWeightCamera = () => {
@@ -758,18 +758,18 @@ const ProductDetails = ({
         const response = await axios.get(`${baseURL2}/get/estimates`);
         console.log("Estimates data fetched in ProductDetails:", response.data);
         setEstimatesData(response.data);
-        
+
         // Group products by packet barcode - ONLY for products assigned to the selected salesman
         const grouped = {};
         const packetImages = {}; // Store packet images
-        
+
         response.data.forEach(est => {
           if (est.code && est.packet_barcode) {
             // Check if this product is assigned to the selected salesman
             const isAssignedToSalesman = selectedSalesmanProducts.some(
               assigned => assigned.PCode_BarCode === est.code
             );
-            
+
             // Only include if assigned to the selected salesman
             if (isAssignedToSalesman) {
               if (!grouped[est.packet_barcode]) {
@@ -820,7 +820,7 @@ const ProductDetails = ({
                 pur_WastageWeight: est.pur_WastageWeight,
                 pur_TotalWeight_AW: est.pur_TotalWeight_AW
               });
-              
+
               // Store packet image
               if (est.pack_images) {
                 try {
@@ -837,10 +837,10 @@ const ProductDetails = ({
           }
         });
         setGroupedPacketProducts(grouped);
-        
+
         // Store packet images in window object for later use
         window.packetImages = packetImages;
-        
+
         console.log("Grouped packet products for salesman:", grouped);
         console.log("Packet images:", packetImages);
       } catch (error) {
@@ -950,36 +950,36 @@ const ProductDetails = ({
   // Handle barcode selection - for packet barcodes, add all products
   const handleBarcodeSelect = (selectedValue) => {
     const selectedOption = uniqueBarcodeOptions.find(opt => opt.value === selectedValue);
-    
+
     if (selectedOption) {
       // Set packet image if available
       let packetImageUrl = null;
       let totalGrossWeight = 0;
       let totalPackingWt = 0;
-      
+
       if (selectedOption.type === "packet" && selectedOption.packetBarcode) {
         const imageFileName = window.packetImages?.[selectedOption.packetBarcode];
         if (imageFileName) {
           packetImageUrl = `${baseURL2}/uploads/pack-images/${imageFileName}`;
         }
-        
+
         // Calculate totals for products in this packet
         if (selectedOption.products && selectedOption.products.length > 0) {
           selectedOption.products.forEach(product => {
             // Get gross_weight - convert to number
             const grossWt = parseFloat(product.gross_weight) || 0;
             totalGrossWeight += grossWt;
-            
+
             // Get packing_wt from estimatesData for this product
             const estimateProduct = estimatesData.find(est => est.code === product.code);
             const packingWt = parseFloat(estimateProduct?.packing_wt) || 0;
             totalPackingWt += packingWt;
           });
         }
-        
+
         // Calculate Total Packing Wt as grossWeight + packingWt
         const totalPackingWtFinal = totalGrossWeight + totalPackingWt;
-        
+
         // Update packet totals
         setPacketTotals({
           grossWeight: totalGrossWeight,
@@ -990,22 +990,22 @@ const ProductDetails = ({
         setPacketTotals({ grossWeight: 0, packingWt: 0 });
         setPacketImage(null);
       }
-      
+
       setPacketImage(packetImageUrl);
-      
+
       if (selectedOption.type === "packet" && selectedOption.products && selectedOption.products.length > 0) {
         // This is a packet barcode - add all products to the table
         console.log("Packet selected with products:", selectedOption.products);
         console.log("Total Gross Weight:", totalGrossWeight);
         console.log("Total Packing Weight (Gross + Packing):", totalGrossWeight + totalPackingWt);
-        
+
         // Get existing repair details from localStorage
         const storedRepairDetails = JSON.parse(localStorage.getItem(`repairDetails_${tabId}`)) || [];
-        
+
         // Check for duplicates before adding
         const existingCodes = new Set(storedRepairDetails.map(item => item.code));
         const newProducts = selectedOption.products.filter(product => !existingCodes.has(product.code));
-        
+
         if (newProducts.length === 0) {
           alert("All products in this packet are already added");
           setFormData(prev => ({
@@ -1017,25 +1017,25 @@ const ProductDetails = ({
           }));
           return;
         }
-        
+
         // Get the image for each product from selectedSalesmanProducts
         const productsWithImages = newProducts.map(product => {
           // Find the assigned product to get its image
           const assignedProduct = selectedSalesmanProducts?.find(
             p => p.PCode_BarCode === product.code
           );
-          
+
           let imagePath = assignedProduct?.image || null;
           let imagePreview = null;
-          
+
           if (imagePath) {
             imagePreview = getImageUrl(imagePath);
           }
-          
+
           // Get packing_wt from estimatesData
           const estimateProduct = estimatesData.find(est => est.code === product.code);
           const packingWt = estimateProduct?.packing_wt || "";
-          
+
           return {
             ...product,
             // Map fields to match formData structure
@@ -1083,20 +1083,20 @@ const ProductDetails = ({
             packing_wt: packingWt || ""
           };
         });
-        
+
         // Add all new products to repairDetails
         const updatedRepairDetails = [
           ...storedRepairDetails,
           ...productsWithImages
         ];
-        
+
         // Use setRepairDetails to update state
         setRepairDetails(updatedRepairDetails);
         localStorage.setItem(`repairDetails_${tabId}`, JSON.stringify(updatedRepairDetails));
-        
+
         // Set isPacketAdded to true to clear the form fields
         setIsPacketAdded(true);
-        
+
         // Clear form fields after packet selection - only show packet barcode info
         setFormData(prev => ({
           ...prev,
@@ -1141,10 +1141,10 @@ const ProductDetails = ({
           festival_discount: '',
           custom_purity: ''
         }));
-        
+
         const totalPackingWtFinal = totalGrossWeight + totalPackingWt;
         alert(`Added ${newProducts.length} product(s) from packet ${selectedOption.packetBarcode}\nTotal Gross Weight: ${totalGrossWeight.toFixed(2)}g\nTotal Packing Weight: ${totalPackingWtFinal.toFixed(2)}g`);
-        
+
       } else {
         // Regular barcode selection (non-packet)
         setIsPacketAdded(false);
@@ -1173,7 +1173,7 @@ const ProductDetails = ({
   };
 
   const handleClear = () => {
-    setIsPacketAdded(false); 
+    setIsPacketAdded(false);
     setPacketImage(null);
     setPacketTotals({ grossWeight: 0, packingWt: 0 });
     setExtractedWeight(null);
@@ -1358,7 +1358,7 @@ const ProductDetails = ({
               variant="success"
               size="sm"
               onClick={startPacketScanner}
-              style={{ 
+              style={{
                 backgroundColor: '#28a745',
                 borderColor: '#28a745',
                 whiteSpace: 'nowrap',
@@ -1377,22 +1377,46 @@ const ProductDetails = ({
               <FaBarcode size={13} /> Scan Packet
             </Button>
           </div>
-          
+
+          {/* ============= CAPTURE WEIGHT BUTTON ============= */}
+          <Button
+            variant="warning"
+            size="sm"
+            onClick={startWeightCamera}
+            style={{
+              backgroundColor: '#ff9800',
+              borderColor: '#ff9800',
+              color: 'white',
+              padding: "4px 12px",
+              fontSize: "13px",
+              whiteSpace: 'nowrap',
+              minWidth: '50px',
+              flexShrink: 0,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px'
+            }}
+            title="Capture Weight from Machine"
+          // disabled={isPacketAdded}  // REMOVED - button should always be enabled
+          >
+            <FaWeightHanging size={13} /> Capture Weight
+          </Button>
+
           {/* Display Packet Image */}
           {packetImage && (
             <div style={{ marginTop: '8px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <img 
-                  src={packetImage} 
-                  alt="Packet" 
-                  style={{ 
-                    width: '80px', 
-                    height: '80px', 
+                <img
+                  src={packetImage}
+                  alt="Packet"
+                  style={{
+                    width: '80px',
+                    height: '80px',
                     borderRadius: '8px',
                     border: '1px solid #ddd',
                     padding: '5px',
                     objectFit: 'cover'
-                  }} 
+                  }}
                   onError={(e) => {
                     e.target.style.display = 'none';
                     setPacketImage(null);
@@ -1402,12 +1426,12 @@ const ProductDetails = ({
               </div>
             </div>
           )}
-          
+
           {/* Display Packet Totals */}
           {(packetTotals.grossWeight > 0 || packetTotals.packingWt > 0) && (
             <div style={{ marginTop: '8px' }}>
-              <div style={{ 
-                display: 'flex', 
+              <div style={{
+                display: 'flex',
                 flexDirection: 'column',
                 gap: '5px',
                 padding: '8px 12px',
@@ -1654,6 +1678,8 @@ const ProductDetails = ({
                   )}
                 </DropdownButton>
 
+
+
                 <Button
                   onClick={isEditing ? handleUpdate : handleAdd}
                   style={{
@@ -1777,6 +1803,8 @@ const ProductDetails = ({
                     </>
                   )}
                 </DropdownButton>
+
+
 
                 <Button
                   onClick={isEditing ? handleUpdate : handleAdd}
@@ -1913,15 +1941,15 @@ const ProductDetails = ({
           <Modal.Title>Capture Weight Machine Display</Modal.Title>
         </Modal.Header>
         <Modal.Body style={{ textAlign: 'center' }}>
-          <video 
-            ref={weightVideoRef} 
-            autoPlay 
-            playsInline 
-            style={{ 
-              width: '100%', 
-              maxHeight: '400px', 
-              objectFit: 'contain' 
-            }} 
+          <video
+            ref={weightVideoRef}
+            autoPlay
+            playsInline
+            style={{
+              width: '100%',
+              maxHeight: '400px',
+              objectFit: 'contain'
+            }}
           />
           <canvas ref={weightCanvasRef} style={{ display: 'none' }} />
           <p className="mt-2 text-muted">
@@ -1930,9 +1958,9 @@ const ProductDetails = ({
           <p className="text-muted" style={{ fontSize: '12px' }}>
             Or use the "Upload Weight" button below to select an image from your device
           </p>
-          <Button 
-            variant="outline-secondary" 
-            size="sm" 
+          <Button
+            variant="outline-secondary"
+            size="sm"
             onClick={triggerWeightFileUpload}
             style={{ marginTop: '5px' }}
           >
@@ -1941,9 +1969,55 @@ const ProductDetails = ({
         </Modal.Body>
         <Modal.Footer>
           <Button variant="secondary" onClick={stopWeightCamera}>Cancel</Button>
-          <Button 
-            variant="primary" 
-            onClick={captureWeightImage} 
+          <Button
+            variant="primary"
+            onClick={captureWeightImage}
+            disabled={isProcessingWeight}
+            style={{ backgroundColor: '#28a745', borderColor: '#28a745' }}
+          >
+            {isProcessingWeight ? 'Processing...' : 'Capture & Extract Weight'}
+          </Button>
+        </Modal.Footer>
+      </Modal>
+
+
+      {/* ============= WEIGHT CAMERA MODAL ============= */}
+      <Modal show={showWeightCamera} onHide={stopWeightCamera} centered size="lg">
+        <Modal.Header closeButton>
+          <Modal.Title>Capture Weight Machine Display</Modal.Title>
+        </Modal.Header>
+        <Modal.Body style={{ textAlign: 'center' }}>
+          <video
+            ref={weightVideoRef}
+            autoPlay
+            playsInline
+            style={{
+              width: '100%',
+              maxHeight: '400px',
+              objectFit: 'contain'
+            }}
+          />
+          <canvas ref={weightCanvasRef} style={{ display: 'none' }} />
+          <p className="mt-2 text-muted">
+            Point the camera at the weight machine display to capture and extract the weight using Gemini AI
+          </p>
+          <p className="text-muted" style={{ fontSize: '12px' }}>
+            Or use the "Upload Weight" button below to select an image from your device
+          </p>
+          <Button
+            variant="outline-secondary"
+            size="sm"
+            onClick={triggerWeightFileUpload}
+            style={{ marginTop: '5px' }}
+          >
+            📤 Upload Weight Image
+          </Button>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={stopWeightCamera}>Cancel</Button>
+          <Button
+            variant="primary"
+            onClick={captureWeightImage}
             disabled={isProcessingWeight}
             style={{ backgroundColor: '#28a745', borderColor: '#28a745' }}
           >

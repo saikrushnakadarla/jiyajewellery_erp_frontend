@@ -89,7 +89,7 @@ const CustomerDetails = ({
 
   const fetchSalesmen = async () => {
     try {
-      const response = await axios.get(`http://localhost:5001/get/account-details`);
+      const response = await axios.get(`${baseURL}/get/account-details`);
       console.log("Fetched Salesmen:", response.data);
       
       const filteredSalesmen = response.data.filter(

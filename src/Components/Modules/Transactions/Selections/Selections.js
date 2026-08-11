@@ -7,7 +7,8 @@ import axios from 'axios';
 import Swal from 'sweetalert2';
 import { FaEdit, FaTrash, FaEye, FaBarcode, FaImage, FaFilePdf } from 'react-icons/fa';
 import { Button, Row, Col, Modal, Table, Badge, OverlayTrigger, Tooltip } from 'react-bootstrap';
-import baseURL from "../../../../Url/NodeBaseURL2";
+import baseURL from "../../../../Url/NodeBaseURL2"; 
+import baseURL1 from "../../../../Url/NodeBaseURL";
 import Navbar from '../../../../Navbar/StockNavbar';
 import InvoicePreviewModal from './InvoicePDFPreview';
 import './Selections.css';
@@ -96,7 +97,7 @@ const Selections = () => {
       // Note: '4' is the assigned_id - you should get this dynamically
       // For example from localStorage, sessionStorage, or user context
       const assignedId = sessionStorage.getItem('assigned_id') || '4';
-      const response = await axios.get(`http://localhost:5001/api/assigned-salesman/get-assigned-transfer/${assignedId}`);
+      const response = await axios.get(`${baseURL1}/api/assigned-salesman/get-assigned-transfer/${assignedId}`);
       
       if (response.data && response.data.transfer_details) {
         const toSalesmanId = response.data.transfer_details.to_salesman_id;

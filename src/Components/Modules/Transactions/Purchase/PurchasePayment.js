@@ -297,7 +297,7 @@ const RepairForm = () => {
         console.log("Submitting Data:", formData); // Log the form data before sending
 
         try {
-            const response = await axios.post("http://localhost:5001/purchasePayments", formData);
+            const response = await axios.post(`${baseURL}/purchasePayments`, formData);
             alert("Purchase Payment Added Successfully!");
             console.log(response.data);
 

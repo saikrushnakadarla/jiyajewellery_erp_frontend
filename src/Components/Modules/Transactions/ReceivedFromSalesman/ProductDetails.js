@@ -1435,7 +1435,25 @@ const ProductDetails = ({
               title="Scan Packet"
             >
               <FaBarcode size={13} /> Scan Packet
-            </Button>
+            </Button> 
+
+             {/* ============= CAPTURE WEIGHT BUTTON ============= */}
+    <Button
+      variant="warning"
+      size="sm"
+      onClick={startWeightCamera}
+      style={{
+        ...buttonHeightStyle,
+        backgroundColor: '#ff9800',
+        borderColor: '#ff9800',
+        color: 'white',
+        gap: '6px',
+        minWidth: '140px',
+      }}
+      title="Capture Weight from Machine"
+    >
+      <FaWeightHanging size={13} /> Capture Weight
+    </Button>
 
             {/* Choose/Capture Image Dropdown */}
             <DropdownButton
@@ -1838,7 +1856,52 @@ const ProductDetails = ({
             {isProcessingWeight ? 'Processing...' : 'Capture & Extract Weight'}
           </Button>
         </Modal.Footer>
-      </Modal>
+      </Modal> 
+
+      {/* ============= WEIGHT CAMERA MODAL ============= */}
+<Modal show={showWeightCamera} onHide={stopWeightCamera} centered size="lg">
+  <Modal.Header closeButton>
+    <Modal.Title>Capture Weight Machine Display</Modal.Title>
+  </Modal.Header>
+  <Modal.Body style={{ textAlign: 'center' }}>
+    <video 
+      ref={weightVideoRef} 
+      autoPlay 
+      playsInline 
+      style={{ 
+        width: '100%', 
+        maxHeight: '400px', 
+        objectFit: 'contain' 
+      }} 
+    />
+    <canvas ref={weightCanvasRef} style={{ display: 'none' }} />
+    <p className="mt-2 text-muted">
+      Point the camera at the weight machine display to capture and extract the weight using Gemini AI
+    </p>
+    <p className="text-muted" style={{ fontSize: '12px' }}>
+      Or use the "Upload Weight" button below to select an image from your device
+    </p>
+    <Button 
+      variant="outline-secondary" 
+      size="sm" 
+      onClick={triggerWeightFileUpload}
+      style={{ marginTop: '5px' }}
+    >
+      📤 Upload Weight Image
+    </Button>
+  </Modal.Body>
+  <Modal.Footer>
+    <Button variant="secondary" onClick={stopWeightCamera}>Cancel</Button>
+    <Button 
+      variant="primary" 
+      onClick={captureWeightImage} 
+      disabled={isProcessingWeight}
+      style={{ backgroundColor: '#28a745', borderColor: '#28a745' }}
+    >
+      {isProcessingWeight ? 'Processing...' : 'Capture & Extract Weight'}
+    </Button>
+  </Modal.Footer>
+</Modal>
 
       {/* Hidden file input for weight upload */}
       <input

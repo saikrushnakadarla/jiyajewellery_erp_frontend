@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
+import baseURL from "../../../Url/NodeBaseURL";
 
 // ============================================================================
 // DAY BOOK — Stock Ledger for Warehouse Inward / Outward movements
@@ -18,7 +19,7 @@ import React, { useState, useEffect, useMemo, useCallback } from "react";
 // for ordering rows within that day (ts).
 // ============================================================================
 
-const API_BASE = "http://localhost:5001";
+const API_BASE = `${baseURL}`;
 
 const ENDPOINTS = {
   stockTransfers: `${API_BASE}/api/stock-transfer/get-stock-transfers`,

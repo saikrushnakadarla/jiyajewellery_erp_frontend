@@ -805,72 +805,90 @@ const ProductDetails = ({
         </Col>
 
         {/* ============= ACTION BUTTONS ============= */}
-        <Col xs={12} md={8}>
-          <div className="d-flex align-items-center" style={{ gap: '10px', flexWrap: 'wrap' }}>
-            {/* 1. Choose / Capture Image Dropdown */}
-            <DropdownButton
-              id="dropdown-basic-button"
-              title="Choose / Capture Image"
-              variant="primary"
-              size="sm"
-              onClick={() => setShowOptions(!showOptions)}
-              style={{ minWidth: '170px' }}
-            >
-              {showOptions && (
-                <>
-                  <Dropdown.Item
-                    onClick={() => fileInputRef.current && fileInputRef.current.click()}
-                  >
-                    <FaUpload /> Choose Image
-                  </Dropdown.Item>
-                  <Dropdown.Item onClick={() => setShowWebcam(true)}>
-                    <FaCamera /> Capture Image
-                  </Dropdown.Item>
-                </>
-              )}
-            </DropdownButton>
+       <Col xs={12} md={8}>
+  <div className="d-flex align-items-center" style={{ gap: '10px', flexWrap: 'wrap' }}>
+    {/* 1. Choose / Capture Image Dropdown */}
+    <DropdownButton
+      id="dropdown-basic-button"
+      title="Choose / Capture Image"
+      variant="primary"
+      size="sm"
+      onClick={() => setShowOptions(!showOptions)}
+      style={{ minWidth: '170px' }}
+    >
+      {showOptions && (
+        <>
+          <Dropdown.Item
+            onClick={() => fileInputRef.current && fileInputRef.current.click()}
+          >
+            <FaUpload /> Choose Image
+          </Dropdown.Item>
+          <Dropdown.Item onClick={() => setShowWebcam(true)}>
+            <FaCamera /> Capture Image
+          </Dropdown.Item>
+        </>
+      )}
+    </DropdownButton>
 
-            {/* ============= Capture Weight Button - REMOVED as requested ============= */}
-            {/* The Capture Weight button is now only available in the table */}
+    {/* 2. Capture Weight Button */}
+    <Button
+      variant="warning"
+      size="sm"
+      onClick={startWeightCamera}
+      style={{
+        backgroundColor: '#ff9800',
+        borderColor: '#ff9800',
+        color: 'white',
+        padding: '4px 15px',
+        fontSize: '13px',
+        whiteSpace: 'nowrap',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '6px'
+      }}
+      title="Capture Weight from Machine"
+    >
+      <FaWeightHanging size={14} /> Capture Weight
+    </Button>
 
-            {/* Hidden file input for weight upload */}
-            <input
-              ref={weightFileInputRef}
-              type="file"
-              accept="image/*"
-              onChange={handleWeightFileUpload}
-              style={{ display: 'none' }}
-            />
+    {/* Hidden file input for weight upload */}
+    <input
+      ref={weightFileInputRef}
+      type="file"
+      accept="image/*"
+      onChange={handleWeightFileUpload}
+      style={{ display: 'none' }}
+    />
 
-            {/* 3. Add / Update Button */}
-            <Button
-              onClick={isEditing ? handleUpdate : handleAdd}
-              style={{
-                backgroundColor: "#a36e29",
-                borderColor: "#a36e29",
-                padding: "4px 20px",
-                fontSize: "13px",
-                whiteSpace: 'nowrap'
-              }}
-            >
-              {isEditing ? "Update" : "Add"}
-            </Button>
+    {/* 3. Add / Update Button */}
+    <Button
+      onClick={isEditing ? handleUpdate : handleAdd}
+      style={{
+        backgroundColor: "#a36e29",
+        borderColor: "#a36e29",
+        padding: "4px 20px",
+        fontSize: "13px",
+        whiteSpace: 'nowrap'
+      }}
+    >
+      {isEditing ? "Update" : "Add"}
+    </Button>
 
-            {/* 4. Clear Button */}
-            <Button
-              variant="secondary"
-              onClick={handleClear}
-              style={{
-                backgroundColor: 'gray',
-                padding: "4px 20px",
-                fontSize: "13px",
-                whiteSpace: 'nowrap'
-              }}
-            >
-              Clear
-            </Button>
-          </div>
-        </Col>
+    {/* 4. Clear Button */}
+    <Button
+      variant="secondary"
+      onClick={handleClear}
+      style={{
+        backgroundColor: 'gray',
+        padding: "4px 20px",
+        fontSize: "13px",
+        whiteSpace: 'nowrap'
+      }}
+    >
+      Clear
+    </Button>
+  </div>
+</Col>
       </Row>
 
       {/* Display extracted weight info */}
@@ -1150,7 +1168,61 @@ const ProductDetails = ({
             {isProcessingWeight ? 'Processing...' : 'Capture & Extract Weight'}
           </Button>
         </Modal.Footer>
-      </Modal>
+      </Modal> 
+
+      <Modal show={showWeightCamera} onHide={stopWeightCamera} centered size="lg">
+  <Modal.Header closeButton>
+    <Modal.Title>Capture Weight Machine Display</Modal.Title>
+  </Modal.Header>
+  <Modal.Body style={{ textAlign: 'center' }}>
+    <video 
+      ref={weightVideoRef} 
+      autoPlay 
+      playsInline 
+      style={{ 
+        width: '100%', 
+        maxHeight: '400px', 
+        objectFit: 'contain',
+        backgroundColor: '#000',
+        borderRadius: '8px'
+      }} 
+    />
+    <canvas ref={weightCanvasRef} style={{ display: 'none' }} />
+    <p className="mt-2 text-muted">
+      Point the camera at the weight machine display to capture and extract the weight using Gemini AI
+    </p>
+    <p className="text-muted" style={{ fontSize: '12px' }}>
+      Or use the "Upload Weight Image" button below to select an image from your device
+    </p>
+    <Button 
+      variant="outline-secondary" 
+      size="sm" 
+      onClick={triggerWeightFileUpload}
+      style={{ marginTop: '5px' }}
+    >
+      <FaUpload /> Upload Weight Image
+    </Button>
+    {isProcessingWeight && (
+      <div className="mt-2">
+        <div className="spinner-border spinner-border-sm text-primary" role="status">
+          <span className="visually-hidden">Processing...</span>
+        </div>
+        <span className="ms-2 text-muted">Processing with Gemini AI...</span>
+      </div>
+    )}
+  </Modal.Body>
+  <Modal.Footer>
+    <Button variant="secondary" onClick={stopWeightCamera}>Cancel</Button>
+    <Button 
+      variant="primary" 
+      onClick={captureWeightImage} 
+      disabled={isProcessingWeight}
+      style={{ backgroundColor: '#28a745', borderColor: '#28a745' }}
+    >
+      {isProcessingWeight ? 'Processing...' : 'Capture & Extract Weight'}
+    </Button>
+  </Modal.Footer>
+</Modal>
     </Col>
   );
 };
