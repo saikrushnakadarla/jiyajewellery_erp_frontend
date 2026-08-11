@@ -99,6 +99,10 @@ import Footer from "./Footer/Footer"
 import ReceivedStock from './Components/Modules/ReceivedStock/ReceivedStock';
 import Warehousedaybook from "./Components/Modules/Warehousedaybook/Warehousedaybook";
 
+import SalesmanTable from './Components/Modules/Masters/SalesManMaster/SalesmanTable';
+import SalesmanMaster from './Components/Modules/Masters/SalesManMaster/SalesmanForm';
+
+
 
 
 function App() {
@@ -148,6 +152,9 @@ function App() {
           <Route path="/suppliertable" element={<Supplier_Table />} />
           <Route path="/customerstable" element={<Customers_Table />} />
           <Route path="/customermaster" element={<Customer_Master />} />
+          <Route path="/salesmantable" element={<SalesmanTable />} />
+          <Route path="/salesmanmaster" element={<SalesmanMaster />} />
+          <Route path="/salesmanmaster/:id" element={<SalesmanMaster />} />
           <Route path="/customermaster/:id" element={<Customer_Master />} />
           <Route path="/suppliermaster" element={<Supplier_Master />} />
           <Route path="/suppliermaster/:id" element={<Supplier_Master />} />

@@ -1,0 +1,506 @@
+/* Salesman_Master.css */
+.main-container {
+  background-color: #f5f6fa;
+  min-height: 100vh;
+  padding: 20px;
+  /* margin-top: 50px; */
+}
+
+.salesman-master-container {
+  padding: 30px 35px;
+  background: #ffffff;
+  border-radius: 10px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  margin: 80px 30px;
+  max-width: 1400px;
+}
+
+.salesman-master-container h2 {
+  color: #2c3e50;
+  font-weight: 600;
+  font-size: 26px;
+  margin-bottom: 25px;
+  padding-bottom: 15px;
+  border-bottom: 2px solid #eef0f2;
+}
+
+.salesman-master-form {
+  margin-top: 5px;
+}
+
+.salesman-master-form .row {
+  margin-bottom: 5px;
+}
+
+/* Input Field Styling */
+.salesman-master-form .input-label {
+  font-weight: 500;
+  color: #2c3e50;
+  font-size: 14px;
+  margin-bottom: 4px;
+  display: block;
+}
+
+.salesman-master-form .form-control,
+.salesman-master-form .form-select {
+  border-radius: 6px;
+  border: 1px solid #dce1e8;
+  padding: 8px 12px;
+  font-size: 14px;
+  transition: all 0.3s ease;
+  background-color: #ffffff;
+  height: 40px;
+  width: 100%;
+}
+
+.salesman-master-form .form-control:focus,
+.salesman-master-form .form-select:focus {
+  border-color: #a36e29;
+  box-shadow: 0 0 0 3px rgba(163, 110, 41, 0.12);
+  outline: none;
+}
+
+.salesman-master-form .form-control::placeholder {
+  color: #b0b8c4;
+  font-size: 13px;
+}
+
+/* Gender Field */
+.gender-field {
+  margin: 5px 0 15px 0;
+  padding: 10px 0;
+}
+
+.gender-field .input-label {
+  font-weight: 500;
+  color: #2c3e50;
+  font-size: 14px;
+  margin-bottom: 8px;
+}
+
+.gender-options {
+  display: flex;
+  gap: 30px;
+  margin-top: 4px;
+  padding-left: 2px;
+}
+
+.gender-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: #2c3e50;
+  cursor: pointer;
+  padding: 4px 0;
+}
+
+.gender-option input[type="radio"] {
+  width: 16px;
+  height: 16px;
+  accent-color: #a36e29;
+  cursor: pointer;
+  margin: 0;
+}
+
+/* Password Field */
+.password-field-wrapper {
+  position: relative;
+}
+
+.password-field-wrapper .form-control {
+  padding-right: 45px;
+}
+
+.password-toggle-btn {
+  position: absolute;
+  right: 12px;
+  top: 7px;
+  background: none;
+  border: none;
+  color: #8a94a6;
+  cursor: pointer;
+  font-size: 18px;
+  padding: 4px;
+  z-index: 10;
+  transition: color 0.3s ease;
+}
+
+.password-toggle-btn:hover {
+  color: #2c3e50;
+}
+
+/* Duty Hours Section */
+.duty-hours-section {
+  background: #f8f9fb;
+  padding: 18px 20px 8px 20px;
+  border-radius: 8px;
+  margin: 10px 0 15px 0;
+  border-left: 4px solid #a36e29;
+}
+
+.duty-hours-section .input-label {
+  font-weight: 600;
+  color: #2c3e50;
+  font-size: 15px;
+  margin-bottom: 12px;
+}
+
+.duty-hours-section .form-control {
+  background-color: #ffffff;
+}
+
+/* Profile Photo Section */
+.profile-photo-section {
+  background: #f8f9fb;
+  padding: 20px 25px;
+  border-radius: 8px;
+  margin: 10px 0;
+}
+
+.profile-photo-section .input-label {
+  font-weight: 600;
+  color: #2c3e50;
+  font-size: 15px;
+  margin-bottom: 12px;
+}
+
+.required-star {
+  color: #e74c3c;
+  margin-left: 2px;
+}
+
+.mandatory-text {
+  color: #8a94a6;
+  font-weight: normal;
+  font-size: 12px;
+  margin-left: 6px;
+}
+
+.profile-photo-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 2px;
+}
+
+.photo-upload-btn,
+.photo-capture-btn {
+  padding: 8px 22px;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.3s ease;
+}
+
+.photo-upload-btn {
+  background: #3498db;
+  color: #fff;
+}
+
+.photo-upload-btn:hover {
+  background: #2980b9;
+  transform: translateY(-1px);
+}
+
+.photo-capture-btn {
+  background: #6c757d;
+  color: #fff;
+}
+
+.photo-capture-btn:hover {
+  background: #5a6268;
+  transform: translateY(-1px);
+}
+
+.webcam-container {
+  margin-top: 15px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 15px;
+  background: #ffffff;
+  border-radius: 8px;
+  border: 1px solid #e0e5ec;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.webcam-container video {
+  border-radius: 8px;
+  background: #1a1a2e;
+  max-width: 100%;
+}
+
+.webcam-actions {
+  margin-top: 12px;
+  display: flex;
+  gap: 10px;
+}
+
+.profile-photo-preview {
+  margin-top: 15px;
+}
+
+.photo-preview-wrapper {
+  position: relative;
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 3px solid #a36e29;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.photo-preview-wrapper img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.remove-photo-btn {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  background: rgba(231, 76, 60, 0.9);
+  color: #fff;
+  border: none;
+  border-radius: 50%;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 12px;
+  transition: all 0.3s ease;
+}
+
+.remove-photo-btn:hover {
+  background: #e74c3c;
+  transform: scale(1.1);
+}
+
+.photo-required-text {
+  color: #e74c3c;
+  font-size: 13px;
+  margin-top: 10px;
+  font-weight: 500;
+}
+
+/* Form Actions */
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 15px;
+  margin-top: 25px;
+  padding-top: 20px;
+  border-top: 2px solid #eef0f2;
+}
+
+.back-btn {
+  padding: 10px 35px;
+  border: 1px solid #dce1e8;
+  border-radius: 6px;
+  background: #f8f9fb;
+  color: #555;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-size: 14px;
+}
+
+.back-btn:hover {
+  background: #eef0f2;
+  border-color: #c8ced8;
+}
+
+.save-btn {
+  padding: 10px 40px;
+  border: none;
+  border-radius: 6px;
+  background: #a36e29;
+  color: #fff;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-size: 14px;
+}
+
+.save-btn:hover:not(:disabled) {
+  background: #8a5d22;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 15px rgba(163, 110, 41, 0.3);
+}
+
+.save-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Responsive Design */
+@media (max-width: 992px) {
+  .salesman-master-container {
+    padding: 20px 25px;
+    margin: 15px;
+  }
+
+  .salesman-table-container {
+    padding: 20px 25px;
+    margin: 15px;
+  }
+}
+
+@media (max-width: 768px) {
+  .main-container {
+    padding: 10px;
+  }
+
+  .salesman-master-container {
+    padding: 15px 18px;
+    margin: 10px;
+  }
+
+  .salesman-table-container {
+    padding: 15px 18px;
+    margin: 10px;
+  }
+
+  .salesman-master-container h2 {
+    font-size: 20px;
+  }
+
+  .gender-options {
+    gap: 20px;
+  }
+
+  .form-actions {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .form-actions button {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .profile-photo-actions {
+    flex-direction: column;
+  }
+
+  .profile-photo-actions button {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .duty-hours-section .row {
+    flex-direction: column;
+  }
+
+  .salesman-master-form .form-control,
+  .salesman-master-form .form-select {
+    height: 38px;
+  }
+}
+
+@media (max-width: 576px) {
+  .salesman-master-container {
+    padding: 12px 14px;
+    margin: 8px;
+  }
+
+  .salesman-table-container {
+    padding: 12px 14px;
+    margin: 8px;
+  }
+
+  .salesman-master-container h2 {
+    font-size: 18px;
+  }
+
+  .salesman-table-container h3 {
+    font-size: 18px;
+  }
+
+  .gender-options {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .photo-preview-wrapper {
+    width: 100px;
+    height: 100px;
+  }
+
+  .save-btn,
+  .back-btn {
+    padding: 10px 20px;
+    font-size: 13px;
+  }
+}
+
+/* Additional utility classes */
+.mb-3 {
+  margin-bottom: 1rem !important;
+}
+
+.me-2 {
+  margin-right: 0.5rem !important;
+}
+
+.mt-2 {
+  margin-top: 0.5rem !important;
+}
+
+.mt-3 {
+  margin-top: 1rem !important;
+}
+
+.text-center {
+  text-align: center !important;
+}
+
+.d-flex {
+  display: flex !important;
+}
+
+.justify-content-between {
+  justify-content: space-between !important;
+}
+
+.align-items-center {
+  align-items: center !important;
+}
+
+.flex-wrap {
+  flex-wrap: wrap !important;
+}
+
+.w-100 {
+  width: 100% !important;
+}
+
+.h-100 {
+  height: 100% !important;
+}
+
+.position-relative {
+  position: relative !important;
+}
+
+.position-absolute {
+  position: absolute !important;
+}
+
+.top-0 {
+  top: 0 !important;
+}
+
+.end-0 {
+  right: 0 !important;
+}
