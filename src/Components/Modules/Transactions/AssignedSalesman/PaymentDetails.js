@@ -8,7 +8,7 @@ const PaymentDetails = ({
   isAllProductsSelected,
   selectedTransferItems,
   repairDetails,
-  // ===== NEW: Weight validation props =====
+  // ===== Weight validation props =====
   capturedWeights = {},
   requireWeightForAll = false
 }) => {
@@ -18,25 +18,35 @@ const PaymentDetails = ({
     navigate("/assign-to-salesman");
   };
 
-  // Check if all items have weights captured
-  const allItemsHaveWeights = () => {
+  // Check if any weight has been captured (for the entire batch)
+  const hasTotalWeightCaptured = () => {
     if (!requireWeightForAll || repairDetails.length === 0) return true;
     
-    return repairDetails.every((item, index) => {
-      const itemId = item.item_id || item.id || item.code;
-      return capturedWeights[itemId] && capturedWeights[itemId].total_grams > 0;
-    });
+    const allKeys = Object.keys(capturedWeights);
+    if (allKeys.length === 0) return false;
+    
+    return allKeys.some(key => capturedWeights[key] && capturedWeights[key].total_grams > 0);
   };
 
-  const hasMissingWeights = repairDetails.some((item, index) => {
-    const itemId = item.item_id || item.id || item.code;
-    return !capturedWeights[itemId] || capturedWeights[itemId].total_grams <= 0;
-  });
+  // Check if any item has direct weight_machine_reading
+  const hasAnyItemWithDirectWeight = () => {
+    return repairDetails.some(item => 
+      item.weight_machine_reading && parseFloat(item.weight_machine_reading) > 0
+    );
+  };
+
+  // Combined check: has any weight been captured
+  const hasAnyWeightCaptured = () => {
+    if (!requireWeightForAll || repairDetails.length === 0) return true;
+    return hasTotalWeightCaptured() || hasAnyItemWithDirectWeight();
+  };
 
   // Determine if Save should be disabled
   const isSaveDisabled = !isAllProductsSelected || 
     (selectedTransferItems?.length > 0 && repairDetails?.length === 0) ||
-    (requireWeightForAll && !allItemsHaveWeights());
+    (requireWeightForAll && !hasAnyWeightCaptured());
+
+  const showWeightWarning = requireWeightForAll && !hasAnyWeightCaptured();
 
   return (
     <div>
@@ -55,8 +65,8 @@ const PaymentDetails = ({
                 cursor: isSaveDisabled ? "not-allowed" : "pointer",
               }}
               title={isSaveDisabled ? 
-                (requireWeightForAll && !allItemsHaveWeights() ? 
-                  "Please capture weight for all items first" : 
+                (requireWeightForAll && !hasAnyWeightCaptured() ? 
+                  "Please capture total weight for all items first" : 
                   "Please add ALL products from the stock transfer first") : 
                 "Save & Send for Approval"}
             >
@@ -92,8 +102,8 @@ const PaymentDetails = ({
           </Col>
         </Row>
         
-        {/* ===== Show weight validation message ===== */}
-        {requireWeightForAll && hasMissingWeights && (
+        {/* Show weight validation message */}
+        {showWeightWarning && (
           <Row className="mt-2">
             <Col>
               <div style={{ 
@@ -104,13 +114,7 @@ const PaymentDetails = ({
                 fontSize: "13px",
                 border: "1px solid #ffeeba"
               }}>
-                <strong>⚠️ Weight Required:</strong> Please capture weight for all items before saving.
-                <span style={{ marginLeft: '10px' }}>
-                  ({repairDetails.filter((item, index) => {
-                    const itemId = item.item_id || item.id || item.code;
-                    return !capturedWeights[itemId] || capturedWeights[itemId].total_grams <= 0;
-                  }).length} items pending)
-                </span>
+                <strong>⚠️ Weight Required:</strong> Please capture total weight for all items before saving.
               </div>
             </Col>
           </Row>
@@ -128,6 +132,20 @@ const PaymentDetails = ({
                 border: "1px solid #bee5eb"
               }}>
                 <strong>ℹ️ Info:</strong> The assigned salesman will receive a notification to accept or reject this assignment.
+              </div>
+            </Col>
+          </Row>
+        )}
+
+        {/* Debug info */}
+        {process.env.NODE_ENV === 'development' && (
+          <Row className="mt-2">
+            <Col>
+              <div style={{ fontSize: '11px', color: '#666', background: '#f5f5f5', padding: '5px 10px', borderRadius: '4px' }}>
+                Debug: repairDetails: {repairDetails.length}, 
+                capturedWeights keys: {Object.keys(capturedWeights).join(', ') || 'none'},
+                hasWeight: {hasAnyWeightCaptured() ? 'YES' : 'NO'},
+                disabled: {isSaveDisabled ? 'YES' : 'NO'}
               </div>
             </Col>
           </Row>

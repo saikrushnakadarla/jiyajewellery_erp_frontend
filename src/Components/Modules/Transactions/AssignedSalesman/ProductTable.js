@@ -41,8 +41,9 @@ const ProductTable = ({
   };
 
   // Handle capture weight button click from table
+  // FIX: Use item.item_id || item.code as the canonical key (NOT index)
   const handleCaptureWeightClick = (detail, index) => {
-    const itemId = detail.item_id || detail.id || index;
+    const itemId = detail.item_id || detail.code;   // ⬅️ was: detail.item_id || detail.id || index
     if (onCaptureWeightFromTable) {
       onCaptureWeightFromTable(itemId, detail);
     }
@@ -73,7 +74,8 @@ const ProductTable = ({
         <tbody>
           {repairDetails.length > 0 ? (
             repairDetails.map((detail, index) => {
-              const itemId = detail.item_id || detail.id || index;
+              // FIX: Use item.item_id || item.code as the canonical key
+              const itemId = detail.item_id || detail.code;   // ⬅️ was: detail.item_id || detail.id || index
               const hasWeightData = hasWeight(itemId);
               
               let imageUrl = null;

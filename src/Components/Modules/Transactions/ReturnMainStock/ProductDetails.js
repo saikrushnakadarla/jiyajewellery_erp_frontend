@@ -131,14 +131,13 @@ const ProductDetails = ({
   // ============= WEIGHT CAMERA FUNCTIONS =============
 
   // Process weight image using Gemini API
+  // REMOVED the alert - now processes weight even without product selected
   const processWeightImage = async (imageFile) => {
     const targetItemId = weightCaptureItemId || formData.code;
-
-    if (!targetItemId) {
-      alert("Please select a product first before capturing weight.");
-      return;
-    }
-
+    
+    // REMOVED: alert("Please select a product first before capturing weight.")
+    // If no product is selected, use a fallback key
+    
     setIsProcessingWeight(true);
     setExtractedWeight(null);
     setWeightCaptureError(null);
@@ -147,7 +146,7 @@ const ProductDetails = ({
       const formDataObj = new FormData();
       formDataObj.append('image', imageFile);
       formDataObj.append('estimate_number', '');
-      formDataObj.append('item_id', targetItemId);
+      formDataObj.append('item_id', targetItemId || 'unknown');
 
       const response = await axios.post(`${baseURL2}/api/extract-weight-gemini`, formDataObj, {
         headers: { 'Content-Type': 'multipart/form-data' }
@@ -168,7 +167,9 @@ const ProductDetails = ({
 
         // Notify parent component about the captured weight
         if (onCaptureWeight) {
-          onCaptureWeight(targetItemId, weightData);
+          // If we have a targetItemId, use it, otherwise use 'total_weight' as the key
+          const key = targetItemId && targetItemId !== 'unknown' ? targetItemId : 'total_weight';
+          onCaptureWeight(key, weightData);
         }
 
         // Close weight camera after successful capture
@@ -186,6 +187,7 @@ const ProductDetails = ({
               <div style="font-size: 12px; color: #888; margin-top: 5px;">
                 Raw: ${record.raw_text}
               </div>
+              ${!targetItemId || targetItemId === 'unknown' ? '<div style="font-size: 12px; color: #ff9800; margin-top: 5px;">⚠️ No product selected. Weight saved as total weight.</div>' : ''}
             </div>
           `,
           timer: 3000,
@@ -243,16 +245,11 @@ const ProductDetails = ({
   };
 
   // Start weight camera - called from the Capture Weight button
+  // REMOVED the alert - now opens camera regardless of product selection
   const startWeightCamera = () => {
-    // If no product is selected in the form, show alert
-    if (!formData.code) {
-      alert("Please select a product first using the barcode dropdown or scan button.");
-      return;
-    }
-
-    const itemId = currentItemId || formData.code;
-
-    // Open the camera
+    // Just start the camera - even if no product is selected
+    // If no product is selected, we'll capture and store weight for later assignment
+    
     navigator.mediaDevices.getUserMedia({
       video: { facingMode: 'environment' }
     })
@@ -656,7 +653,10 @@ const ProductDetails = ({
               selling_purity: product.selling_purity || "",
               is_packet_selection: true,
               assigned_id: assignedProduct?.assigned_id || null,
-              item_id: assignedProduct?.item_id || null
+              item_id: assignedProduct?.item_id || null,
+              cover_wt: product.cover_wt || assignedProduct?.cover_wt || "",
+              card_wt: product.card_wt || assignedProduct?.card_wt || "",
+              packing_wt: product.packing_wt || assignedProduct?.packing_wt || "",
             };
           });
 
@@ -707,7 +707,10 @@ const ProductDetails = ({
             remarks: '',
             piece_taxable_amt: '',
             festival_discount: '',
-            custom_purity: ''
+            custom_purity: '',
+            cover_wt: '',
+            card_wt: '',
+            packing_wt: '',
           }));
 
           Swal.fire({
@@ -761,21 +764,18 @@ const ProductDetails = ({
 
         // Group products by packet barcode - ONLY for products assigned to the selected salesman
         const grouped = {};
-        const packetImages = {}; // Store packet images
+        const packetImages = {};
 
         response.data.forEach(est => {
           if (est.code && est.packet_barcode) {
-            // Check if this product is assigned to the selected salesman
             const isAssignedToSalesman = selectedSalesmanProducts.some(
               assigned => assigned.PCode_BarCode === est.code
             );
 
-            // Only include if assigned to the selected salesman
             if (isAssignedToSalesman) {
               if (!grouped[est.packet_barcode]) {
                 grouped[est.packet_barcode] = [];
               }
-              // Add product info to the group
               grouped[est.packet_barcode].push({
                 code: est.code,
                 product_name: est.product_name,
@@ -821,15 +821,13 @@ const ProductDetails = ({
                 pur_TotalWeight_AW: est.pur_TotalWeight_AW
               });
 
-              // Store packet image
               if (est.pack_images) {
                 try {
                   const images = JSON.parse(est.pack_images);
                   if (images && images.length > 0) {
-                    packetImages[est.packet_barcode] = images[0]; // Get first image
+                    packetImages[est.packet_barcode] = images[0];
                   }
                 } catch (e) {
-                  // If not JSON, treat as single string
                   packetImages[est.packet_barcode] = est.pack_images;
                 }
               }
@@ -837,8 +835,6 @@ const ProductDetails = ({
           }
         });
         setGroupedPacketProducts(grouped);
-
-        // Store packet images in window object for later use
         window.packetImages = packetImages;
 
         console.log("Grouped packet products for salesman:", grouped);
@@ -850,19 +846,15 @@ const ProductDetails = ({
     fetchEstimates();
   }, [selectedSalesmanProducts]);
 
-  // Get packet barcode from estimates for a given product code
   const getPacketBarcode = (productCode) => {
     if (!estimatesData || !productCode) return null;
-
     const estimates = estimatesData.filter(item => item.code === productCode);
     const packetBarcodes = estimates
       .map(item => item.packet_barcode)
       .filter(barcode => barcode && barcode !== null && barcode !== '');
-
     return packetBarcodes.length > 0 ? packetBarcodes[0] : null;
   };
 
-  // Check if a product has an estimate
   const hasEstimate = (productCode) => {
     if (!estimatesData || !productCode) return false;
     return estimatesData.some(item => item.code === productCode);
@@ -872,36 +864,31 @@ const ProductDetails = ({
     ? products.find((product) => product.product_name === formData.category)?.rbarcode || ""
     : "";
 
-  // Build barcode options - ONLY show packet barcode for estimated products assigned to salesman
+  // Build barcode options
   const barcodeOptions = [];
   const seenPacketBarcodes = new Set();
 
-  // First, add packet barcodes from grouped products (estimated products assigned to salesman)
   Object.keys(groupedPacketProducts).forEach(packetBarcode => {
     if (!seenPacketBarcodes.has(packetBarcode)) {
       seenPacketBarcodes.add(packetBarcode);
       const productsInPacket = groupedPacketProducts[packetBarcode];
-
-      // Only add if there are products in the packet
       if (productsInPacket && productsInPacket.length > 0) {
         barcodeOptions.push({
-          value: packetBarcode, // Use packet barcode as value
-          label: `${packetBarcode} (${productsInPacket.length} products)`, // Show packet barcode with count
+          value: packetBarcode,
+          label: `${packetBarcode} (${productsInPacket.length} products)`,
           type: "packet",
           packetBarcode: packetBarcode,
           isEstimated: true,
-          products: productsInPacket // Store all products in this packet
+          products: productsInPacket
         });
       }
     }
   });
 
-  // Then add non-estimated products (assigned products without packet)
   (selectedSalesmanProducts || []).forEach((product) => {
     const packetBarcode = getPacketBarcode(product.PCode_BarCode);
     const isEstimated = hasEstimate(product.PCode_BarCode);
 
-    // Only add if not estimated (no packet barcode)
     if (!isEstimated || !packetBarcode) {
       barcodeOptions.push({
         value: product.PCode_BarCode,
@@ -915,7 +902,6 @@ const ProductDetails = ({
     }
   });
 
-  // Remove duplicates
   const uniqueBarcodeOptions = [];
   const seenValues = new Set();
   for (const option of barcodeOptions) {
@@ -935,24 +921,17 @@ const ProductDetails = ({
     }
   }, [formData.category, defaultBarcode]);
 
-  // Helper function to build image URL for display
   const getImageUrl = (imagePath) => {
     if (!imagePath) return null;
-    if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
-      return imagePath;
-    }
-    if (imagePath.startsWith('/')) {
-      return `${baseURL}${imagePath}`;
-    }
+    if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) return imagePath;
+    if (imagePath.startsWith('/')) return `${baseURL}${imagePath}`;
     return `${baseURL}/${imagePath}`;
   };
 
-  // Handle barcode selection - for packet barcodes, add all products
   const handleBarcodeSelect = (selectedValue) => {
     const selectedOption = uniqueBarcodeOptions.find(opt => opt.value === selectedValue);
 
     if (selectedOption) {
-      // Set packet image if available
       let packetImageUrl = null;
       let totalGrossWeight = 0;
       let totalPackingWt = 0;
@@ -963,30 +942,24 @@ const ProductDetails = ({
           packetImageUrl = `${baseURL2}/uploads/pack-images/${imageFileName}`;
         }
 
-        // Calculate totals for products in this packet
         if (selectedOption.products && selectedOption.products.length > 0) {
           selectedOption.products.forEach(product => {
-            // Get gross_weight - convert to number
             const grossWt = parseFloat(product.gross_weight) || 0;
             totalGrossWeight += grossWt;
 
-            // Get packing_wt from estimatesData for this product
             const estimateProduct = estimatesData.find(est => est.code === product.code);
             const packingWt = parseFloat(estimateProduct?.packing_wt) || 0;
             totalPackingWt += packingWt;
           });
         }
 
-        // Calculate Total Packing Wt as grossWeight + packingWt
         const totalPackingWtFinal = totalGrossWeight + totalPackingWt;
 
-        // Update packet totals
         setPacketTotals({
           grossWeight: totalGrossWeight,
           packingWt: totalPackingWtFinal
         });
       } else {
-        // Reset packet totals if not a packet
         setPacketTotals({ grossWeight: 0, packingWt: 0 });
         setPacketImage(null);
       }
@@ -994,15 +967,11 @@ const ProductDetails = ({
       setPacketImage(packetImageUrl);
 
       if (selectedOption.type === "packet" && selectedOption.products && selectedOption.products.length > 0) {
-        // This is a packet barcode - add all products to the table
         console.log("Packet selected with products:", selectedOption.products);
         console.log("Total Gross Weight:", totalGrossWeight);
-        console.log("Total Packing Weight (Gross + Packing):", totalGrossWeight + totalPackingWt);
+        console.log("Total Packing Weight:", totalPackingWt);
 
-        // Get existing repair details from localStorage
         const storedRepairDetails = JSON.parse(localStorage.getItem(`repairDetails_${tabId}`)) || [];
-
-        // Check for duplicates before adding
         const existingCodes = new Set(storedRepairDetails.map(item => item.code));
         const newProducts = selectedOption.products.filter(product => !existingCodes.has(product.code));
 
@@ -1013,14 +982,15 @@ const ProductDetails = ({
             code: selectedValue,
             packet_barcode: selectedOption.packetBarcode,
             is_estimated: true,
-            is_packet_selection: true
+            is_packet_selection: true,
+            cover_wt: '',
+            card_wt: '',
+            packing_wt: '',
           }));
           return;
         }
 
-        // Get the image for each product from selectedSalesmanProducts
         const productsWithImages = newProducts.map(product => {
-          // Find the assigned product to get its image
           const assignedProduct = selectedSalesmanProducts?.find(
             p => p.PCode_BarCode === product.code
           );
@@ -1032,13 +1002,11 @@ const ProductDetails = ({
             imagePreview = getImageUrl(imagePath);
           }
 
-          // Get packing_wt from estimatesData
           const estimateProduct = estimatesData.find(est => est.code === product.code);
           const packingWt = estimateProduct?.packing_wt || "";
 
           return {
             ...product,
-            // Map fields to match formData structure
             code: product.code,
             product_name: product.product_name || product.sub_category,
             metal_type: product.metal_type,
@@ -1080,24 +1048,18 @@ const ProductDetails = ({
             is_packet_selection: true,
             assigned_id: assignedProduct?.assigned_id || null,
             item_id: assignedProduct?.item_id || null,
-            packing_wt: packingWt || ""
+            cover_wt: product.cover_wt || assignedProduct?.cover_wt || "",
+            card_wt: product.card_wt || assignedProduct?.card_wt || "",
+            packing_wt: packingWt || "",
           };
         });
 
-        // Add all new products to repairDetails
-        const updatedRepairDetails = [
-          ...storedRepairDetails,
-          ...productsWithImages
-        ];
-
-        // Use setRepairDetails to update state
+        const updatedRepairDetails = [...storedRepairDetails, ...productsWithImages];
         setRepairDetails(updatedRepairDetails);
         localStorage.setItem(`repairDetails_${tabId}`, JSON.stringify(updatedRepairDetails));
 
-        // Set isPacketAdded to true to clear the form fields
         setIsPacketAdded(true);
 
-        // Clear form fields after packet selection - only show packet barcode info
         setFormData(prev => ({
           ...prev,
           code: selectedValue,
@@ -1139,14 +1101,15 @@ const ProductDetails = ({
           remarks: '',
           piece_taxable_amt: '',
           festival_discount: '',
-          custom_purity: ''
+          custom_purity: '',
+          cover_wt: '',
+          card_wt: '',
+          packing_wt: '',
         }));
 
-        const totalPackingWtFinal = totalGrossWeight + totalPackingWt;
-        alert(`Added ${newProducts.length} product(s) from packet ${selectedOption.packetBarcode}\nTotal Gross Weight: ${totalGrossWeight.toFixed(2)}g\nTotal Packing Weight: ${totalPackingWtFinal.toFixed(2)}g`);
+        alert(`Added ${productsWithImages.length} product(s) from packet ${selectedOption.packetBarcode}\nTotal Gross Weight: ${totalGrossWeight.toFixed(2)}g\nTotal Packing Weight: ${totalPackingWt.toFixed(2)}g`);
 
       } else {
-        // Regular barcode selection (non-packet)
         setIsPacketAdded(false);
         setPacketImage(null);
         setPacketTotals({ grossWeight: 0, packingWt: 0 });
@@ -1156,7 +1119,10 @@ const ProductDetails = ({
             code: selectedValue,
             packet_barcode: selectedOption.packetBarcode,
             is_estimated: selectedOption.isEstimated || false,
-            is_packet_selection: false
+            is_packet_selection: false,
+            cover_wt: '',
+            card_wt: '',
+            packing_wt: '',
           }));
         } else {
           setFormData(prev => ({
@@ -1164,7 +1130,10 @@ const ProductDetails = ({
             code: selectedValue,
             packet_barcode: null,
             is_estimated: false,
-            is_packet_selection: false
+            is_packet_selection: false,
+            cover_wt: '',
+            card_wt: '',
+            packing_wt: '',
           }));
         }
         handleBarcodeChange(selectedValue);
@@ -1247,12 +1216,10 @@ const ProductDetails = ({
     const pieceCost = parseFloat(formData.pieace_cost) || 0;
 
     const weightBW = grossWeight - stoneWeight;
-
     const wastageWeight =
       formData.va_on === "Gross Weight"
         ? (grossWeight * vaPercent) / 100
         : (weightBW * vaPercent) / 100;
-
     const totalWeightAW = weightBW + wastageWeight;
 
     let rateAmt = 0;
@@ -1286,7 +1253,6 @@ const ProductDetails = ({
       const taxable = pieceCost * qty;
       taxAmt = (taxPercent * taxable) / 100;
       totalPrice = taxable;
-
       setFormData(prev => ({
         ...prev,
         piece_taxable_amt: taxable.toFixed(2),
@@ -1335,16 +1301,39 @@ const ProductDetails = ({
     formData.pricing,
   ]);
 
-  // Get the current image to display
   const displayImage = formData.imagePreview || (formData.image ? getImageUrl(formData.image) : null);
+
+  const buttonHeightStyle = {
+    height: '38px',
+    marginBottom: '8px',
+    flexShrink: 0,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '4px 12px',
+    fontSize: '13px',
+    whiteSpace: 'nowrap',
+    borderRadius: '4px',
+    border: '1px solid transparent',
+  };
 
   return (
     <Col>
       <Row>
-        {/* Barcode with Scan Packet Button */}
-        <Col xs={12} md={4}>
-          <div style={{ display: 'flex', alignItems: 'flex-end', gap: '6px' }}>
-            <div style={{ flex: 1, minWidth: '80px' }}>
+        <Col xs={12}>
+          <div style={{ 
+            display: 'flex', 
+            alignItems: 'flex-end', 
+            gap: '6px',
+            flexWrap: 'wrap'
+          }}>
+            <div
+              style={{
+                flex: "0 0 320px",
+                maxWidth: "60%",
+                minWidth: "250px"
+              }}
+            >
               <InputField
                 label="BarCode/Rbarcode"
                 name="code"
@@ -1354,82 +1343,195 @@ const ProductDetails = ({
                 options={uniqueBarcodeOptions}
               />
             </div>
+
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={startScanner}
+              style={{
+                ...buttonHeightStyle,
+                backgroundColor: '#007bff',
+                borderColor: '#007bff',
+                gap: '6px',
+              }}
+              title="Scan Barcode"
+            >
+              <FaQrcode size={13} /> Scan Barcode
+            </Button>
+
             <Button
               variant="success"
               size="sm"
               onClick={startPacketScanner}
               style={{
+                ...buttonHeightStyle,
                 backgroundColor: '#28a745',
                 borderColor: '#28a745',
-                whiteSpace: 'nowrap',
-                padding: '4px 8px',
-                fontSize: '15px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '10px',
-                flexShrink: 0,
-                minWidth: '150px',
-                height: '38px',
-                marginBottom: '8px',
+                gap: '6px',
               }}
               title="Scan Packet"
             >
               <FaBarcode size={13} /> Scan Packet
             </Button>
+
+            <Button
+              variant="warning"
+              size="sm"
+              onClick={startWeightCamera}
+              style={{
+                ...buttonHeightStyle,
+                backgroundColor: '#ff9800',
+                borderColor: '#ff9800',
+                color: 'white',
+                gap: '6px',
+                minWidth: '140px',
+              }}
+              title="Capture Weight from Machine"
+            >
+              <FaWeightHanging size={13} /> Capture Weight
+            </Button>
+
+            <DropdownButton
+              id="dropdown-basic-button"
+              title="Choose / Capture Image"
+              variant="primary"
+              size="sm"
+              onClick={() => setShowOptions(!showOptions)}
+              style={{ 
+                flexShrink: 0,
+                marginBottom: '8px',
+                height: '38px',
+              }}
+              disabled={isPacketAdded}
+              className="d-flex align-items-center"
+            >
+              {showOptions && (
+                <>
+                  <Dropdown.Item onClick={() => fileInputRef.current && fileInputRef.current.click()}>
+                    <FaUpload /> Choose Image
+                  </Dropdown.Item>
+                  <Dropdown.Item onClick={() => setShowWebcam(true)}>
+                    <FaCamera /> Capture Image
+                  </Dropdown.Item>
+                </>
+              )}
+            </DropdownButton>
+
+            <Button
+              onClick={isEditing ? handleUpdate : handleAdd}
+              style={{
+                ...buttonHeightStyle,
+                backgroundColor: "#a36e29",
+                borderColor: "#a36e29",
+                minWidth: '100px',
+              }}
+              disabled={isPacketAdded}
+            >
+              {isEditing ? "Update" : "Add"}
+            </Button>
+
+            <Button
+              variant="secondary"
+              onClick={handleClear}
+              style={{
+                ...buttonHeightStyle,
+                backgroundColor: 'gray',
+                borderColor: 'gray',
+                minWidth: '100px',
+              }}
+            >
+              Clear
+            </Button>
+
+            <input
+              type="file"
+              name="image"
+              accept="image/*"
+              ref={fileInputRef}
+              style={{ display: "none" }}
+              onChange={handleImageChange}
+            />
           </div>
 
-          {/* ============= CAPTURE WEIGHT BUTTON ============= */}
-          <Button
-            variant="warning"
-            size="sm"
-            onClick={startWeightCamera}
-            style={{
-              backgroundColor: '#ff9800',
-              borderColor: '#ff9800',
-              color: 'white',
-              padding: "4px 12px",
-              fontSize: "13px",
-              whiteSpace: 'nowrap',
-              minWidth: '50px',
-              flexShrink: 0,
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px'
-            }}
-            title="Capture Weight from Machine"
-          // disabled={isPacketAdded}  // REMOVED - button should always be enabled
-          >
-            <FaWeightHanging size={13} /> Capture Weight
-          </Button>
-
-          {/* Display Packet Image */}
-          {packetImage && (
-            <div style={{ marginTop: '8px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <img
-                  src={packetImage}
-                  alt="Packet"
-                  style={{
-                    width: '80px',
-                    height: '80px',
-                    borderRadius: '8px',
-                    border: '1px solid #ddd',
-                    padding: '5px',
-                    objectFit: 'cover'
-                  }}
-                  onError={(e) => {
-                    e.target.style.display = 'none';
-                    setPacketImage(null);
-                  }}
-                />
-                <span style={{ fontSize: '12px', color: '#666' }}>Packet Image</span>
-              </div>
+          {showWebcam && (
+            <div style={{ marginTop: '10px' }}>
+              <Webcam
+                audio={false}
+                ref={webcamRef}
+                screenshotFormat="image/jpeg"
+                width={150}
+                height={150}
+              />
+              <Button variant="success" size="sm" onClick={captureImage} style={{ marginRight: "5px" }}>
+                Capture
+              </Button>
+              <Button variant="secondary" size="sm" onClick={() => setShowWebcam(false)}>
+                Cancel
+              </Button>
+            </div>
+          )}
+          
+          {displayImage && (
+            <div style={{ position: "relative", display: "inline-block", marginTop: "10px" }}>
+              <img
+                src={displayImage}
+                alt="Selected"
+                style={{
+                  width: "100px",
+                  height: "100px",
+                  borderRadius: "8px",
+                  objectFit: "cover"
+                }}
+                onError={(e) => {
+                  e.target.onerror = null;
+                  e.target.src = '';
+                  e.target.alt = 'Image not available';
+                }}
+              />
+              <button
+                type="button"
+                onClick={clearImage}
+                style={{
+                  position: "absolute",
+                  top: "5px",
+                  right: "5px",
+                  background: "transparent",
+                  border: "none",
+                  color: "red",
+                  fontSize: "16px",
+                  cursor: "pointer",
+                  zIndex: 10,
+                }}
+              >
+                <FaTrash />
+              </button>
             </div>
           )}
 
-          {/* Display Packet Totals */}
+          {packetImage && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '10px' }}>
+              <img
+                src={packetImage}
+                alt="Packet"
+                style={{
+                  width: '60px',
+                  height: '60px',
+                  borderRadius: '8px',
+                  border: '1px solid #ddd',
+                  padding: '5px',
+                  objectFit: 'cover'
+                }}
+                onError={(e) => {
+                  e.target.style.display = 'none';
+                  setPacketImage(null);
+                }}
+              />
+              <span style={{ fontSize: '12px', color: '#666' }}>Packet Image</span>
+            </div>
+          )}
+
           {(packetTotals.grossWeight > 0 || packetTotals.packingWt > 0) && (
-            <div style={{ marginTop: '8px' }}>
+            <div style={{ marginTop: '10px' }}>
               <div style={{
                 display: 'flex',
                 flexDirection: 'column',
@@ -1460,7 +1562,6 @@ const ProductDetails = ({
             </div>
           )}
 
-          {/* ============= DISPLAY EXTRACTED WEIGHT INFO ============= */}
           {extractedWeight && (
             <div style={{ marginTop: '10px', padding: '8px 15px', backgroundColor: '#d4edda', border: '1px solid #c3e6cb', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '20px', flexWrap: 'wrap' }}>
               <span style={{ fontWeight: 'bold', color: '#155724' }}>✅ Weight Captured:</span>
@@ -1493,7 +1594,6 @@ const ProductDetails = ({
             </div>
           )}
 
-          {/* ============= WEIGHT CAPTURE ERROR ============= */}
           {weightCaptureError && (
             <div style={{ marginTop: '10px', padding: '8px 15px', backgroundColor: '#f8d7da', border: '1px solid #f5c6cb', borderRadius: '8px', color: '#721c24' }}>
               ⚠️ {weightCaptureError}
@@ -1513,7 +1613,6 @@ const ProductDetails = ({
             </div>
           )}
 
-          {/* ============= PROCESSING INDICATOR ============= */}
           {isProcessingWeight && (
             <div style={{ marginTop: '10px', display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 15px', backgroundColor: '#e3f2fd', borderRadius: '8px' }}>
               <div className="spinner-border spinner-border-sm text-primary" role="status">
@@ -1524,388 +1623,23 @@ const ProductDetails = ({
           )}
         </Col>
 
-        {/* Commented out Category field */}
-        {/*
-        <Col xs={12} md={2} className="d-flex align-items-center">
-          <div style={{ flex: 1 }}>
-            <InputField
-              label="Category"
-              name="category"
-              value={formData.category || ""}
-              type="select"
-              onChange={handleChange}
-              options={categoryOptions}
-              disabled={isPacketAdded}
-            />
-          </div>
-          <AiOutlinePlus
-            size={20}
-            color="black"
-            style={{
-              marginLeft: "10px",
-              cursor: "pointer",
-              marginBottom: "20px",
-            }}
-            onClick={() =>
-              navigate("/itemmaster", {
-                state: {
-                  from: `/sales?tabId=${tabId}`
-                }
-              })
-            }
-          />
-        </Col>
-        */}
-
-        {/* Commented out Metal Type field */}
-        {/*
-        <Col xs={12} md={2}>
-          <InputField
-            label="Metal Type"
-            name="metal_type"
-            value={formData.metal_type || ""}
-            onChange={handleChange}
-            type="select"
-            options={metaltypeOptions}
-            disabled={isPacketAdded}
-          />
-        </Col>
-        */}
-
-        {/* Commented out Sub Category field */}
-        {/*
-        <Col xs={12} md={2} className="d-flex align-items-center">
-          <div style={{ flex: 1 }}>
-            <InputField
-              label="Sub Category"
-              name="product_name"
-              value={formData.product_name || ""}
-              onChange={handleChange}
-              type="select"
-              options={subcategoryOptions}
-              disabled={isPacketAdded}
-            />
-          </div>
-          <AiOutlinePlus
-            size={20}
-            color="black"
-            style={{
-              marginLeft: "10px",
-              cursor: "pointer",
-              marginBottom: "20px",
-            }}
-            onClick={() =>
-              navigate("/subcategory", {
-                state: {
-                  from: `/sales?tabId=${tabId}`,
-                  metal_type: formData.metal_type
-                }
-              })
-            }
-          />
-        </Col>
-        */}
-
-        {/* Commented out Product Design Name field */}
-        {/*
-        <Col xs={12} md={2}>
-          <InputField
-            label="Product Design Name"
-            name="design_name"
-            value={formData.design_name}
-            onChange={handleChange}
-            type="select"
-            options={designOptions}
-            disabled={isPacketAdded}
-          />
-        </Col>
-        */}
-
-        {/* By Fixed Pricing Fields */}
         {isByFixed ? (
           <>
             <Col xs={12} md={2}>
-              <InputField
-                label="Printing Purity"
-                name="printing_purity"
-                value={formData.printing_purity || ""}
-                onChange={handleChange}
-                disabled={isPacketAdded}
-              />
+              <InputField label="Printing Purity" name="printing_purity" value={formData.printing_purity || ""} onChange={handleChange} disabled={isPacketAdded} />
             </Col>
             <Col xs={12} md={2}>
-              <InputField
-                label="Piece Cost"
-                name="pieace_cost"
-                value={formData.pieace_cost}
-                onChange={handleChange}
-                disabled={isPacketAdded}
-              />
+              <InputField label="Piece Cost" name="pieace_cost" value={formData.pieace_cost} onChange={handleChange} disabled={isPacketAdded} />
             </Col>
             <Col xs={12} md={1}>
-              <InputField
-                label="Qty"
-                name="qty"
-                value={formData.qty}
-                onChange={handleChange}
-                readOnly={!isQtyEditable}
-                disabled={isPacketAdded}
-              />
-            </Col>
-            <Col xs={12} md={5}>
-              {/* All buttons in one row - Choose/Capture Image, Add, Clear beside Scan Packet */}
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                flexWrap: 'nowrap',
-                overflow: 'visible'
-              }}>
-                <DropdownButton
-                  id="dropdown-basic-button"
-                  title="Choose / Capture Image"
-                  variant="primary"
-                  size="sm"
-                  onClick={() => setShowOptions(!showOptions)}
-                  style={{ minWidth: '155px', flexShrink: 0 }}
-                  disabled={isPacketAdded}
-                >
-                  {showOptions && (
-                    <>
-                      <Dropdown.Item onClick={() => fileInputRef.current && fileInputRef.current.click()}><FaUpload /> Choose Image</Dropdown.Item>
-                      <Dropdown.Item onClick={() => setShowWebcam(true)}><FaCamera /> Capture Image</Dropdown.Item>
-                    </>
-                  )}
-                </DropdownButton>
-
-
-
-                <Button
-                  onClick={isEditing ? handleUpdate : handleAdd}
-                  style={{
-                    backgroundColor: "#a36e29",
-                    borderColor: "#a36e29",
-                    padding: "4px 10px",
-                    fontSize: "13px",
-                    whiteSpace: 'nowrap',
-                    minWidth: '50px',
-                    flexShrink: 0
-                  }}
-                  disabled={isPacketAdded}
-                >
-                  {isEditing ? "Update" : "Add"}
-                </Button>
-
-                <Button
-                  variant="secondary"
-                  onClick={handleClear}
-                  style={{
-                    backgroundColor: 'gray',
-                    padding: "4px 10px",
-                    fontSize: "13px",
-                    whiteSpace: 'nowrap',
-                    minWidth: '50px',
-                    flexShrink: 0
-                  }}
-                >
-                  Clear
-                </Button>
-              </div>
-
-              <input
-                type="file"
-                name="image"
-                accept="image/*"
-                ref={fileInputRef}
-                style={{ display: "none" }}
-                onChange={handleImageChange}
-              />
-
-              {showWebcam && (
-                <div>
-                  <Webcam
-                    audio={false}
-                    ref={webcamRef}
-                    screenshotFormat="image/jpeg"
-                    width={150}
-                    height={150}
-                  />
-                  <Button variant="success" size="sm" onClick={captureImage} style={{ marginRight: "5px" }}>
-                    Capture
-                  </Button>
-                  <Button variant="secondary" size="sm" onClick={() => setShowWebcam(false)}>
-                    Cancel
-                  </Button>
-                </div>
-              )}
-              {displayImage && (
-                <div style={{ position: "relative", display: "inline-block", marginTop: "10px" }}>
-                  <img
-                    src={displayImage}
-                    alt="Selected"
-                    style={{
-                      width: "100px",
-                      height: "100px",
-                      borderRadius: "8px",
-                      objectFit: "cover"
-                    }}
-                    onError={(e) => {
-                      e.target.onerror = null;
-                      e.target.src = '';
-                      e.target.alt = 'Image not available';
-                    }}
-                  />
-                  <button
-                    type="button"
-                    onClick={clearImage}
-                    style={{
-                      position: "absolute",
-                      top: "5px",
-                      right: "5px",
-                      background: "transparent",
-                      border: "none",
-                      color: "red",
-                      fontSize: "16px",
-                      cursor: "pointer",
-                      zIndex: 10,
-                    }}
-                  >
-                    <FaTrash />
-                  </button>
-                </div>
-              )}
+              <InputField label="Qty" name="qty" value={formData.qty} onChange={handleChange} readOnly={!isQtyEditable} disabled={isPacketAdded} />
             </Col>
           </>
         ) : (
-          <>
-            <Col xs={12} md={5}>
-              {/* All buttons in one row - Choose/Capture Image, Add, Clear beside Scan Packet */}
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                flexWrap: 'nowrap',
-                overflow: 'visible'
-              }}>
-                <DropdownButton
-                  id="dropdown-basic-button"
-                  title="Choose / Capture Image"
-                  variant="primary"
-                  size="sm"
-                  onClick={() => setShowOptions(!showOptions)}
-                  style={{ minWidth: '155px', flexShrink: 0 }}
-                  disabled={isPacketAdded}
-                >
-                  {showOptions && (
-                    <>
-                      <Dropdown.Item onClick={() => fileInputRef.current && fileInputRef.current.click()}><FaUpload /> Choose Image</Dropdown.Item>
-                      <Dropdown.Item onClick={() => setShowWebcam(true)}><FaCamera /> Capture Image</Dropdown.Item>
-                    </>
-                  )}
-                </DropdownButton>
-
-
-
-                <Button
-                  onClick={isEditing ? handleUpdate : handleAdd}
-                  style={{
-                    backgroundColor: "#a36e29",
-                    borderColor: "#a36e29",
-                    padding: "4px 10px",
-                    fontSize: "13px",
-                    whiteSpace: 'nowrap',
-                    minWidth: '50px',
-                    flexShrink: 0
-                  }}
-                  disabled={isPacketAdded}
-                >
-                  {isEditing ? "Update" : "Add"}
-                </Button>
-
-                <Button
-                  variant="secondary"
-                  onClick={handleClear}
-                  style={{
-                    backgroundColor: 'gray',
-                    padding: "4px 10px",
-                    fontSize: "13px",
-                    whiteSpace: 'nowrap',
-                    minWidth: '50px',
-                    flexShrink: 0
-                  }}
-                >
-                  Clear
-                </Button>
-              </div>
-
-              <input
-                type="file"
-                name="image"
-                accept="image/*"
-                ref={fileInputRef}
-                style={{ display: "none" }}
-                onChange={handleImageChange}
-              />
-
-              {showWebcam && (
-                <div>
-                  <Webcam
-                    audio={false}
-                    ref={webcamRef}
-                    screenshotFormat="image/jpeg"
-                    width={150}
-                    height={150}
-                  />
-                  <Button variant="success" size="sm" onClick={captureImage} style={{ marginRight: "5px" }}>
-                    Capture
-                  </Button>
-                  <Button variant="secondary" size="sm" onClick={() => setShowWebcam(false)}>
-                    Cancel
-                  </Button>
-                </div>
-              )}
-              {displayImage && (
-                <div style={{ position: "relative", display: "inline-block", marginTop: "10px" }}>
-                  <img
-                    src={displayImage}
-                    alt="Selected"
-                    style={{
-                      width: "100px",
-                      height: "100px",
-                      borderRadius: "8px",
-                      objectFit: "cover"
-                    }}
-                    onError={(e) => {
-                      e.target.onerror = null;
-                      e.target.src = '';
-                      e.target.alt = 'Image not available';
-                    }}
-                  />
-                  <button
-                    type="button"
-                    onClick={clearImage}
-                    style={{
-                      position: "absolute",
-                      top: "5px",
-                      right: "5px",
-                      background: "transparent",
-                      border: "none",
-                      color: "red",
-                      fontSize: "16px",
-                      cursor: "pointer",
-                      zIndex: 10,
-                    }}
-                  >
-                    <FaTrash />
-                  </button>
-                </div>
-              )}
-            </Col>
-          </>
+          <></>
         )}
       </Row>
 
-      {/* Product Barcode Scanner Modal */}
       <Modal show={showScanner} onHide={stopScanner} centered>
         <Modal.Header closeButton>
           <Modal.Title>Scan Product Barcode</Modal.Title>
@@ -1920,7 +1654,6 @@ const ProductDetails = ({
         </Modal.Footer>
       </Modal>
 
-      {/* Packet Barcode Scanner Modal */}
       <Modal show={showPacketScanner} onHide={stopPacketScanner} centered>
         <Modal.Header closeButton>
           <Modal.Title>Scan Packet Barcode</Modal.Title>
@@ -1935,7 +1668,6 @@ const ProductDetails = ({
         </Modal.Footer>
       </Modal>
 
-      {/* ============= WEIGHT CAMERA MODAL ============= */}
       <Modal show={showWeightCamera} onHide={stopWeightCamera} centered size="lg">
         <Modal.Header closeButton>
           <Modal.Title>Capture Weight Machine Display</Modal.Title>
@@ -1980,53 +1712,6 @@ const ProductDetails = ({
         </Modal.Footer>
       </Modal>
 
-
-      {/* ============= WEIGHT CAMERA MODAL ============= */}
-      <Modal show={showWeightCamera} onHide={stopWeightCamera} centered size="lg">
-        <Modal.Header closeButton>
-          <Modal.Title>Capture Weight Machine Display</Modal.Title>
-        </Modal.Header>
-        <Modal.Body style={{ textAlign: 'center' }}>
-          <video
-            ref={weightVideoRef}
-            autoPlay
-            playsInline
-            style={{
-              width: '100%',
-              maxHeight: '400px',
-              objectFit: 'contain'
-            }}
-          />
-          <canvas ref={weightCanvasRef} style={{ display: 'none' }} />
-          <p className="mt-2 text-muted">
-            Point the camera at the weight machine display to capture and extract the weight using Gemini AI
-          </p>
-          <p className="text-muted" style={{ fontSize: '12px' }}>
-            Or use the "Upload Weight" button below to select an image from your device
-          </p>
-          <Button
-            variant="outline-secondary"
-            size="sm"
-            onClick={triggerWeightFileUpload}
-            style={{ marginTop: '5px' }}
-          >
-            📤 Upload Weight Image
-          </Button>
-        </Modal.Body>
-        <Modal.Footer>
-          <Button variant="secondary" onClick={stopWeightCamera}>Cancel</Button>
-          <Button
-            variant="primary"
-            onClick={captureWeightImage}
-            disabled={isProcessingWeight}
-            style={{ backgroundColor: '#28a745', borderColor: '#28a745' }}
-          >
-            {isProcessingWeight ? 'Processing...' : 'Capture & Extract Weight'}
-          </Button>
-        </Modal.Footer>
-      </Modal>
-
-      {/* Hidden file input for weight upload */}
       <input
         ref={weightFileInputRef}
         type="file"

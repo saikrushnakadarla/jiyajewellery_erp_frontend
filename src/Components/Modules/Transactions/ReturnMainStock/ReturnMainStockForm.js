@@ -1689,20 +1689,16 @@ const handleAdd = () => {
   const selectedStockItem = stock?.find(s => s.PCode_BarCode === formData.code);
   
   if (selectedStockItem) {
-    // The fetchStock already filters for Status = "Selected" and matching Stock_Point
-    // So we just need to verify it exists in the stock list
     if (selectedStockItem.Status !== "Selected") {
       alert("This product is not marked as 'Selected' for transfer");
       return;
     }
-    // Check if the stock point matches the logged-in user
     const loggedInUserName = localStorage.getItem('userName') || '';
     if (loggedInUserName && selectedStockItem.Stock_Point !== loggedInUserName) {
       alert("This product does not belong to your warehouse point");
       return;
     }
   } else {
-    // If the product is not in the stock list, it's not available for transfer
     alert("This product is not available for transfer or has already been selected");
     return;
   }
@@ -1724,13 +1720,11 @@ const handleAdd = () => {
     p => p.PCode_BarCode === formData.code
   );
   
-  // Get image from formData or assigned product
   let imageToSave = formData.image || null;
   let imagePreviewToSave = formData.imagePreview || null;
   
   if (!imageToSave && assignedProduct?.image) {
     imageToSave = assignedProduct.image;
-    // Build preview URL if image exists
     if (imageToSave) {
       if (imageToSave.startsWith('http://') || imageToSave.startsWith('https://')) {
         imagePreviewToSave = imageToSave;
@@ -1741,6 +1735,10 @@ const handleAdd = () => {
       }
     }
   }
+
+  // Get captured weight for this barcode
+  const barcode = formData.code;
+  const capturedWeight = capturedWeights[barcode];
 
   const updatedRepairDetails = [
     ...repairDetails,
@@ -1758,16 +1756,15 @@ const handleAdd = () => {
       image: imageToSave || formData.image,
       is_packet_selection: formData.is_packet_selection || false,
       packet_barcode: formData.packet_barcode || null,
-      // NEW: Preserve cover_wt, card_wt, packing_wt from formData
       cover_wt: formData.cover_wt || "0",
       card_wt: formData.card_wt || "0",
       packing_wt: formData.packing_wt || "0",
       // ===== WEIGHT MACHINE FIELDS =====
-      weight_machine_reading: parseFloat(formData.weight_machine_reading) || parseFloat(capturedWeights[formData.code]?.total_grams) || 0,
-      weight_machine_grams: parseInt(formData.weight_machine_grams) || parseInt(capturedWeights[formData.code]?.grams) || 0,
-      weight_machine_milligrams: parseInt(formData.weight_machine_milligrams) || parseInt(capturedWeights[formData.code]?.milligrams) || 0,
-      weight_machine_confidence: parseInt(formData.weight_machine_confidence) || parseInt(capturedWeights[formData.code]?.confidence) || 0,
-      weight_machine_raw: formData.weight_machine_raw || capturedWeights[formData.code]?.raw_text || null,
+      weight_machine_reading: parseFloat(formData.weight_machine_reading) || capturedWeight?.total_grams || 0,
+      weight_machine_grams: parseInt(formData.weight_machine_grams) || capturedWeight?.grams || 0,
+      weight_machine_milligrams: parseInt(formData.weight_machine_milligrams) || capturedWeight?.milligrams || 0,
+      weight_machine_confidence: parseInt(formData.weight_machine_confidence) || capturedWeight?.confidence || 0,
+      weight_machine_raw: formData.weight_machine_raw || capturedWeight?.raw_text || null,
     },
   ];
 
@@ -1786,10 +1783,17 @@ const handleAdd = () => {
     sale_status: "Delivered",
     piece_taxable_amt: "",
     festival_discount: "",
+    // Clear weight fields from form after adding
+    weight_machine_reading: 0,
+    weight_machine_grams: 0,
+    weight_machine_milligrams: 0,
+    weight_machine_confidence: 0,
+    weight_machine_raw: null,
   }));
 
   resetProductFields();
 };
+
 
   const handleEdit = (index) => {
     setEditIndex(index);
@@ -2850,6 +2854,9 @@ const resetForm = () => {
   // ============================================================
   // UPDATED handleSave - Uses POST API to save return to main stock
   // ============================================================
+// ============================================================
+// UPDATED handleSave - With Weight Calculation
+// ============================================================
 const handleSave = async () => {
   try {
     const activeStockPointDetails = formData.active_stock_point_details;
@@ -2878,17 +2885,56 @@ const handleSave = async () => {
 
     console.log("Updating opening tags for barcodes:", barcodes);
 
+    // ===== CALCULATE TOTAL WEIGHT MACHINE READING (take first valid weight) =====
+    let totalWeightMachineReading = 0;
+    let totalWeightMachineGrams = 0;
+    let totalWeightMachineMilligrams = 0;
+    let totalWeightMachineConfidence = 0;
+    let hasWeightData = false;
+    let latestWeightExtractedAt = null;
+
+    // Check all captured weights and take the first valid one
+    const weightKeys = Object.keys(capturedWeights);
+    for (const key of weightKeys) {
+      const weight = capturedWeights[key];
+      if (weight && weight.total_grams > 0) {
+        totalWeightMachineReading = parseFloat(weight.total_grams) || 0;
+        totalWeightMachineGrams = parseInt(weight.grams) || 0;
+        totalWeightMachineMilligrams = parseInt(weight.milligrams) || 0;
+        totalWeightMachineConfidence = parseInt(weight.confidence) || 0;
+        hasWeightData = true;
+        latestWeightExtractedAt = new Date().toISOString();
+        break; // Take the first valid weight as the total
+      }
+    }
+
+    // If no weight in capturedWeights, check items directly
+    if (!hasWeightData) {
+      for (const item of repairDetails) {
+        if (item.weight_machine_reading && parseFloat(item.weight_machine_reading) > 0) {
+          totalWeightMachineReading = parseFloat(item.weight_machine_reading) || 0;
+          totalWeightMachineGrams = parseInt(item.weight_machine_grams) || 0;
+          totalWeightMachineMilligrams = parseInt(item.weight_machine_milligrams) || 0;
+          totalWeightMachineConfidence = parseInt(item.weight_machine_confidence) || 0;
+          hasWeightData = true;
+          latestWeightExtractedAt = item.weight_extracted_at || new Date().toISOString();
+          break;
+        }
+      }
+    }
+
+    console.log(`📊 Total weight machine reading: ${totalWeightMachineReading}g`);
+    console.log(`📊 Has weight data: ${hasWeightData}`);
+
     // ============================================================
     // STEP 1: Update opening_tags_entry table via PUT API
-    // This sets Status = "Selected", Received_Status = "pending",
-    // Stock_Point = "MAIN STOCK ROOM", user_id = NULL, Source = "ERP"
     // ============================================================
     const updateResponse = await axios.put(`${baseURL}/update-opening-tags-status`, {
       barcodes: barcodes,
-      status: "Selected",        // Status should be "Selected" (not "Available")
+      status: "Selected",
       stock_point: "MAIN STOCK ROOM",
-      user_id: null,              // Set user_id to NULL
-      received_status: "pending"  // Explicitly set received_status to pending
+      user_id: null,
+      received_status: "pending"
     });
 
     if (updateResponse.status === 200) {
@@ -2898,7 +2944,6 @@ const handleSave = async () => {
       // STEP 2: Save to Return to Main Stock table via POST API
       // ============================================================
       
-      // Get next return number from API
       let nextReturnNumber = formData.return_number || formData.transfer_number;
       
       if (!nextReturnNumber) {
@@ -2914,17 +2959,13 @@ const handleSave = async () => {
       console.log("Saving with Return Number:", nextReturnNumber);
       console.log("From User ID (loggedInUserId):", loggedInUserId);
 
-      // Get the capture image from formData (from Customer Details)
       const captureImage = formData.capture_image || null;
       console.log("📷 Capture Image present:", !!captureImage);
 
-      // Check if any product was selected via packet barcode
       const hasPacketSelection = repairDetails.some(item => item.is_packet_selection === true || item.packet_barcode !== null);
-
       console.log("Has packet selection:", hasPacketSelection);
 
-      // Prepare return data with proper fields
-      // In the handleSave function, update the returnData mapping:
+      // Prepare return data with weight fields
       const returnData = repairDetails.map(item => ({
         item_id: item.item_id || null,
         assigned_id: item.assigned_id || null,
@@ -2948,28 +2989,27 @@ const handleSave = async () => {
         remarks: item.remarks || null,
         is_packet_selection: item.is_packet_selection || false,
         image: item.image || null,
-        // NEW: Include Cover Wt, Card Wt, Packing Wt
         cover_wt: parseFloat(item.cover_wt) || 0,
         card_wt: parseFloat(item.card_wt) || 0,
         packing_wt: parseFloat(item.packing_wt) || 0,
-        // ===== WEIGHT MACHINE FIELDS =====
-        weight_machine_reading: parseFloat(item.weight_machine_reading) || parseFloat(capturedWeights[item.code]?.total_grams) || 0,
-        weight_machine_grams: parseInt(item.weight_machine_grams) || parseInt(capturedWeights[item.code]?.grams) || 0,
-        weight_machine_milligrams: parseInt(item.weight_machine_milligrams) || parseInt(capturedWeights[item.code]?.milligrams) || 0,
-        weight_machine_confidence: parseInt(item.weight_machine_confidence) || parseInt(capturedWeights[item.code]?.confidence) || 0,
-        weight_machine_raw: item.weight_machine_raw || capturedWeights[item.code]?.raw_text || null,
+        // ===== WEIGHT MACHINE FIELDS - use total weight for all items =====
+        weight_machine_reading: parseFloat(item.weight_machine_reading) || totalWeightMachineReading || 0,
+        weight_machine_grams: parseInt(item.weight_machine_grams) || totalWeightMachineGrams || 0,
+        weight_machine_milligrams: parseInt(item.weight_machine_milligrams) || totalWeightMachineMilligrams || 0,
+        weight_machine_confidence: parseInt(item.weight_machine_confidence) || totalWeightMachineConfidence || 0,
+        weight_machine_raw: item.weight_machine_raw || (hasWeightData ? `Total: ${totalWeightMachineReading}g` : null),
+        weight_extracted_at: item.weight_extracted_at || latestWeightExtractedAt,
       }));
 
-      // Collect assigned IDs to delete from assigned_salesman tables
       const assignedIds = repairDetails
         .map(item => item.assigned_id)
         .filter(id => id !== null && id !== undefined);
 
-      // Build payload for Return to Main Stock API
+      // Build payload with weight fields
       const payload = {
         return_data: returnData,
         from_stock_point_id: parseInt(formData.active_stock_point_id),
-        to_stock_point_id: null, // Main stock doesn't have a stock point ID
+        to_stock_point_id: null,
         return_date: formData.date || new Date().toISOString().split('T')[0],
         reference_number: nextReturnNumber,
         remarks: `Returned to MAIN STOCK ROOM from ${activeStockPointDetails.stock_point_name}`,
@@ -2978,12 +3018,18 @@ const handleSave = async () => {
         to_user_id: null,
         assigned_ids: assignedIds,
         is_packet_selection: hasPacketSelection,
-        capture_image: captureImage  // <-- NEW: Add capture image from Customer Details
+        capture_image: captureImage,
+        // ===== ADD WEIGHT FIELDS TO PAYLOAD =====
+        weight_machine_reading: totalWeightMachineReading || 0,
+        weight_machine_grams: totalWeightMachineGrams || 0,
+        weight_machine_milligrams: totalWeightMachineMilligrams || 0,
+        weight_machine_confidence: totalWeightMachineConfidence || 0,
+        weight_machine_raw: hasWeightData ? `Total: ${totalWeightMachineReading}g` : null,
+        weight_extracted_at: latestWeightExtractedAt,
       };
 
-      console.log("📦 Sending Return to Main Stock Payload with capture_image:", !!payload.capture_image);
+      console.log("📦 Sending Return to Main Stock Payload:", payload);
 
-      // Call the RETURN TO MAIN STOCK API
       const response = await axios.post(`${baseURL}/api/return-to-main-stock/save-return-to-main-stock`, payload);
      
       if (response.status === 200 || response.status === 201) {
@@ -3030,11 +3076,10 @@ const handleSave = async () => {
           active_stock_point_details: null,
           return_number: "",
           received_number: "",
-          capture_image: null,  // Clear capture image
+          capture_image: null,
           capture_image_file: null
         });
         
-        // Navigate back to stock transfers page
         navigate("/return-to-main-stock");
       } else {
         alert("Failed to save return to main stock record");

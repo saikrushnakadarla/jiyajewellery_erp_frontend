@@ -41,8 +41,9 @@ const ProductTable = ({
   };
 
   // Handle capture weight button click from table
+  // FIX: Use item.item_id || item.code as the canonical key (NOT index)
   const handleCaptureWeightClick = (detail, index) => {
-    const itemId = detail.item_id || detail.id || index;
+    const itemId = detail.item_id || detail.code;   // ⬅️ was: detail.item_id || detail.id || index
     if (onCaptureWeightFromTable) {
       onCaptureWeightFromTable(itemId, detail);
     }
@@ -78,7 +79,8 @@ const ProductTable = ({
               const hasPacketBarcode = detail.packet_barcode && detail.packet_barcode !== '';
               const displayPacketBarcode = detail.packet_barcode || 
                                           (detail.is_packet_selection ? 'Packet Selection' : null);
-              const itemId = detail.item_id || detail.id || index;
+              // FIX: Use item.item_id || item.code as the canonical key
+              const itemId = detail.item_id || detail.code;   // ⬅️ was: detail.item_id || detail.id || index
               const hasWeightData = hasWeight(itemId);
               
               // Get image URL from detail - check both image and imagePreview

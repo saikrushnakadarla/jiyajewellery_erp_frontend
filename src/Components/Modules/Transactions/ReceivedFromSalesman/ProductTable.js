@@ -41,8 +41,9 @@ const ProductTable = ({
   };
 
   // Handle capture weight button click from table
+  // FIX: Use item.item_id || item.code as the canonical key (NOT index)
   const handleCaptureWeightClick = (detail, index) => {
-    const itemId = detail.item_id || detail.id || index;
+    const itemId = detail.item_id || detail.code;   // ⬅️ was: detail.item_id || detail.id || index
     if (onCaptureWeightFromTable) {
       onCaptureWeightFromTable(itemId, detail);
     }
@@ -76,7 +77,8 @@ const ProductTable = ({
             repairDetails.map((detail, index) => {
               // Check if this product has a packet barcode from estimate
               const hasPacketBarcode = detail.packet_barcode && detail.packet_barcode !== '';
-              const itemId = detail.item_id || detail.id || index;
+              // FIX: Use item.item_id || item.code as the canonical key
+              const itemId = detail.item_id || detail.code;   // ⬅️ was: detail.item_id || detail.id || index
               const hasWeightData = hasWeight(itemId);
               
               // Get image URL from detail
@@ -169,13 +171,6 @@ const ProductTable = ({
                         onClick={() => handleView(detail)}
                         style={{ cursor: 'pointer', marginLeft: '10px', color: 'green' }}
                       />
-                      {/* <FaEdit
-                        onClick={() => {
-                          onEdit(index);
-                          setTimeout(() => onEdit(index), 1);
-                        }}
-                        style={{ cursor: "pointer", marginLeft: "10px", color: "blue" }}
-                      /> */}
                       <FaTrash
                         style={{ cursor: "pointer", marginLeft: "10px", color: "red" }}
                         onClick={() => onDelete(index)}

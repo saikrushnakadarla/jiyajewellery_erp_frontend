@@ -568,105 +568,104 @@ const ProductDetails = ({
 
   // ============= WEIGHT CAPTURE FUNCTIONS =============
 
+  // ============= WEIGHT CAPTURE FUNCTIONS =============
+
   // Process weight image using Gemini API
-  const processWeightImage = async (imageFile) => {
-    // Use the barcode as the item identifier
-    const targetItemId = weightCaptureItemId || formData.code;
-    
-    if (!targetItemId) {
-      alert("Please select a product first before capturing weight.");
-      return;
-    }
+ // Process weight image using Gemini API
+const processWeightImage = async (imageFile) => {
+  const targetItemId = weightCaptureItemId || formData.code;
+  
+  setIsProcessingWeight(true);
+  setExtractedWeight(null);
+  setWeightCaptureError(null);
 
-    setIsProcessingWeight(true);
-    setExtractedWeight(null);
-    setWeightCaptureError(null);
+  try {
+    const formDataObj = new FormData();
+    formDataObj.append('image', imageFile);
+    formDataObj.append('estimate_number', '');
+    formDataObj.append('item_id', targetItemId || 'total_weight');
 
-    try {
-      const formDataObj = new FormData();
-      formDataObj.append('image', imageFile);
-      formDataObj.append('estimate_number', '');
-      formDataObj.append('item_id', targetItemId);
+    const response = await axios.post(`${baseURL}/api/extract-weight-gemini`, formDataObj, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
 
-      const response = await axios.post(`${baseURL}/api/extract-weight-gemini`, formDataObj, {
-        headers: { 'Content-Type': 'multipart/form-data' }
+    if (response.data.success && response.data.record) {
+      const record = response.data.record;
+
+      setExtractedRawText(record.raw_text);
+      setExtractedGrams(record.grams);
+      setExtractedMilligrams(record.milligrams);
+      setExtractedTotalGrams(record.total_grams);
+
+      const weightData = {
+        total_grams: record.total_grams,
+        grams: record.grams,
+        milligrams: record.milligrams,
+        raw_text: record.raw_text,
+        confidence: record.confidence || 100
+      };
+
+      setExtractedWeight(weightData);
+
+      // ========== FIX: Always call onCaptureWeight ==========
+      // Use 'total_weight' as the key when no specific item is selected
+      const key = targetItemId && targetItemId !== 'unknown' ? targetItemId : 'total_weight';
+      if (onCaptureWeight) {
+        onCaptureWeight(key, weightData);
+      } else {
+        console.warn('onCaptureWeight prop is not defined');
+      }
+
+      stopWeightCamera();
+
+      Swal.fire({
+        icon: 'success',
+        title: '✅ Weight Extracted!',
+        html: `
+          <div style="font-size: 24px; padding: 10px 0;">
+            <strong>${record.total_grams.toFixed(3)} g</strong>
+            <div style="font-size: 14px; color: #666; margin-top: 5px;">
+              ${record.grams} g / ${record.milligrams} mg
+            </div>
+            <div style="font-size: 12px; color: #888; margin-top: 5px;">
+              Raw: ${record.raw_text}
+            </div>
+            ${!targetItemId ? '<div style="font-size: 12px; color: #ff9800; margin-top: 5px;">⚠️ No product selected. Weight saved as total weight.</div>' : ''}
+          </div>
+        `,
+        timer: 3000,
+        showConfirmButton: false
       });
 
-      if (response.data.success && response.data.record) {
-        const record = response.data.record;
+      setWeightCaptureItemId(null);
+      setWeightCaptureItemDetails(null);
 
-        setExtractedRawText(record.raw_text);
-        setExtractedGrams(record.grams);
-        setExtractedMilligrams(record.milligrams);
-        setExtractedTotalGrams(record.total_grams);
-
-        const weightData = {
-          total_grams: record.total_grams,
-          grams: record.grams,
-          milligrams: record.milligrams,
-          raw_text: record.raw_text,
-          confidence: record.confidence || 100
-        };
-
-        setExtractedWeight(weightData);
-
-        // Notify parent component about the captured weight
-        if (onCaptureWeight) {
-          // Pass the barcode as the item ID - this will be used to match the item
-          onCaptureWeight(targetItemId, weightData);
-        }
-
-        // Close weight camera after successful capture
-        stopWeightCamera();
-
-        Swal.fire({
-          icon: 'success',
-          title: '✅ Weight Extracted!',
-          html: `
-            <div style="font-size: 24px; padding: 10px 0;">
-              <strong>${record.total_grams.toFixed(3)} g</strong>
-              <div style="font-size: 14px; color: #666; margin-top: 5px;">
-                ${record.grams} g / ${record.milligrams} mg
-              </div>
-              <div style="font-size: 12px; color: #888; margin-top: 5px;">
-                Raw: ${record.raw_text}
-              </div>
-            </div>
-          `,
-          timer: 3000,
-          showConfirmButton: false
-        });
-
-        // Reset weight capture item states
-        setWeightCaptureItemId(null);
-        setWeightCaptureItemDetails(null);
-
-      } else {
-        setWeightCaptureError(response.data.message || 'Could not extract weight from image');
-        Swal.fire({
-          icon: 'warning',
-          title: 'Could Not Detect Weight',
-          text: response.data.message || 'Please try a clearer photo of the weight machine display.',
-          confirmButtonText: 'OK'
-        });
-      }
-    } catch (error) {
-      console.error('Gemini API Error:', error);
-      let errorMessage = 'Error processing weight image.';
-      if (error.response) {
-        errorMessage = error.response.data?.message || errorMessage;
-      }
-      setWeightCaptureError(errorMessage);
+    } else {
+      setWeightCaptureError(response.data.message || 'Could not extract weight from image');
       Swal.fire({
-        icon: 'error',
-        title: 'Extraction Failed',
-        text: errorMessage,
+        icon: 'warning',
+        title: 'Could Not Detect Weight',
+        text: response.data.message || 'Please try a clearer photo of the weight machine display.',
         confirmButtonText: 'OK'
       });
-    } finally {
-      setIsProcessingWeight(false);
     }
-  };
+  } catch (error) {
+    console.error('Gemini API Error:', error);
+    let errorMessage = 'Error processing weight image.';
+    if (error.response) {
+      errorMessage = error.response.data?.message || errorMessage;
+    }
+    setWeightCaptureError(errorMessage);
+    Swal.fire({
+      icon: 'error',
+      title: 'Extraction Failed',
+      text: errorMessage,
+      confirmButtonText: 'OK'
+    });
+  } finally {
+    setIsProcessingWeight(false);
+  }
+};
 
   // Start weight camera for a specific item (called from ProductTable)
   const startWeightCameraForItem = (itemId, itemDetails = null) => {
@@ -691,18 +690,11 @@ const ProductDetails = ({
   };
 
   // Start weight camera - called from the Capture Weight button
+  // REMOVED the alert - now opens camera regardless of product selection
   const startWeightCamera = () => {
-    // If no product is selected in the form, show alert
-    if (!formData.code) {
-      alert("Please select a product first using the barcode dropdown or scan button.");
-      return;
-    }
-
-    // If the product is already in the table, use its ID
-    // Otherwise, we'll use the barcode as identifier
-    const itemId = currentItemId || formData.code;
+    // Just start the camera - even if no product is selected
+    // If no product is selected, we'll capture and store weight for later assignment
     
-    // Open the camera
     navigator.mediaDevices.getUserMedia({ 
       video: { facingMode: 'environment' } 
     })

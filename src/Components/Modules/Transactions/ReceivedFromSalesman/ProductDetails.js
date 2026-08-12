@@ -79,6 +79,7 @@ const ProductDetails = ({
   const [isPacketAdded, setIsPacketAdded] = useState(false);
 
   const [packetImage, setPacketImage] = useState(null);
+  const [packetTotals, setPacketTotals] = useState({ grossWeight: 0, packingWt: 0 });
 
   // Barcode scanner states
   const [showScanner, setShowScanner] = useState(false);
@@ -89,8 +90,6 @@ const ProductDetails = ({
   const [showPacketScanner, setShowPacketScanner] = useState(false);
   const [isPacketScannerInitialized, setIsPacketScannerInitialized] = useState(false);
   const packetScannerRef = useRef(null);
-
-  const [packetTotals, setPacketTotals] = useState({ grossWeight: 0, packingWt: 0 });
 
   // ============= WEIGHT CAPTURE STATES =============
   const [showWeightCamera, setShowWeightCamera] = useState(false);
@@ -132,14 +131,13 @@ const ProductDetails = ({
   // ============= WEIGHT CAMERA FUNCTIONS =============
 
   // Process weight image using Gemini API
+  // REMOVED the alert - now processes weight even without product selected
   const processWeightImage = async (imageFile) => {
     const targetItemId = weightCaptureItemId || formData.code;
     
-    if (!targetItemId) {
-      alert("Please select a product first before capturing weight.");
-      return;
-    }
-
+    // REMOVED: alert("Please select a product first before capturing weight.");
+    // If no product is selected, use a fallback key
+    
     setIsProcessingWeight(true);
     setExtractedWeight(null);
     setWeightCaptureError(null);
@@ -148,7 +146,7 @@ const ProductDetails = ({
       const formDataObj = new FormData();
       formDataObj.append('image', imageFile);
       formDataObj.append('estimate_number', '');
-      formDataObj.append('item_id', targetItemId);
+      formDataObj.append('item_id', targetItemId || 'unknown');
 
       const response = await axios.post(`${baseURL2}/api/extract-weight-gemini`, formDataObj, {
         headers: { 'Content-Type': 'multipart/form-data' }
@@ -169,7 +167,9 @@ const ProductDetails = ({
 
         // Notify parent component about the captured weight
         if (onCaptureWeight) {
-          onCaptureWeight(targetItemId, weightData);
+          // If we have a targetItemId, use it, otherwise use 'total_weight' as the key
+          const key = targetItemId && targetItemId !== 'unknown' ? targetItemId : 'total_weight';
+          onCaptureWeight(key, weightData);
         }
 
         // Close weight camera after successful capture
@@ -187,6 +187,7 @@ const ProductDetails = ({
               <div style="font-size: 12px; color: #888; margin-top: 5px;">
                 Raw: ${record.raw_text}
               </div>
+              ${!targetItemId || targetItemId === 'unknown' ? '<div style="font-size: 12px; color: #ff9800; margin-top: 5px;">⚠️ No product selected. Weight saved as total weight.</div>' : ''}
             </div>
           `,
           timer: 3000,
@@ -244,16 +245,11 @@ const ProductDetails = ({
   };
 
   // Start weight camera - called from the Capture Weight button
+  // REMOVED the alert - now opens camera regardless of product selection
   const startWeightCamera = () => {
-    // If no product is selected in the form, show alert
-    if (!formData.code) {
-      alert("Please select a product first using the barcode dropdown or scan button.");
-      return;
-    }
-
-    const itemId = currentItemId || formData.code;
+    // Just start the camera - even if no product is selected
+    // If no product is selected, we'll capture and store weight for later assignment
     
-    // Open the camera
     navigator.mediaDevices.getUserMedia({ 
       video: { facingMode: 'environment' } 
     })
@@ -582,31 +578,6 @@ const ProductDetails = ({
         if (packetProducts && packetProducts.length > 0) {
           Swal.close();
 
-
-          // Calculate totals for this packet
-          let totalGrossWeight = 0;
-          let totalPackingWt = 0;
-
-          packetProducts.forEach(product => {
-            const grossWt = parseFloat(product.gross_weight) || 0;
-            totalGrossWeight += grossWt;
-
-            // Get packing_wt from estimatesData
-            const estimateProduct = estimatesData.find(est => est.code === product.code);
-            const packingWt = parseFloat(estimateProduct?.packing_wt) || 0;
-            totalPackingWt += packingWt;
-          });
-
-          // Calculate Total Packing Wt as grossWeight + packingWt
-          const totalPackingWtFinal = totalGrossWeight + totalPackingWt;
-
-          // Set packet totals
-          setPacketTotals({
-            grossWeight: totalGrossWeight,
-            packingWt: totalPackingWtFinal // This will be grossWeight + packingWt
-          });
-
-
           const storedRepairDetails = JSON.parse(localStorage.getItem(`repairDetails_${tabId}`)) || [];
           const existingCodes = new Set(storedRepairDetails.map(item => item.code));
           const newProducts = packetProducts.filter(product => !existingCodes.has(product.code));
@@ -683,7 +654,6 @@ const ProductDetails = ({
               is_packet_selection: true,
               assigned_id: assignedProduct?.assigned_id || null,
               item_id: assignedProduct?.item_id || null,
-              // NEW: Add cover_wt, card_wt, packing_wt
               cover_wt: product.cover_wt || assignedProduct?.cover_wt || "",
               card_wt: product.card_wt || assignedProduct?.card_wt || "",
               packing_wt: product.packing_wt || assignedProduct?.packing_wt || "",
@@ -785,7 +755,7 @@ const ProductDetails = ({
   };
 
   // ================================================================
-  // FIXED: Fetch estimates and filter by Status = "Assigned"
+  // Fetch estimates and filter by Status = "Assigned"
   // ================================================================
   useEffect(() => {
     const fetchEstimates = async () => {
@@ -794,20 +764,17 @@ const ProductDetails = ({
         setEstimatesData(response.data);
 
         const grouped = {};
-        const packetImages = {}; // Store packet images separately
+        const packetImages = {};
 
         response.data.forEach(est => {
           if (est.code && est.packet_barcode) {
-            // Check if this product is assigned to the salesman
             const isAssignedToSalesman = selectedSalesmanProducts.some(
               assigned => assigned.PCode_BarCode === est.code
             );
 
-            // Check status from opening_tags_entry (data prop)
             const tag = data.find(t => t.PCode_BarCode === est.code);
             const isStatusAssigned = tag && tag.Status === "Assigned";
 
-            // Only include products that are assigned AND have status "Assigned"
             if (isAssignedToSalesman && isStatusAssigned) {
               if (!grouped[est.packet_barcode]) {
                 grouped[est.packet_barcode] = [];
@@ -857,15 +824,13 @@ const ProductDetails = ({
                 pur_TotalWeight_AW: est.pur_TotalWeight_AW
               });
 
-              // Store packet image
               if (est.pack_images) {
                 try {
                   const images = JSON.parse(est.pack_images);
                   if (images && images.length > 0) {
-                    packetImages[est.packet_barcode] = images[0]; // Get first image
+                    packetImages[est.packet_barcode] = images[0];
                   }
                 } catch (e) {
-                  // If not JSON, treat as single string
                   packetImages[est.packet_barcode] = est.pack_images;
                 }
               }
@@ -873,8 +838,6 @@ const ProductDetails = ({
           }
         });
         setGroupedPacketProducts(grouped);
-
-        // Store packet images in state or ref for later use
         window.packetImages = packetImages;
 
         console.log("Grouped packet products with Status=Assigned:", grouped);
@@ -884,7 +847,7 @@ const ProductDetails = ({
       }
     };
     fetchEstimates();
-  }, [selectedSalesmanProducts, data]); // Added 'data' as dependency
+  }, [selectedSalesmanProducts, data]);
 
   const getPacketBarcode = (productCode) => {
     if (!estimatesData || !productCode) return null;
@@ -905,9 +868,8 @@ const ProductDetails = ({
     : "";
 
   // ================================================================
-  // FIXED: Barcode options - filter by Status = "Assigned"
+  // Barcode options - filter by Status = "Assigned"
   // ================================================================
-  // Get all assigned products with status "Assigned" from opening_tags_entry
   const assignedProducts = (selectedSalesmanProducts || []).filter(product => {
     const tag = data.find(t => t.PCode_BarCode === product.PCode_BarCode);
     return tag && tag.Status === "Assigned";
@@ -917,7 +879,6 @@ const ProductDetails = ({
   const seenPacketBarcodes = new Set();
   const seenProductCodes = new Set();
 
-  // 1. Add packet barcodes (from groupedPacketProducts, already filtered by status)
   Object.keys(groupedPacketProducts).forEach(packetBarcode => {
     if (!seenPacketBarcodes.has(packetBarcode)) {
       seenPacketBarcodes.add(packetBarcode);
@@ -931,13 +892,11 @@ const ProductDetails = ({
           isEstimated: true,
           products: productsInPacket
         });
-        // Mark products in this packet as seen so they don't appear individually (optional)
         productsInPacket.forEach(p => seenProductCodes.add(p.code));
       }
     }
   });
 
-  // 2. Add ALL assigned products as individual options (regardless of estimate status)
   assignedProducts.forEach((product) => {
     const productCode = product.PCode_BarCode;
     if (!seenProductCodes.has(productCode)) {
@@ -956,7 +915,6 @@ const ProductDetails = ({
     }
   });
 
-  // Remove duplicates (just in case)
   const uniqueBarcodeOptions = [];
   const seenValues = new Set();
   for (const option of barcodeOptions) {
@@ -966,7 +924,6 @@ const ProductDetails = ({
     }
   }
 
-  // Add default barcode if any
   if (defaultBarcode && !uniqueBarcodeOptions.some((option) => option.value === defaultBarcode)) {
     uniqueBarcodeOptions.unshift({ value: defaultBarcode, label: defaultBarcode });
   }
@@ -981,7 +938,6 @@ const ProductDetails = ({
     const selectedOption = uniqueBarcodeOptions.find(opt => opt.value === selectedValue);
 
     if (selectedOption) {
-      // Set packet image if available
       let packetImageUrl = null;
       let totalGrossWeight = 0;
       let totalPackingWt = 0;
@@ -992,30 +948,24 @@ const ProductDetails = ({
           packetImageUrl = `${baseURL2}/uploads/pack-images/${imageFileName}`;
         }
 
-        // Calculate totals for products in this packet
         if (selectedOption.products && selectedOption.products.length > 0) {
           selectedOption.products.forEach(product => {
-            // Get gross_weight - convert to number
             const grossWt = parseFloat(product.gross_weight) || 0;
             totalGrossWeight += grossWt;
 
-            // Get packing_wt from estimatesData for this product
             const estimateProduct = estimatesData.find(est => est.code === product.code);
             const packingWt = parseFloat(estimateProduct?.packing_wt) || 0;
             totalPackingWt += packingWt;
           });
         }
 
-        // Calculate Total Packing Wt as grossWeight + packingWt
         const totalPackingWtFinal = totalGrossWeight + totalPackingWt;
 
-        // Update packet totals
         setPacketTotals({
           grossWeight: totalGrossWeight,
-          packingWt: totalPackingWtFinal // This will be grossWeight + packingWt
+          packingWt: totalPackingWtFinal
         });
       } else {
-        // Reset packet totals if not a packet
         setPacketTotals({ grossWeight: 0, packingWt: 0 });
       }
 
@@ -1063,7 +1013,6 @@ const ProductDetails = ({
             }
           }
 
-          // Get packing_wt from estimatesData
           const estimateProduct = estimatesData.find(est => est.code === product.code);
           const packingWt = estimateProduct?.packing_wt || "";
 
@@ -1174,7 +1123,7 @@ const ProductDetails = ({
       } else {
         setIsPacketAdded(false);
         setPacketImage(null);
-        setPacketTotals({ grossWeight: 0, packingWt: 0 }); // Reset totals
+        setPacketTotals({ grossWeight: 0, packingWt: 0 });
         if (selectedOption.packetBarcode) {
           setFormData(prev => ({
             ...prev,
@@ -1206,6 +1155,8 @@ const ProductDetails = ({
   const handleClear = () => {
     setIsPacketAdded(false);
     setPacketTotals({ grossWeight: 0, packingWt: 0 });
+    setExtractedWeight(null);
+    setWeightCaptureError(null);
     setFormData(prevFormData => ({
       ...prevFormData,
       code: "",
@@ -1252,6 +1203,11 @@ const ProductDetails = ({
       cover_wt: "",
       card_wt: "",
       packing_wt: "",
+      weight_machine_reading: 0,
+      weight_machine_grams: 0,
+      weight_machine_milligrams: 0,
+      weight_machine_confidence: 0,
+      weight_machine_raw: null,
     }));
   };
 
@@ -1361,7 +1317,6 @@ const ProductDetails = ({
     return `${baseURL}/${imagePath}`;
   };
 
-  // Common button height style
   const buttonHeightStyle = {
     height: '38px',
     marginBottom: '8px',
@@ -1379,7 +1334,6 @@ const ProductDetails = ({
   return (
     <Col>
       <Row>
-        {/* ALL IN ONE ROW - Barcode, Scan Buttons, Choose/Capture, Add, Clear */}
         <Col xs={12}>
           <div style={{ 
             display: 'flex', 
@@ -1387,7 +1341,6 @@ const ProductDetails = ({
             gap: '6px',
             flexWrap: 'wrap'
           }}>
-            {/* Barcode field */}
             <div
               style={{
                 flex: "0 0 320px",
@@ -1405,7 +1358,6 @@ const ProductDetails = ({
               />
             </div>
 
-            {/* Scan Barcode Button */}
             <Button
               variant="primary"
               size="sm"
@@ -1421,7 +1373,6 @@ const ProductDetails = ({
               <FaQrcode size={13} /> Scan Barcode
             </Button>
 
-            {/* Scan Packet Button */}
             <Button
               variant="success"
               size="sm"
@@ -1435,27 +1386,25 @@ const ProductDetails = ({
               title="Scan Packet"
             >
               <FaBarcode size={13} /> Scan Packet
-            </Button> 
+            </Button>
 
-             {/* ============= CAPTURE WEIGHT BUTTON ============= */}
-    <Button
-      variant="warning"
-      size="sm"
-      onClick={startWeightCamera}
-      style={{
-        ...buttonHeightStyle,
-        backgroundColor: '#ff9800',
-        borderColor: '#ff9800',
-        color: 'white',
-        gap: '6px',
-        minWidth: '140px',
-      }}
-      title="Capture Weight from Machine"
-    >
-      <FaWeightHanging size={13} /> Capture Weight
-    </Button>
+            <Button
+              variant="warning"
+              size="sm"
+              onClick={startWeightCamera}
+              style={{
+                ...buttonHeightStyle,
+                backgroundColor: '#ff9800',
+                borderColor: '#ff9800',
+                color: 'white',
+                gap: '6px',
+                minWidth: '140px',
+              }}
+              title="Capture Weight from Machine"
+            >
+              <FaWeightHanging size={13} /> Capture Weight
+            </Button>
 
-            {/* Choose/Capture Image Dropdown */}
             <DropdownButton
               id="dropdown-basic-button"
               title="Choose / Capture Image"
@@ -1482,7 +1431,6 @@ const ProductDetails = ({
               )}
             </DropdownButton>
 
-            {/* Add/Update Button */}
             <Button
               onClick={isEditing ? handleUpdate : handleAdd}
               style={{
@@ -1496,7 +1444,6 @@ const ProductDetails = ({
               {isEditing ? "Update" : "Add"}
             </Button>
 
-            {/* Clear Button */}
             <Button
               variant="secondary"
               onClick={handleClear}
@@ -1520,7 +1467,6 @@ const ProductDetails = ({
             />
           </div>
 
-          {/* Webcam and Image Preview */}
           {showWebcam && (
             <div style={{ marginTop: '10px' }}>
               <Webcam
@@ -1570,7 +1516,6 @@ const ProductDetails = ({
             </div>
           )}
 
-          {/* Display Packet Image */}
           {packetImage && (
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '10px' }}>
               <img
@@ -1593,7 +1538,6 @@ const ProductDetails = ({
             </div>
           )}
 
-          {/* Display Packet Totals */}
           {(packetTotals.grossWeight > 0 || packetTotals.packingWt > 0) && (
             <div style={{ marginTop: '10px' }}>
               <div style={{
@@ -1626,7 +1570,6 @@ const ProductDetails = ({
             </div>
           )}
 
-          {/* ============= DISPLAY EXTRACTED WEIGHT INFO ============= */}
           {extractedWeight && (
             <div style={{ marginTop: '10px', padding: '8px 15px', backgroundColor: '#d4edda', border: '1px solid #c3e6cb', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '20px', flexWrap: 'wrap' }}>
               <span style={{ fontWeight: 'bold', color: '#155724' }}>✅ Weight Captured:</span>
@@ -1659,7 +1602,6 @@ const ProductDetails = ({
             </div>
           )}
 
-          {/* ============= WEIGHT CAPTURE ERROR ============= */}
           {weightCaptureError && (
             <div style={{ marginTop: '10px', padding: '8px 15px', backgroundColor: '#f8d7da', border: '1px solid #f5c6cb', borderRadius: '8px', color: '#721c24' }}>
               ⚠️ {weightCaptureError}
@@ -1679,7 +1621,6 @@ const ProductDetails = ({
             </div>
           )}
 
-          {/* ============= PROCESSING INDICATOR ============= */}
           {isProcessingWeight && (
             <div style={{ marginTop: '10px', display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 15px', backgroundColor: '#e3f2fd', borderRadius: '8px' }}>
               <div className="spinner-border spinner-border-sm text-primary" role="status">
@@ -1689,82 +1630,6 @@ const ProductDetails = ({
             </div>
           )}
         </Col>
-
-        {/* Commented out Category field */}
-        {/* 
-        <Col xs={12} md={2} className="d-flex align-items-center">
-          <div style={{ flex: 1 }}>
-            <InputField
-              label="Category"
-              name="category"
-              value={formData.category || ""}
-              type="select"
-              onChange={handleChange}
-              options={categoryOptions}
-              disabled={isPacketAdded}
-            />
-          </div>
-          <AiOutlinePlus
-            size={20}
-            color="black"
-            style={{ marginLeft: "10px", cursor: "pointer", marginBottom: "20px" }}
-            onClick={() => navigate("/itemmaster", { state: { from: `/sales?tabId=${tabId}` } })}
-          />
-        </Col>
-        */}
-
-        {/* Commented out Metal Type field */}
-        {/* 
-        <Col xs={12} md={2}>
-          <InputField
-            label="Metal Type"
-            name="metal_type"
-            value={formData.metal_type || ""}
-            onChange={handleChange}
-            type="select"
-            options={metaltypeOptions}
-            disabled={isPacketAdded}
-          />
-        </Col>
-        */}
-
-        {/* Commented out Sub Category field */}
-        {/* 
-        <Col xs={12} md={2} className="d-flex align-items-center">
-          <div style={{ flex: 1 }}>
-            <InputField
-              label="Sub Category"
-              name="product_name"
-              value={formData.product_name || ""}
-              onChange={handleChange}
-              type="select"
-              options={subcategoryOptions}
-              disabled={isPacketAdded}
-            />
-          </div>
-          <AiOutlinePlus
-            size={20}
-            color="black"
-            style={{ marginLeft: "10px", cursor: "pointer", marginBottom: "20px" }}
-            onClick={() => navigate("/subcategory", { state: { from: `/sales?tabId=${tabId}`, metal_type: formData.metal_type } })}
-          />
-        </Col>
-        */}
-
-        {/* Commented out Product Design Name field */}
-        {/* 
-        <Col xs={12} md={2}>
-          <InputField
-            label="Product Design Name"
-            name="design_name"
-            value={formData.design_name}
-            onChange={handleChange}
-            type="select"
-            options={designOptions}
-            disabled={isPacketAdded}
-          />
-        </Col>
-        */}
 
         {isByFixed ? (
           <>
@@ -1783,7 +1648,6 @@ const ProductDetails = ({
         )}
       </Row>
 
-      {/* Product Barcode Scanner Modal */}
       <Modal show={showScanner} onHide={stopScanner} centered>
         <Modal.Header closeButton>
           <Modal.Title>Scan Product Barcode</Modal.Title>
@@ -1798,7 +1662,6 @@ const ProductDetails = ({
         </Modal.Footer>
       </Modal>
 
-      {/* Packet Barcode Scanner Modal */}
       <Modal show={showPacketScanner} onHide={stopPacketScanner} centered>
         <Modal.Header closeButton>
           <Modal.Title>Scan Packet Barcode</Modal.Title>
@@ -1813,7 +1676,6 @@ const ProductDetails = ({
         </Modal.Footer>
       </Modal>
 
-      {/* ============= WEIGHT CAMERA MODAL ============= */}
       <Modal show={showWeightCamera} onHide={stopWeightCamera} centered size="lg">
         <Modal.Header closeButton>
           <Modal.Title>Capture Weight Machine Display</Modal.Title>
@@ -1856,54 +1718,8 @@ const ProductDetails = ({
             {isProcessingWeight ? 'Processing...' : 'Capture & Extract Weight'}
           </Button>
         </Modal.Footer>
-      </Modal> 
+      </Modal>
 
-      {/* ============= WEIGHT CAMERA MODAL ============= */}
-<Modal show={showWeightCamera} onHide={stopWeightCamera} centered size="lg">
-  <Modal.Header closeButton>
-    <Modal.Title>Capture Weight Machine Display</Modal.Title>
-  </Modal.Header>
-  <Modal.Body style={{ textAlign: 'center' }}>
-    <video 
-      ref={weightVideoRef} 
-      autoPlay 
-      playsInline 
-      style={{ 
-        width: '100%', 
-        maxHeight: '400px', 
-        objectFit: 'contain' 
-      }} 
-    />
-    <canvas ref={weightCanvasRef} style={{ display: 'none' }} />
-    <p className="mt-2 text-muted">
-      Point the camera at the weight machine display to capture and extract the weight using Gemini AI
-    </p>
-    <p className="text-muted" style={{ fontSize: '12px' }}>
-      Or use the "Upload Weight" button below to select an image from your device
-    </p>
-    <Button 
-      variant="outline-secondary" 
-      size="sm" 
-      onClick={triggerWeightFileUpload}
-      style={{ marginTop: '5px' }}
-    >
-      📤 Upload Weight Image
-    </Button>
-  </Modal.Body>
-  <Modal.Footer>
-    <Button variant="secondary" onClick={stopWeightCamera}>Cancel</Button>
-    <Button 
-      variant="primary" 
-      onClick={captureWeightImage} 
-      disabled={isProcessingWeight}
-      style={{ backgroundColor: '#28a745', borderColor: '#28a745' }}
-    >
-      {isProcessingWeight ? 'Processing...' : 'Capture & Extract Weight'}
-    </Button>
-  </Modal.Footer>
-</Modal>
-
-      {/* Hidden file input for weight upload */}
       <input
         ref={weightFileInputRef}
         type="file"
