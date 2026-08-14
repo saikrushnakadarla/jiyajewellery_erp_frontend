@@ -440,60 +440,69 @@ function StockNavbar() {
               </div>
 
               {/* Stock Outward Sub-Dropdown */}
-              <div
-                className="stock-navbar-sub-dropdown"
-                onMouseEnter={() => setOutwardSubDropdownOpen(true)}
-                onMouseLeave={() => setOutwardSubDropdownOpen(false)}
-              >
+              
                 <div
-                  className="stock-navbar-sub-dropdown-title"
-                  onClick={toggleOutwardSubDropdown}
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    padding: "0.7rem 1.5rem",
-                    color: isSubActive(["/return-to-main-stock", "/assign-to-salesman"])
-                      ? "#a36e29"
-                      : "#333",
-                    fontWeight: isSubActive(["/return-to-main-stock", "/assign-to-salesman"])
-                      ? "bold"
-                      : "normal",
-                  }}
+                  className="stock-navbar-sub-dropdown"
+                  onMouseEnter={() => setOutwardSubDropdownOpen(true)}
+                  onMouseLeave={() => setOutwardSubDropdownOpen(false)}
                 >
-                  Stock Outward
-                  <FontAwesomeIcon
-                    icon={faChevronRight}
-                    className="stock-sub-arrow-icon"
-                  />
-                </div>
-                <div
-                  className={`stock-navbar-sub-dropdown-content ${
-                    outwardSubDropdownOpen ? "show-mobile" : ""
-                  }`}
-                  style={{
-                    display:
-                      outwardSubDropdownOpen && window.innerWidth <= 768
-                        ? "block"
-                        : "",
-                  }}
-                >
-                  <Link
-                    to="/return-to-main-stock"
-                    onClick={handleItemClick}
-                    className={isActive("/return-to-main-stock")}
+                  <div
+                    className="stock-navbar-sub-dropdown-title"
+                    onClick={toggleOutwardSubDropdown}
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      padding: "0.7rem 1.5rem",
+                      color: isSubActive(["/return-to-main-stock-old-items", "/add-return-to-main-stock-old-items", "/outward-old-barcodes", "/return-to-main-stock", "/assign-to-salesman"])
+                        ? "#a36e29"
+                        : "#333",
+                      fontWeight: isSubActive(["/return-to-main-stock-old-items", "/add-return-to-main-stock-old-items", "/outward-old-barcodes", "/return-to-main-stock", "/assign-to-salesman"])
+                        ? "bold"
+                        : "normal",
+                    }}
                   >
-                    Outward to Main Admin
-                  </Link>
-                  <Link
-                    to="/assign-to-salesman"
-                    onClick={handleItemClick}
-                    className={isActive("/assign-to-salesman")}
+                    Stock Outward
+                    <FontAwesomeIcon
+                      icon={faChevronRight}
+                      className="stock-sub-arrow-icon"
+                    />
+                  </div>
+                  <div
+                    className={`stock-navbar-sub-dropdown-content ${
+                      outwardSubDropdownOpen ? "show-mobile" : ""
+                    }`}
+                    style={{
+                      display:
+                        outwardSubDropdownOpen && window.innerWidth <= 768
+                          ? "block"
+                          : "",
+                    }}
                   >
-                    Outward to Salesman (Assign)
-                  </Link>
+                    {/* Outward to Main Admin (Old Barcodes) */}
+                    <Link
+                      to="/return-to-main-stock-old-items"
+                      onClick={handleItemClick}
+                      className={isActive("/return-to-main-stock-old-items")}
+                    >
+                      Outward to Main Admin (Old)
+                    </Link>
+                    <Link
+                      to="/return-to-main-stock"
+                      onClick={handleItemClick}
+                      className={isActive("/return-to-main-stock")}
+                    >
+                      Outward to Main Admin
+                    </Link>
+                    <Link
+                      to="/assign-to-salesman"
+                      onClick={handleItemClick}
+                      className={isActive("/assign-to-salesman")}
+                    >
+                      Outward to Salesman (Assign)
+                    </Link>
+                  </div>
                 </div>
-              </div>
             </div>
           )}
         </div>
@@ -527,6 +536,12 @@ function StockNavbar() {
           )}
           {location.pathname === "/add-receive-from-salesman" && (
             <h1 className="stock-path-heading">ADD INWARD FROM SALESMAN</h1>
+          )}
+          {location.pathname === "/return-to-main-stock-old-items" && (
+            <h1 className="stock-path-heading">OUTWARD TO MAIN ADMIN (OLD)</h1>
+          )}
+            {location.pathname === "/add-return-to-main-stock-old-items" && (
+            <h1 className="stock-path-heading">ADD OUTWARD TO MAIN ADMIN (OLD)</h1>
           )}
           {location.pathname === "/return-to-main-stock" && (
             <h1 className="stock-path-heading">OUTWARD TO MAIN ADMIN</h1>

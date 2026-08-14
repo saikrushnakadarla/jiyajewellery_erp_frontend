@@ -501,7 +501,7 @@ function Customer_Master() {
           <Row>
             <Col md={3}>
               <InputField
-                label="Trade / Customer Name"
+                label="Customer Name"
                 name="account_name"
                 value={formData.account_name}
                 onChange={handleChange}
@@ -511,7 +511,7 @@ function Customer_Master() {
             </Col>
             <Col md={3}>
               <InputField
-                label="Print Name"
+                label="Company Name"
                 name="print_name"
                 value={formData.print_name}
                 onChange={handleChange}

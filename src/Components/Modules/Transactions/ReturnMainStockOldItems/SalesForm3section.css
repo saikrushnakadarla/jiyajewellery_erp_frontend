@@ -1,0 +1,20 @@
+.custom-button {
+    color: white;
+    border: 1px solid transparent;
+    transition: background-color 0.3s, border-color 0.3s;
+  }
+  
+  .custom-button.active {
+    background-color: rgb(163, 110, 41);
+    border-color: rgb(163, 110, 41);
+  }
+  
+  .custom-button.inactive {
+    background-color: gray;
+    border-color: gray;
+  }
+  
+  .custom-button + .custom-button {
+    margin-left: 8px; /* Adds spacing between buttons */
+  }
+  

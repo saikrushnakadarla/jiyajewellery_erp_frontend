@@ -85,8 +85,15 @@ import AssignSalesmanTable from "./Components/Modules/Transactions/AssignedSales
 import AssignSalesmanForm from "./Components/Modules/Transactions/AssignedSalesman/AssignedSalesManForm";
 import ReceivedSalesmanTable from "./Components/Modules/Transactions/ReceivedFromSalesman/ReceivedSalesmanTable";
 import ReceivedSalesmanForm from "./Components/Modules/Transactions/ReceivedFromSalesman/ReceivedSalesmanForm"
+
 import ReturnMainStockTable from "./Components/Modules/Transactions/ReturnMainStock/ReturnMainStockTable";
 import ReturnMainStockForm from "./Components/Modules/Transactions/ReturnMainStock/ReturnMainStockForm";
+
+
+import ReturnMainStockOldItemsTable from "./Components/Modules/Transactions/ReturnMainStockOldItems/ReturnMainStockOldItemsTable";
+import ReturnMainStockOldItemsForm from "./Components/Modules/Transactions/ReturnMainStockOldItems/ReturnMainStockOldItemsForm";
+
+
 import QRCodePrinting from "./Components/Modules/Masters/QRCodePrinting/QRCodePrinting";
 import QRCodeNavbar from "./Navbar/QRCodeNavbar";
 import StockInward from "./Components/Modules/Transactions/StockInward/StockInward"; // Adjust the import path
@@ -121,7 +128,9 @@ function App() {
     location.pathname === "/stock-inward" ||
      location.pathname === "/visit-logs-salesman-schedule" ||
      location.pathname === "/warehouse-stock-respective-items" ||
-       location.pathname === "/day-book" 
+      location.pathname === "/day-book" ||
+       location.pathname === "/return-to-main-stock-old-items" ||
+    location.pathname === "/add-return-to-main-stock-old-items"
 
 
   const isERPModule = location.pathname === "/qrcodeprinting";
@@ -241,6 +250,10 @@ function App() {
 
           <Route path="/return-to-main-stock" element={<ReturnMainStockTable />} />
           <Route path="/add-return-to-main-stock" element={<ReturnMainStockForm />} />
+
+
+          <Route path="/return-to-main-stock-old-items" element={<ReturnMainStockOldItemsTable />} />
+          <Route path="/add-return-to-main-stock-old-items" element={<ReturnMainStockOldItemsForm />} />
 
 
           <Route path="/qrcodeprinting" exact element={<QRCodePrinting />} />
