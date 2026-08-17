@@ -843,43 +843,24 @@ const handlePacketBarcodeScanSuccess = async (decodedText) => {
     ? products.find((product) => product.product_name === formData.category)?.rbarcode || ""
     : "";
 
-  // ============= FIXED: Build barcode options =============
+  // ============= FIXED: Build barcode options - ONLY UNSELECTED PRODUCTS =============
   const buildBarcodeOptions = () => {
     const options = [];
-    const seenPacketBarcodes = new Set();
 
     console.log("======= BUILDING BARCODE OPTIONS =======");
     console.log("selectedSalesmanProducts length:", selectedSalesmanProducts?.length);
-    console.log("selectedSalesmanProducts:", selectedSalesmanProducts);
 
-    // First, add packet barcode options (products with packet barcode from estimates)
-    Object.keys(groupedPacketProducts).forEach(packetBarcode => {
-      if (!seenPacketBarcodes.has(packetBarcode)) {
-        seenPacketBarcodes.add(packetBarcode);
-        const productsInPacket = groupedPacketProducts[packetBarcode];
-        if (productsInPacket && productsInPacket.length > 0) {
-          options.push({
-            value: packetBarcode,
-            label: `${packetBarcode} (${productsInPacket.length} products)`,
-            type: "packet",
-            packetBarcode: packetBarcode,
-            isEstimated: true,
-            products: productsInPacket
-          });
-        }
-      }
-    });
-
-    // Then, add individual assigned products
+    // Only add individual assigned products that DO NOT have a packet barcode
+    // These are the "Unselected" products
     if (selectedSalesmanProducts && selectedSalesmanProducts.length > 0) {
       selectedSalesmanProducts.forEach((product) => {
-        // Skip if product doesn't have a PCode_BarCode
         if (!product || !product.PCode_BarCode) return;
         
         const packetBarcode = getPacketBarcode(product.PCode_BarCode);
         const isEstimated = hasEstimate(product.PCode_BarCode);
 
-        // Only add if not already added as a packet or if it doesn't have a packet barcode
+        // ===== CRITICAL: Only add products WITHOUT packet barcode (Unselected) =====
+        // Skip products that already have a packet barcode (Selected)
         if (!isEstimated || !packetBarcode) {
           const existingOption = options.find(opt => opt.value === product.PCode_BarCode);
           if (!existingOption) {
@@ -893,12 +874,13 @@ const handlePacketBarcodeScanSuccess = async (decodedText) => {
               products: [product]
             });
           }
+        } else {
+          console.log(`⏭️ Skipping product ${product.PCode_BarCode} - already has packet barcode: ${packetBarcode} (Selected)`);
         }
       });
     }
 
-    console.log("Generated options count:", options.length);
-    console.log("Options:", options);
+    console.log("Generated options count (Unselected only):", options.length);
     console.log("========================================");
 
     return options;
@@ -948,7 +930,8 @@ const handlePacketBarcodeScanSuccess = async (decodedText) => {
       return;
     }
 
-    // Handle packet selection
+    // Handle packet selection - REMOVED: We no longer show packet options in dropdown
+    // This code is kept for reference but will not be executed since we don't add packet options
     if (selectedOption.type === "packet" && selectedOption.products && selectedOption.products.length > 0) {
       let packetImageUrl = null;
       let totalGrossWeight = 0;

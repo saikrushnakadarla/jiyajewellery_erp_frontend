@@ -79,8 +79,8 @@ const ProductTable = ({
               const hasPacketBarcode = detail.packet_barcode && detail.packet_barcode !== '';
               const displayPacketBarcode = detail.packet_barcode || 
                                           (detail.is_packet_selection ? 'Packet Selection' : null);
-              // Determine barcode status
-              const barcodeStatus = detail.barcode_status || (hasPacketBarcode ? 'Selected' : 'Unselected');
+              // ===== FIXED: ALWAYS SHOW UNSELECTED =====
+              const barcodeStatus = 'Unselected';
               const itemId = detail.item_id || detail.code;
               const hasWeightData = hasWeight(itemId);
               
@@ -113,15 +113,16 @@ const ProductTable = ({
                     )}
                   </td>
                   <td>
+                    {/* ===== FIXED: ALWAYS SHOW UNSELECTED ===== */}
                     <span style={{
                       padding: "2px 8px",
                       borderRadius: "12px",
                       fontSize: "11px",
                       fontWeight: "bold",
-                      backgroundColor: barcodeStatus === 'Selected' ? '#d4edda' : '#f8d7da',
-                      color: barcodeStatus === 'Selected' ? '#155724' : '#721c24'
+                      backgroundColor: '#f8d7da',
+                      color: '#721c24'
                     }}>
-                      {barcodeStatus}
+                      Unselected
                     </span>
                   </td>
                   <td>{detail.product_name || detail.sub_category}</td>
@@ -234,7 +235,7 @@ const ProductTable = ({
               <Col md={4}>
                 <p><strong>BarCode:</strong> {selectedDetail.code}</p>
                 <p><strong>Packet Barcode:</strong> {selectedDetail.packet_barcode || 'N/A'}</p>
-                <p><strong>Barcode Status:</strong> {selectedDetail.barcode_status || 'Unselected'}</p>
+                <p><strong>Barcode Status:</strong> Unselected</p>
                 <p><strong>Metal:</strong> {selectedDetail.metal_type}</p>
                 <p><strong>Pricing:</strong> {selectedDetail.pricing}</p>
                 <p><strong>Weight BW:</strong> {selectedDetail.weight_bw}</p>
