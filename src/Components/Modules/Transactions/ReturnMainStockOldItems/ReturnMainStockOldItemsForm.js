@@ -55,6 +55,9 @@ const ReturnMainStockForm = () => {
     JSON.parse(localStorage.getItem("schemeSalesData")) || [],
   );
 
+  // ============= LOADING STATE =============
+  const [isStockLoading, setIsStockLoading] = useState(false);
+
   // Save to localStorage whenever data changes
   useEffect(() => {
     localStorage.setItem("oldSalesData", JSON.stringify(oldSalesData));
@@ -64,237 +67,259 @@ const ReturnMainStockForm = () => {
     localStorage.setItem("schemeSalesData", JSON.stringify(schemeSalesData));
   }, [schemeSalesData]);
 
-
+  // Set loggedInUserId once on mount (kept for use elsewhere in the component)
   useEffect(() => {
-  const userId = localStorage.getItem('userId');
-  if (userId) {
-    setLoggedInUserId(parseInt(userId));
-    console.log("Logged in User ID:", parseInt(userId));
-  }
-}, []);
+    const userId = localStorage.getItem('userId');
+    if (userId) {
+      setLoggedInUserId(parseInt(userId));
+      console.log("Logged in User ID:", parseInt(userId));
+    }
+  }, []);
 
-// Add this fetch function after your other useEffect hooks
-useEffect(() => {
-  const fetchEstimates = async () => {
+  // Add this fetch function after your other useEffect hooks
+  useEffect(() => {
+    const fetchEstimates = async () => {
+      try {
+        // Use baseURL for ERP (port 5001)
+        const response = await axios.get(`${baseURL}/get/estimates`);
+        console.log("Estimates data fetched:", response.data);
+        setEstimatesData(response.data);
+        
+        // Create a map of product codes to their packet barcode and estimate data
+        const estMap = {};
+        response.data.forEach(est => {
+          if (est.code) {
+            estMap[est.code] = {
+              packetBarcode: est.packet_barcode || null,
+              estimateId: est.estimate_id,
+              estimateNumber: est.estimate_number,
+              status: est.estimate_status
+            };
+          }
+        });
+        setEstimatedProducts(estMap);
+        console.log("Estimated products map:", estMap);
+      } catch (error) {
+        console.error("Error fetching estimates:", error);
+      }
+    };
+    
+    fetchEstimates();
+  }, []);
+
+  // Function to fetch image from received_salesman_items for a given barcode
+  const fetchImageForBarcode = async (barcode) => {
     try {
-      // Use baseURL for ERP (port 5001)
-      const response = await axios.get(`${baseURL}/get/estimates`);
-      console.log("Estimates data fetched:", response.data);
-      setEstimatesData(response.data);
+      // First check if we already have the image in selectedSalesmanProducts
+      const existingProduct = selectedSalesmanProducts.find(
+        p => p.PCode_BarCode === barcode
+      );
+      if (existingProduct && existingProduct.image) {
+        return existingProduct.image;
+      }
       
-      // Create a map of product codes to their packet barcode and estimate data
-      const estMap = {};
-      response.data.forEach(est => {
-        if (est.code) {
-          estMap[est.code] = {
-            packetBarcode: est.packet_barcode || null,
-            estimateId: est.estimate_id,
-            estimateNumber: est.estimate_number,
-            status: est.estimate_status
-          };
+      // If not, fetch from received_salesman_items - using baseURL2 for Jiya Jewellery (port 5000)
+      const response = await axios.get(`${baseURL2}/api/received-salesman/get-received-transfers`);
+      const transfers = response.data || [];
+      
+      // Look through all transfers for items with this barcode
+      for (const transfer of transfers) {
+        try {
+          const detailResponse = await axios.get(`${baseURL2}/api/received-salesman/get-received-transfer/${transfer.received_id}`);
+          const items = detailResponse.data?.transfer_items || [];
+          const foundItem = items.find(item => item.PCode_BarCode === barcode);
+          if (foundItem && foundItem.image) {
+            return foundItem.image;
+          }
+        } catch (e) {
+          console.error("Error fetching transfer details:", e);
+          continue;
         }
-      });
-      setEstimatedProducts(estMap);
-      console.log("Estimated products map:", estMap);
+      }
+      return null;
     } catch (error) {
-      console.error("Error fetching estimates:", error);
+      console.error("Error fetching image for barcode:", error);
+      return null;
     }
   };
-  
-  fetchEstimates();
-}, []);
 
-// Function to fetch image from received_salesman_items for a given barcode
-const fetchImageForBarcode = async (barcode) => {
-  try {
-    // First check if we already have the image in selectedSalesmanProducts
-    const existingProduct = selectedSalesmanProducts.find(
-      p => p.PCode_BarCode === barcode
-    );
-    if (existingProduct && existingProduct.image) {
-      return existingProduct.image;
-    }
-    
-    // If not, fetch from received_salesman_items - using baseURL2 for Jiya Jewellery (port 5000)
-    const response = await axios.get(`${baseURL2}/api/received-salesman/get-received-transfers`);
-    const transfers = response.data || [];
-    
-    // Look through all transfers for items with this barcode
-    for (const transfer of transfers) {
+  // ===== FIXED: Single, race-free stock fetch =====
+  // Reads userId directly from localStorage instead of waiting on loggedInUserId state
+  // so it never runs twice with null value.
+  useEffect(() => {
+    const currentUserId = localStorage.getItem('userId');
+    if (!currentUserId) return;
+
+    let cancelled = false;
+
+    const fetchStockWithEstimates = async () => {
+      setIsStockLoading(true);
       try {
-        const detailResponse = await axios.get(`${baseURL2}/api/received-salesman/get-received-transfer/${transfer.received_id}`);
-        const items = detailResponse.data?.transfer_items || [];
-        const foundItem = items.find(item => item.PCode_BarCode === barcode);
-        if (foundItem && foundItem.image) {
-          return foundItem.image;
+        // Fetch stock data from baseURL (ERP - port 5001)
+        const stockResponse = await fetch(`${baseURL}/get/opening-tags-entry`);
+        if (!stockResponse.ok) {
+          throw new Error("Failed to fetch stock entries");
         }
-      } catch (e) {
-        console.error("Error fetching transfer details:", e);
-        continue;
-      }
-    }
-    return null;
-  } catch (error) {
-    console.error("Error fetching image for barcode:", error);
-    return null;
-  }
-};
-
-// ===== FIXED: Fetch stock from baseURL (ERP - port 5001) with proper filtering =====
-useEffect(() => {
-  const fetchStockWithEstimates = async () => {
-    try {
-      // Fetch stock data from baseURL (ERP - port 5001)
-      const stockResponse = await fetch(`${baseURL}/get/opening-tags-entry`);
-      if (!stockResponse.ok) {
-        throw new Error("Failed to fetch stock entries");
-      }
-      const stockData = await stockResponse.json();
-      
-      let stockDataFiltered = stockData.result || [];
-      
-      // Get logged-in user details from localStorage
-      const loggedInUserId = localStorage.getItem('userId');
-      const loggedInUserName = localStorage.getItem('userName') || '';
-      
-      console.log("========== FETCH STOCK DEBUG ==========");
-      console.log("Logged in User ID:", loggedInUserId);
-      console.log("Logged in User Name:", loggedInUserName);
-      console.log("Total items from API:", stockDataFiltered.length);
-      
-      // Log all Status values to see what's available
-      const statuses = [...new Set(stockDataFiltered.map(item => item.Status))];
-      console.log("All Status values in data:", statuses);
-      
-      // Log all Stock_Point values
-      const stockPoints = [...new Set(stockDataFiltered.map(item => item.Stock_Point))];
-      console.log("All Stock_Point values in data:", stockPoints);
-      
-      // ===== FIXED: Filter based on Status="Available" AND user_id matches logged-in user =====
-      // AND Stock_Point matches logged-in user name
-      let filteredStock = stockDataFiltered.filter(item => {
-        // Check if Status is "Available"
-        const isAvailable = item.Status === "Available";
+        const stockData = await stockResponse.json();
         
-        // Check if user_id matches logged-in user
-        const userIdMatch = loggedInUserId && item.user_id === parseInt(loggedInUserId);
+        let stockDataFiltered = stockData.result || [];
         
-        // Check if Stock_Point matches logged-in user name
-        const stockPointMatch = item.Stock_Point === loggedInUserName;
+        // Get logged-in user details from localStorage
+        const loggedInUserName = localStorage.getItem('userName') || '';
         
-        // For debugging
-        if (isAvailable) {
-          console.log(`Item ${item.PCode_BarCode}: Status=${item.Status}, user_id=${item.user_id}, Stock_Point=${item.Stock_Point}`);
-          console.log(`  userIdMatch: ${userIdMatch}, stockPointMatch: ${stockPointMatch}`);
-        }
+        console.log("========== FETCH STOCK DEBUG ==========");
+        console.log("Logged in User ID:", currentUserId);
+        console.log("Logged in User Name:", loggedInUserName);
+        console.log("Total items from API:", stockDataFiltered.length);
         
-        return isAvailable && userIdMatch && stockPointMatch;
-      });
-      
-      // If no results with exact match, try case-insensitive for Stock_Point
-      if (filteredStock.length === 0 && loggedInUserName) {
-        console.log("Trying case-insensitive match for Stock_Point...");
-        filteredStock = stockDataFiltered.filter(item => {
+        // Log all Status values to see what's available
+        const statuses = [...new Set(stockDataFiltered.map(item => item.Status))];
+        console.log("All Status values in data:", statuses);
+        
+        // Log all Stock_Point values
+        const stockPoints = [...new Set(stockDataFiltered.map(item => item.Stock_Point))];
+        console.log("All Stock_Point values in data:", stockPoints);
+        
+        // ===== FIXED: Filter based on Status="Available" AND user_id matches logged-in user =====
+        // AND Stock_Point matches logged-in user name
+        let filteredStock = stockDataFiltered.filter(item => {
+          // Check if Status is "Available"
           const isAvailable = item.Status === "Available";
-          const userIdMatch = loggedInUserId && item.user_id === parseInt(loggedInUserId);
-          const stockPointMatch = item.Stock_Point?.toLowerCase() === loggedInUserName.toLowerCase();
+          
+          // Check if user_id matches logged-in user
+          const userIdMatch = item.user_id === parseInt(currentUserId);
+          
+          // Check if Stock_Point matches logged-in user name
+          const stockPointMatch = item.Stock_Point === loggedInUserName;
+          
+          // For debugging
+          if (isAvailable) {
+            console.log(`Item ${item.PCode_BarCode}: Status=${item.Status}, user_id=${item.user_id}, Stock_Point=${item.Stock_Point}`);
+            console.log(`  userIdMatch: ${userIdMatch}, stockPointMatch: ${stockPointMatch}`);
+          }
+          
           return isAvailable && userIdMatch && stockPointMatch;
         });
-        console.log("Case-insensitive match results:", filteredStock.length);
-      }
-      
-      console.log("Final filtered Stock Data:", filteredStock);
-      
-      // ===== Fetch estimates data from baseURL (ERP - port 5001) to get packet barcodes =====
-      const estResponse = await axios.get(`${baseURL}/get/estimates`);
-      const estData = estResponse.data || [];
-      
-      // Create a map of product codes to packet barcode
-      const estMap = {};
-      estData.forEach(est => {
-        if (est.code && est.packet_barcode) {
-          estMap[est.code] = {
-            packetBarcode: est.packet_barcode,
-            estimateId: est.estimate_id,
-            estimateNumber: est.estimate_number,
-            status: est.estimate_status,
-            customer_name: est.customer_name
-          };
+        
+        // If no results with exact match, try case-insensitive for Stock_Point
+        if (filteredStock.length === 0 && loggedInUserName) {
+          console.log("Trying case-insensitive match for Stock_Point...");
+          filteredStock = stockDataFiltered.filter(item => {
+            const isAvailable = item.Status === "Available";
+            const userIdMatch = item.user_id === parseInt(currentUserId);
+            const stockPointMatch = item.Stock_Point?.toLowerCase() === loggedInUserName.toLowerCase();
+            return isAvailable && userIdMatch && stockPointMatch;
+          });
+          console.log("Case-insensitive match results:", filteredStock.length);
         }
-      });
-      setEstimatedProducts(estMap);
-      
-      // ===== Fetch images for each product from received_salesman_items =====
-      const productsWithImages = [];
-      for (const item of filteredStock) {
-        const imagePath = await fetchImageForBarcode(item.PCode_BarCode);
-        productsWithImages.push({
-          ...item,
-          image: imagePath,
-          packetBarcode: estMap[item.PCode_BarCode]?.packetBarcode || null,
-          isEstimated: !!estMap[item.PCode_BarCode]?.packetBarcode,
-          estimateInfo: estMap[item.PCode_BarCode] || null
+        
+        console.log("Final filtered Stock Data:", filteredStock);
+        
+        // ===== Fetch estimates data from baseURL (ERP - port 5001) to get packet barcodes =====
+        const estResponse = await axios.get(`${baseURL}/get/estimates`);
+        const estData = estResponse.data || [];
+        
+        // Create a map of product codes to packet barcode
+        const estMap = {};
+        estData.forEach(est => {
+          if (est.code && est.packet_barcode) {
+            estMap[est.code] = {
+              packetBarcode: est.packet_barcode,
+              estimateId: est.estimate_id,
+              estimateNumber: est.estimate_number,
+              status: est.estimate_status,
+              customer_name: est.customer_name
+            };
+          }
         });
+        setEstimatedProducts(estMap);
+        
+        // ===== FIXED: Fetch images in PARALLEL (not sequential) =====
+        console.log(`Fetching images for ${filteredStock.length} items in parallel...`);
+        const imagePromises = filteredStock.map(async (item) => {
+          try {
+            const imagePath = await fetchImageForBarcode(item.PCode_BarCode);
+            return {
+              ...item,
+              image: imagePath,
+              packetBarcode: estMap[item.PCode_BarCode]?.packetBarcode || null,
+              isEstimated: !!estMap[item.PCode_BarCode]?.packetBarcode,
+              estimateInfo: estMap[item.PCode_BarCode] || null
+            };
+          } catch (err) {
+            console.error(`Error fetching image for ${item.PCode_BarCode}:`, err);
+            return {
+              ...item,
+              image: null,
+              packetBarcode: estMap[item.PCode_BarCode]?.packetBarcode || null,
+              isEstimated: !!estMap[item.PCode_BarCode]?.packetBarcode,
+              estimateInfo: estMap[item.PCode_BarCode] || null
+            };
+          }
+        });
+
+        const productsWithImages = await Promise.all(imagePromises);
+        
+        if (cancelled) return;
+        
+        console.log("Combined stock with estimate data and images:", productsWithImages);
+        
+        // ===== Extract unique barcodes for dropdown =====
+        const uniqueBarcodes = [...new Map(productsWithImages.map(item => 
+          [item.PCode_BarCode, { 
+            PCode_BarCode: item.PCode_BarCode, 
+            product_name: item.product_Name || item.sub_category || "",
+            product_id: item.product_id,
+            metal_type: item.metal_type,
+            purity: item.Purity,
+            category: item.category,
+            sub_category: item.sub_category,
+            design_name: item.design_master || "",
+            qty: item.pcs || 1,
+            gross_weight: item.Gross_Weight,
+            stone_weight: item.Stones_Weight,
+            net_weight: item.Weight_BW,
+            rate: item.rate,
+            making_charges: item.Making_Charges,
+            stone_price: item.Stones_Price,
+            total_price: item.total_price,
+            assigned_id: item.opentag_id,
+            item_id: item.opentag_id,
+            status: item.Status,
+            stock_point: item.Stock_Point,
+            user_id: item.user_id,
+            packetBarcode: estMap[item.PCode_BarCode]?.packetBarcode || null,
+            isEstimated: !!estMap[item.PCode_BarCode]?.packetBarcode,
+            image: item.image || null,
+            cover_wt: item.Cover_Wt || 0,
+            card_wt: item.Card_Wt || 0,
+            packing_wt: item.Packing_Wt || 0,
+          }
+        ])).values()];
+        
+        console.log("Unique Barcodes for dropdown:", uniqueBarcodes.length);
+        console.log("========== END DEBUG ==========");
+        
+        setSelectedSalesmanProducts(uniqueBarcodes);
+        setStock(productsWithImages);
+        
+      } catch (error) {
+        console.error("Error fetching stock entries:", error);
+        // Don't wipe a previously-good list on a transient error
+        setSelectedSalesmanProducts(prev => (prev && prev.length ? prev : []));
+        setStock(prev => (prev && prev.length ? prev : []));
+      } finally {
+        if (!cancelled) setIsStockLoading(false);
       }
-      
-      console.log("Combined stock with estimate data and images:", productsWithImages);
-      
-      // ===== Extract unique barcodes for dropdown =====
-      // Only show items with Status = "Available"
-      const uniqueBarcodes = [...new Map(productsWithImages.map(item => 
-        [item.PCode_BarCode, { 
-          PCode_BarCode: item.PCode_BarCode, 
-          product_name: item.product_Name || item.sub_category || "",
-          product_id: item.product_id,
-          metal_type: item.metal_type,
-          purity: item.Purity,
-          category: item.category,
-          sub_category: item.sub_category,
-          design_name: item.design_master || "",
-          qty: item.pcs || 1,
-          gross_weight: item.Gross_Weight,
-          stone_weight: item.Stones_Weight,
-          net_weight: item.Weight_BW,
-          rate: item.rate,
-          making_charges: item.Making_Charges,
-          stone_price: item.Stones_Price,
-          total_price: item.total_price,
-          assigned_id: item.opentag_id,
-          item_id: item.opentag_id,
-          status: item.Status,
-          stock_point: item.Stock_Point,
-          user_id: item.user_id,
-          packetBarcode: estMap[item.PCode_BarCode]?.packetBarcode || null,
-          isEstimated: !!estMap[item.PCode_BarCode]?.packetBarcode,
-          image: item.image || null,
-          cover_wt: item.Cover_Wt || 0,
-          card_wt: item.Card_Wt || 0,
-          packing_wt: item.Packing_Wt || 0,
-        }
-      ])).values()];
-      
-      console.log("Unique Barcodes for dropdown:", uniqueBarcodes.length, uniqueBarcodes.map(b => ({ 
-        code: b.PCode_BarCode, 
-        hasImage: !!b.image,
-        cover_wt: b.cover_wt,
-        card_wt: b.card_wt,
-        packing_wt: b.packing_wt
-      })));
-      
-      // ===== CRITICAL FIX: Set the selectedSalesmanProducts state =====
-      setSelectedSalesmanProducts(uniqueBarcodes);
-      setStock(productsWithImages);
-      console.log("========== END DEBUG ==========");
-      
-    } catch (error) {
-      console.error("Error fetching stock entries:", error);
-      setStock([]);
-      setSelectedSalesmanProducts([]);
-    }
-  };
-  
-  fetchStockWithEstimates();
-}, [loggedInUserId]);
+    };
+
+    fetchStockWithEstimates();
+
+    // Cleanup function to prevent state updates if component unmounts
+    return () => {
+      cancelled = true;
+    };
+  }, [loggedInUserId]); // Keep dependency for compatibility with existing code
 
   // const [paymentDetails, setPaymentDetails] = useState(
   //   JSON.parse(localStorage.getItem('paymentDetails')) || {
@@ -307,60 +332,59 @@ useEffect(() => {
   //   }
   // );
 
-
   const fetchAssignedProductsBySalesman = async (salesmanId) => {
-  if (!salesmanId) {
-    setAssignedProducts([]);
-    setSelectedSalesmanProducts([]);
-    return;
-  }
-  
-  try {
-    console.log("Fetching assigned products for salesman ID:", salesmanId);
-    // Use baseURL2 for Jiya Jewellery (port 5000)
-    const response = await axios.get(`${baseURL2}/api/assigned-salesman/get-assigned-products-by-salesman`, {
-      params: { salesman_id: salesmanId }
-    });
+    if (!salesmanId) {
+      setAssignedProducts([]);
+      setSelectedSalesmanProducts([]);
+      return;
+    }
     
-    console.log("Assigned products fetched:", response.data);
-    setAssignedProducts(response.data);
-    
-    // Extract unique PCode_BarCode values for dropdown
-    const uniqueBarcodes = [...new Map(response.data.map(item => 
-      [item.PCode_BarCode, { 
-        PCode_BarCode: item.PCode_BarCode, 
-        product_name: item.product_name,
-        product_id: item.product_id,
-        metal_type: item.metal_type,
-        purity: item.purity,
-        category: item.category,
-        sub_category: item.sub_category,
-        design_name: item.design_name,
-        qty: item.qty,
-        gross_weight: item.gross_weight,
-        stone_weight: item.stone_weight,
-        net_weight: item.net_weight,
-        rate: item.rate,
-        making_charges: item.making_charges,
-        stone_price: item.stone_price,
-        total_price: item.total_price,
-        assigned_id: item.assigned_id,
-        item_id: item.item_id,
-        image: item.image || null // Include image from assigned products
-      }
-    ])).values()];
-    
-    setSelectedSalesmanProducts(uniqueBarcodes);
-    return response.data;
-  } catch (error) {
-    console.error("Error fetching assigned products by salesman:", error);
-    setAssignedProducts([]);
-    setSelectedSalesmanProducts([]);
-    return [];
-  }
-};
+    try {
+      console.log("Fetching assigned products for salesman ID:", salesmanId);
+      // Use baseURL2 for Jiya Jewellery (port 5000)
+      const response = await axios.get(`${baseURL2}/api/assigned-salesman/get-assigned-products-by-salesman`, {
+        params: { salesman_id: salesmanId }
+      });
+      
+      console.log("Assigned products fetched:", response.data);
+      setAssignedProducts(response.data);
+      
+      // Extract unique PCode_BarCode values for dropdown
+      const uniqueBarcodes = [...new Map(response.data.map(item => 
+        [item.PCode_BarCode, { 
+          PCode_BarCode: item.PCode_BarCode, 
+          product_name: item.product_name,
+          product_id: item.product_id,
+          metal_type: item.metal_type,
+          purity: item.purity,
+          category: item.category,
+          sub_category: item.sub_category,
+          design_name: item.design_name,
+          qty: item.qty,
+          gross_weight: item.gross_weight,
+          stone_weight: item.stone_weight,
+          net_weight: item.net_weight,
+          rate: item.rate,
+          making_charges: item.making_charges,
+          stone_price: item.stone_price,
+          total_price: item.total_price,
+          assigned_id: item.assigned_id,
+          item_id: item.item_id,
+          image: item.image || null // Include image from assigned products
+        }
+      ])).values()];
+      
+      setSelectedSalesmanProducts(uniqueBarcodes);
+      return response.data;
+    } catch (error) {
+      console.error("Error fetching assigned products by salesman:", error);
+      setAssignedProducts([]);
+      setSelectedSalesmanProducts([]);
+      return [];
+    }
+  };
 
-// ===== CALL useProductHandlers HERE (before using formData in useEffect) =====
+  // ===== CALL useProductHandlers HERE (before using formData in useEffect) =====
   const {
     formData,
     setFormData,
@@ -403,17 +427,15 @@ useEffect(() => {
     manualTotalPriceRef,
   } = useProductHandlers(selectedSalesmanProducts);
 
-// Add useEffect to watch for salesman selection and fetch products
-useEffect(() => {
-  if (formData.salesman_id) {
-    fetchAssignedProductsBySalesman(formData.salesman_id);
-  } else {
-    setAssignedProducts([]);
-    setSelectedSalesmanProducts([]);
-  }
-}, [formData.salesman_id]);
-
-
+  // Add useEffect to watch for salesman selection and fetch products
+  useEffect(() => {
+    if (formData.salesman_id) {
+      fetchAssignedProductsBySalesman(formData.salesman_id);
+    } else {
+      setAssignedProducts([]);
+      setSelectedSalesmanProducts([]);
+    }
+  }, [formData.salesman_id]);
 
   // const {
   //   formData,
@@ -493,33 +515,33 @@ useEffect(() => {
   }, []);
 
   // ✅ ADD THIS: Fetch next transfer number on component mount - displays automatically
-// ✅ FIX THIS: Fetch next assigned number from assigned-salesman API
-// Replace this useEffect (it's fetching assigned number, not received number)
-useEffect(() => {
-  const fetchNextReturnNumber = async () => {
-    try {
-      // Use return-to-main-stock API - use baseURL (ERP - port 5001)
-      const response = await axios.get(`${baseURL}/api/return-to-main-stock/lastReturnNumber`);
-      const nextNumber = response.data.lastReturnNumber;
-      console.log("Next Return Number to display:", nextNumber);
-      setFormData((prev) => ({
-        ...prev,
-        return_number: nextNumber,
-        transfer_number: nextNumber,
-      }));
-    } catch (error) {
-      console.error("Error fetching next return number:", error);
-      // Set default if API fails
-      setFormData((prev) => ({
-        ...prev,
-        return_number: "RTN001",
-        transfer_number: "RTN001",
-      }));
-    }
-  };
+  // ✅ FIX THIS: Fetch next assigned number from assigned-salesman API
+  // Replace this useEffect (it's fetching assigned number, not received number)
+  useEffect(() => {
+    const fetchNextReturnNumber = async () => {
+      try {
+        // Use return-to-main-stock API - use baseURL (ERP - port 5001)
+        const response = await axios.get(`${baseURL}/api/return-to-main-stock/lastReturnNumber`);
+        const nextNumber = response.data.lastReturnNumber;
+        console.log("Next Return Number to display:", nextNumber);
+        setFormData((prev) => ({
+          ...prev,
+          return_number: nextNumber,
+          transfer_number: nextNumber,
+        }));
+      } catch (error) {
+        console.error("Error fetching next return number:", error);
+        // Set default if API fails
+        setFormData((prev) => ({
+          ...prev,
+          return_number: "RTN001",
+          transfer_number: "RTN001",
+        }));
+      }
+    };
 
-  fetchNextReturnNumber();
-}, []);
+    fetchNextReturnNumber();
+  }, []);
 
   // Fetch stock points for dropdown
   useEffect(() => {
@@ -538,46 +560,45 @@ useEffect(() => {
     fetchStockPoints();
   }, []);
 
-
   // Add this function to ReceivedSalesmanForm.js
-const fetchAssignedProducts = async (stockPointId) => {
-  try {
-    const loggedInUserId = localStorage.getItem('userId');
-    
-    if (!stockPointId) {
-      console.log("No stock point selected");
-      return;
-    }
-    
-    if (!loggedInUserId) {
-      console.log("No logged-in user found");
-      return;
-    }
-    
-    // Use baseURL2 for Jiya Jewellery (port 5000)
-    const response = await axios.get(`${baseURL2}/api/assigned-salesman/get-assigned-products`, {
-      params: {
-        from_stock_point_id: stockPointId,
-        from_user_id: loggedInUserId
+  const fetchAssignedProducts = async (stockPointId) => {
+    try {
+      const loggedInUserId = localStorage.getItem('userId');
+      
+      if (!stockPointId) {
+        console.log("No stock point selected");
+        return;
       }
-    });
-    
-    console.log("Fetched assigned products:", response.data);
-    
-    // Extract all unique PCode_BarCode values
-    const barcodeList = response.data.map(item => item.PCode_BarCode).filter(Boolean);
-    console.log("Available Barcodes:", barcodeList);
-    
-    // You can also get the full product details
-    const productsList = response.data;
-    console.log("Full product details:", productsList);
-    
-    return { barcodes: barcodeList, products: productsList };
-  } catch (error) {
-    console.error("Error fetching assigned products:", error);
-    return { barcodes: [], products: [] };
-  }
-};
+      
+      if (!loggedInUserId) {
+        console.log("No logged-in user found");
+        return;
+      }
+      
+      // Use baseURL2 for Jiya Jewellery (port 5000)
+      const response = await axios.get(`${baseURL2}/api/assigned-salesman/get-assigned-products`, {
+        params: {
+          from_stock_point_id: stockPointId,
+          from_user_id: loggedInUserId
+        }
+      });
+      
+      console.log("Fetched assigned products:", response.data);
+      
+      // Extract all unique PCode_BarCode values
+      const barcodeList = response.data.map(item => item.PCode_BarCode).filter(Boolean);
+      console.log("Available Barcodes:", barcodeList);
+      
+      // You can also get the full product details
+      const productsList = response.data;
+      console.log("Full product details:", productsList);
+      
+      return { barcodes: barcodeList, products: productsList };
+    } catch (error) {
+      console.error("Error fetching assigned products:", error);
+      return { barcodes: [], products: [] };
+    }
+  };
 
   // Handle Active Stock Point Selection
   const handleActiveStockPointChange = (e) => {
@@ -1246,93 +1267,93 @@ const fetchAssignedProducts = async (stockPointId) => {
     fetchEstimate();
   }, []);
 
-// In AssignedSalesmanForm.js - this is already correct (no Stock_Point filter)
-// useEffect(() => {
-//   const fetchStock = async () => {
-//     try {
-//       const response = await fetch(`${baseURL}/get/opening-tags-entry`);
-//       if (!response.ok) {
-//         throw new Error("Failed to fetch stock entries");
-//       }
-//       const data = await response.json();
-      
-//       let stockData = data.result || [];
-      
-//       // Filter based on logged-in user ID
-//       if (loggedInUserId) {
-//         stockData = stockData.filter(item => 
-//           item.Status === "Available" && 
-//           item.user_id === loggedInUserId
-//           // Removed Stock_Point filter - now fetch from all stock points
-//         );
-//       } else {
-//         // If no logged-in user, only show Available items
-//         stockData = stockData.filter(item => item.Status === "Available");
-//       }
-      
-//       console.log("Filtered Stock Data by user_id (all stock points):", stockData);
-//       setStock(stockData);
-//     } catch (error) {
-//       console.error("Error fetching stock entries:", error);
-//       setStock([]);
-//     }
-//   };
-  
-//   fetchStock();
-// }, [loggedInUserId]);
+  // In AssignedSalesmanForm.js - this is already correct (no Stock_Point filter)
+  // useEffect(() => {
+  //   const fetchStock = async () => {
+  //     try {
+  //       const response = await fetch(`${baseURL}/get/opening-tags-entry`);
+  //       if (!response.ok) {
+  //         throw new Error("Failed to fetch stock entries");
+  //       }
+  //       const data = await response.json();
+  //       
+  //       let stockData = data.result || [];
+  //       
+  //       // Filter based on logged-in user ID
+  //       if (loggedInUserId) {
+  //         stockData = stockData.filter(item => 
+  //           item.Status === "Available" && 
+  //           item.user_id === loggedInUserId
+  //           // Removed Stock_Point filter - now fetch from all stock points
+  //         );
+  //       } else {
+  //         // If no logged-in user, only show Available items
+  //         stockData = stockData.filter(item => item.Status === "Available");
+  //       }
+  //       
+  //       console.log("Filtered Stock Data by user_id (all stock points):", stockData);
+  //       setStock(stockData);
+  //     } catch (error) {
+  //       console.error("Error fetching stock entries:", error);
+  //       setStock([]);
+  //     }
+  //   };
+  //   
+  //   fetchStock();
+  // }, [loggedInUserId]);
 
   const fetchEstimateDetails = async (estimate_number) => {
-  if (!estimate_number) return;
+    if (!estimate_number) return;
 
-  try {
-    // Use baseURL2 for Jiya Jewellery (port 5000)
-    const response = await axios.get(
-      `${baseURL2}/get-estimates/${estimate_number}`,
-    );
-
-    setEstimateDetails(response.data);
-
-    if (!stock) {
-      console.warn("Stock data not yet available!");
-      return;
-    }
-
-    // Filter only matching repeatedData items with Status Available and matching user_id
-    const filteredData = response.data.repeatedData
-      .filter((item) =>
-        stock.some(
-          (stockItem) =>
-            stockItem.PCode_BarCode === item.code &&
-            stockItem.Status === "Available" &&
-            (loggedInUserId ? stockItem.user_id === loggedInUserId : true)
-        ),
-      )
-      .map((item) => ({
-        ...item,
-        transfer_number: formData.transfer_number,
-        transaction_status: "Stock Transfer",
-        date: formData.date,
-      }));
-
-    if (filteredData.length > 0) {
-      localStorage.setItem(
-        `repairDetails_${tabId}`,
-        JSON.stringify(filteredData),
+    try {
+      // Use baseURL2 for Jiya Jewellery (port 5000)
+      const response = await axios.get(
+        `${baseURL2}/get-estimates/${estimate_number}`,
       );
-      setRepairDetails(filteredData);
-      const storedData = JSON.parse(
-        localStorage.getItem(`repairDetails_${tabId}`),
-      );
-      console.log("Stored repairDetails from estimate:", storedData);
-    } else {
-      localStorage.removeItem(`repairDetails_${tabId}`);
-      setRepairDetails([]);
-      console.log("No matching data found for estimate. LocalStorage cleared.");
+
+      setEstimateDetails(response.data);
+
+      if (!stock) {
+        console.warn("Stock data not yet available!");
+        return;
+      }
+
+      // Filter only matching repeatedData items with Status Available and matching user_id
+      const filteredData = response.data.repeatedData
+        .filter((item) =>
+          stock.some(
+            (stockItem) =>
+              stockItem.PCode_BarCode === item.code &&
+              stockItem.Status === "Available" &&
+              (loggedInUserId ? stockItem.user_id === loggedInUserId : true)
+          ),
+        )
+        .map((item) => ({
+          ...item,
+          transfer_number: formData.transfer_number,
+          transaction_status: "Stock Transfer",
+          date: formData.date,
+        }));
+
+      if (filteredData.length > 0) {
+        localStorage.setItem(
+          `repairDetails_${tabId}`,
+          JSON.stringify(filteredData),
+        );
+        setRepairDetails(filteredData);
+        const storedData = JSON.parse(
+          localStorage.getItem(`repairDetails_${tabId}`),
+        );
+        console.log("Stored repairDetails from estimate:", storedData);
+      } else {
+        localStorage.removeItem(`repairDetails_${tabId}`);
+        setRepairDetails([]);
+        console.log("No matching data found for estimate. LocalStorage cleared.");
+      }
+    } catch (error) {
+      console.error("Error fetching selected estimate details:", error);
     }
-  } catch (error) {
-    console.error("Error fetching selected estimate details:", error);
-  }
-};
+  };
 
   const handleEstimateChange = (e) => {
     const selectedValue = e.target.value;
@@ -1419,49 +1440,49 @@ const fetchAssignedProducts = async (stockPointId) => {
   };
 
   const fetchOrderDetails = async (order_number) => {
-  try {
-    // Use baseURL2 for Jiya Jewellery (port 5000)
-    const response = await axios.get(
-      `${baseURL2}/get-order-details/${order_number}`,
-    );
-
-    // Filter only matching repeatedData items with Status Available and matching user_id
-    const filteredData = response.data.repeatedData
-      .filter((item) => {
-        const stockItem = stock?.find(s => s.PCode_BarCode === item.code);
-        return stockItem && 
-               stockItem.Status === "Available" &&
-               (loggedInUserId ? stockItem.user_id === loggedInUserId : true);
-      })
-      .map((item) => ({
-        ...item,
-        transfer_number: formData.transfer_number,
-        transaction_status: "Stock Transfer",
-        date: formData.date,
-        invoice: "Converted",
-      }));
-
-    if (filteredData.length > 0) {
-      localStorage.setItem(
-        `repairDetails_${tabId}`,
-        JSON.stringify(filteredData),
+    try {
+      // Use baseURL2 for Jiya Jewellery (port 5000)
+      const response = await axios.get(
+        `${baseURL2}/get-order-details/${order_number}`,
       );
-      setRepairDetails(filteredData);
-      setAutoEditIndex(0);
-      const storedData = JSON.parse(
-        localStorage.getItem(`repairDetails_${tabId}`),
-      );
-      console.log("Stored repairDetails from order:", storedData);
-      return filteredData;
-    } else {
-      localStorage.removeItem(`repairDetails_${tabId}`);
-      setRepairDetails([]);
-      console.log("No matching data found for order. LocalStorage cleared.");
+
+      // Filter only matching repeatedData items with Status Available and matching user_id
+      const filteredData = response.data.repeatedData
+        .filter((item) => {
+          const stockItem = stock?.find(s => s.PCode_BarCode === item.code);
+          return stockItem && 
+                 stockItem.Status === "Available" &&
+                 (loggedInUserId ? stockItem.user_id === loggedInUserId : true);
+        })
+        .map((item) => ({
+          ...item,
+          transfer_number: formData.transfer_number,
+          transaction_status: "Stock Transfer",
+          date: formData.date,
+          invoice: "Converted",
+        }));
+
+      if (filteredData.length > 0) {
+        localStorage.setItem(
+          `repairDetails_${tabId}`,
+          JSON.stringify(filteredData),
+        );
+        setRepairDetails(filteredData);
+        setAutoEditIndex(0);
+        const storedData = JSON.parse(
+          localStorage.getItem(`repairDetails_${tabId}`),
+        );
+        console.log("Stored repairDetails from order:", storedData);
+        return filteredData;
+      } else {
+        localStorage.removeItem(`repairDetails_${tabId}`);
+        setRepairDetails([]);
+        console.log("No matching data found for order. LocalStorage cleared.");
+      }
+    } catch (error) {
+      console.error("Error fetching selected order details:", error);
     }
-  } catch (error) {
-    console.error("Error fetching selected order details:", error);
-  }
-};
+  };
 
   const handleOrderChange = (e) => {
     const selectedValue = e.target.value;
@@ -1539,77 +1560,77 @@ const fetchAssignedProducts = async (stockPointId) => {
     fetchRepairs();
   }, []);
 
- const fetchRepairDetails = async (repair) => {
-  try {
-    const storageKey = `repairDetails_${tabId}`;
+  const fetchRepairDetails = async (repair) => {
+    try {
+      const storageKey = `repairDetails_${tabId}`;
 
-    // First check if the repair item exists in stock with matching user_id
-    const stockItem = stock?.find(s => s.PCode_BarCode === repair.code);
-    
-    if (!stockItem || stockItem.Status !== "Available" || 
-        (loggedInUserId && stockItem.user_id !== loggedInUserId)) {
-      alert("This repair item is not available for transfer or doesn't belong to you");
+      // First check if the repair item exists in stock with matching user_id
+      const stockItem = stock?.find(s => s.PCode_BarCode === repair.code);
+      
+      if (!stockItem || stockItem.Status !== "Available" || 
+          (loggedInUserId && stockItem.user_id !== loggedInUserId)) {
+        alert("This repair item is not available for transfer or doesn't belong to you");
+        return null;
+      }
+
+      // Create new filtered entry with necessary fields
+      const filteredData = [
+        {
+          sub_category: repair.item,
+          product_name: repair.item,
+          customer_id: repair.customer_id,
+          account_name: repair.account_name,
+          mobile: repair.mobile,
+          email: repair.email,
+          address1: repair.address1,
+          address2: repair.address2,
+          city: repair.city,
+          metal_type: repair.metal_type,
+          purity: repair.purity,
+          category: repair.category,
+          gross_weight: "1",
+          stone_weight: "0",
+          stone_price: "0",
+          weight_bw: "0",
+          va_on: "Gross Weight",
+          va_percent: "0",
+          wastage_weight: "0",
+          total_weight_av: "1",
+          mc_on: "MC %",
+          disscount_percentage: "0",
+          disscount: "0",
+          mc_per_gram: "0",
+          making_charges: "0",
+          printing_purity: repair.purity,
+          selling_purity: repair.purity,
+          qty: repair.qty,
+          total_price: repair.total_amt,
+          repair_no: repair.repair_no,
+          transfer_number: formData.transfer_number,
+          transaction_status: "Stock Transfer",
+          date: formData.date,
+          invoice: "Converted",
+          rate: repair.total_amt,
+          tax_percent: "0",
+          tax_amt: "0",
+          hm_charges: "0",
+          code: repair.code, // Add the barcode code
+        },
+      ];
+
+      localStorage.setItem(storageKey, JSON.stringify(filteredData));
+      setRepairDetails(filteredData);
+      setAutoEditIndex(0);
+
+      const storedData = JSON.parse(localStorage.getItem(storageKey));
+      console.log("Stored repairDetails (Repairs):", storedData);
+
+      return filteredData;
+    } catch (error) {
+      console.error("Error fetching repair details:", error);
       return null;
     }
-
-    // Create new filtered entry with necessary fields
-    const filteredData = [
-      {
-        sub_category: repair.item,
-        product_name: repair.item,
-        customer_id: repair.customer_id,
-        account_name: repair.account_name,
-        mobile: repair.mobile,
-        email: repair.email,
-        address1: repair.address1,
-        address2: repair.address2,
-        city: repair.city,
-        metal_type: repair.metal_type,
-        purity: repair.purity,
-        category: repair.category,
-        gross_weight: "1",
-        stone_weight: "0",
-        stone_price: "0",
-        weight_bw: "0",
-        va_on: "Gross Weight",
-        va_percent: "0",
-        wastage_weight: "0",
-        total_weight_av: "1",
-        mc_on: "MC %",
-        disscount_percentage: "0",
-        disscount: "0",
-        mc_per_gram: "0",
-        making_charges: "0",
-        printing_purity: repair.purity,
-        selling_purity: repair.purity,
-        qty: repair.qty,
-        total_price: repair.total_amt,
-        repair_no: repair.repair_no,
-        transfer_number: formData.transfer_number,
-        transaction_status: "Stock Transfer",
-        date: formData.date,
-        invoice: "Converted",
-        rate: repair.total_amt,
-        tax_percent: "0",
-        tax_amt: "0",
-        hm_charges: "0",
-        code: repair.code, // Add the barcode code
-      },
-    ];
-
-    localStorage.setItem(storageKey, JSON.stringify(filteredData));
-    setRepairDetails(filteredData);
-    setAutoEditIndex(0);
-
-    const storedData = JSON.parse(localStorage.getItem(storageKey));
-    console.log("Stored repairDetails (Repairs):", storedData);
-
-    return filteredData;
-  } catch (error) {
-    console.error("Error fetching repair details:", error);
-    return null;
-  }
-};
+  };
 
   const handleRepairCheckboxChange = async (e, repair_no) => {
     const isChecked = e.target.checked;
@@ -1691,129 +1712,128 @@ const fetchAssignedProducts = async (stockPointId) => {
   //   localStorage.setItem(`repairDetails_${tabId}`, JSON.stringify(updatedRepairDetails));
   // };
 
-const handleAdd = () => {
-  // Check if the selected product has Status = "Available" and matches the logged-in user's stock point
-  const selectedStockItem = stock?.find(s => s.PCode_BarCode === formData.code);
-  
-  if (selectedStockItem) {
-    if (selectedStockItem.Status !== "Available") {
-      alert("This product is not available for transfer (Status: " + selectedStockItem.Status + ")");
+  const handleAdd = () => {
+    // Check if the selected product has Status = "Available" and matches the logged-in user's stock point
+    const selectedStockItem = stock?.find(s => s.PCode_BarCode === formData.code);
+    
+    if (selectedStockItem) {
+      if (selectedStockItem.Status !== "Available") {
+        alert("This product is not available for transfer (Status: " + selectedStockItem.Status + ")");
+        return;
+      }
+      const loggedInUserName = localStorage.getItem('userName') || '';
+      if (loggedInUserName && selectedStockItem.Stock_Point !== loggedInUserName) {
+        alert("This product does not belong to your warehouse point");
+        return;
+      }
+    } else {
+      alert("This product is not available for transfer or has already been selected");
       return;
     }
-    const loggedInUserName = localStorage.getItem('userName') || '';
-    if (loggedInUserName && selectedStockItem.Stock_Point !== loggedInUserName) {
-      alert("This product does not belong to your warehouse point");
+
+    const storedRepairDetails = JSON.parse(localStorage.getItem(`repairDetails_${tabId}`)) || [];
+
+    // Check for duplicate
+    const isDuplicate = storedRepairDetails.some(
+      (item) => item.code === formData.code
+    );
+
+    if (isDuplicate) {
+      alert("This product has already been added");
       return;
     }
-  } else {
-    alert("This product is not available for transfer or has already been selected");
-    return;
-  }
 
-  const storedRepairDetails = JSON.parse(localStorage.getItem(`repairDetails_${tabId}`)) || [];
-
-  // Check for duplicate
-  const isDuplicate = storedRepairDetails.some(
-    (item) => item.code === formData.code
-  );
-
-  if (isDuplicate) {
-    alert("This product has already been added");
-    return;
-  }
-
-  // Get image from selectedSalesmanProducts if available
-  const assignedProduct = selectedSalesmanProducts.find(
-    p => p.PCode_BarCode === formData.code
-  );
-  
-  let imageToSave = formData.image || null;
-  let imagePreviewToSave = formData.imagePreview || null;
-  
-  if (!imageToSave && assignedProduct?.image) {
-    imageToSave = assignedProduct.image;
-    if (imageToSave) {
-      if (imageToSave.startsWith('http://') || imageToSave.startsWith('https://')) {
-        imagePreviewToSave = imageToSave;
-      } else if (imageToSave.startsWith('/')) {
-        imagePreviewToSave = `${baseURL2}${imageToSave}`;
-      } else {
-        imagePreviewToSave = `${baseURL2}/${imageToSave}`;
+    // Get image from selectedSalesmanProducts if available
+    const assignedProduct = selectedSalesmanProducts.find(
+      p => p.PCode_BarCode === formData.code
+    );
+    
+    let imageToSave = formData.image || null;
+    let imagePreviewToSave = formData.imagePreview || null;
+    
+    if (!imageToSave && assignedProduct?.image) {
+      imageToSave = assignedProduct.image;
+      if (imageToSave) {
+        if (imageToSave.startsWith('http://') || imageToSave.startsWith('https://')) {
+          imagePreviewToSave = imageToSave;
+        } else if (imageToSave.startsWith('/')) {
+          imagePreviewToSave = `${baseURL2}${imageToSave}`;
+        } else {
+          imagePreviewToSave = `${baseURL2}/${imageToSave}`;
+        }
       }
     }
-  }
 
-  // Get captured weight for this barcode
-  const barcode = formData.code;
-  const capturedWeight = capturedWeights[barcode];
+    // Get captured weight for this barcode
+    const barcode = formData.code;
+    const capturedWeight = capturedWeights[barcode];
 
-  // ===== CRITICAL: Get packet_barcode from formData =====
-  const packetBarcode = formData.packet_barcode || null;
-  const isPacketSelection = formData.is_packet_selection || false;
+    // ===== CRITICAL: Get packet_barcode from formData =====
+    const packetBarcode = formData.packet_barcode || null;
+    const isPacketSelection = formData.is_packet_selection || false;
 
-  console.log("📦 Adding product with packet_barcode:", packetBarcode);
+    console.log("📦 Adding product with packet_barcode:", packetBarcode);
 
-  const updatedRepairDetails = [
-    ...repairDetails,
-    {
-      ...formData,
-      pieace_cost:
-        formData.pieace_cost && parseFloat(formData.pieace_cost) > 0
-          ? parseFloat(formData.pieace_cost).toFixed(2)
-          : null,
-      rate:
-        formData.rate && parseFloat(formData.rate) > 0
-          ? parseFloat(formData.rate).toFixed(2)
-          : "",
-      imagePreview: imagePreviewToSave || formData.imagePreview,
-      image: imageToSave || formData.image,
-      is_packet_selection: isPacketSelection,
-      packet_barcode: packetBarcode,  // ✅ Ensure this is passed
-      cover_wt: formData.cover_wt || "0",
-      card_wt: formData.card_wt || "0",
-      packing_wt: formData.packing_wt || "0",
-      // ===== WEIGHT MACHINE FIELDS =====
-      weight_machine_reading: parseFloat(formData.weight_machine_reading) || capturedWeight?.total_grams || 0,
-      weight_machine_grams: parseInt(formData.weight_machine_grams) || capturedWeight?.grams || 0,
-      weight_machine_milligrams: parseInt(formData.weight_machine_milligrams) || capturedWeight?.milligrams || 0,
-      weight_machine_confidence: parseInt(formData.weight_machine_confidence) || capturedWeight?.confidence || 0,
-      weight_machine_raw: formData.weight_machine_raw || capturedWeight?.raw_text || null,
-    },
-  ];
+    const updatedRepairDetails = [
+      ...repairDetails,
+      {
+        ...formData,
+        pieace_cost:
+          formData.pieace_cost && parseFloat(formData.pieace_cost) > 0
+            ? parseFloat(formData.pieace_cost).toFixed(2)
+            : null,
+        rate:
+          formData.rate && parseFloat(formData.rate) > 0
+            ? parseFloat(formData.rate).toFixed(2)
+            : "",
+        imagePreview: imagePreviewToSave || formData.imagePreview,
+        image: imageToSave || formData.image,
+        is_packet_selection: isPacketSelection,
+        packet_barcode: packetBarcode,  // ✅ Ensure this is passed
+        cover_wt: formData.cover_wt || "0",
+        card_wt: formData.card_wt || "0",
+        packing_wt: formData.packing_wt || "0",
+        // ===== WEIGHT MACHINE FIELDS =====
+        weight_machine_reading: parseFloat(formData.weight_machine_reading) || capturedWeight?.total_grams || 0,
+        weight_machine_grams: parseInt(formData.weight_machine_grams) || capturedWeight?.grams || 0,
+        weight_machine_milligrams: parseInt(formData.weight_machine_milligrams) || capturedWeight?.milligrams || 0,
+        weight_machine_confidence: parseInt(formData.weight_machine_confidence) || capturedWeight?.confidence || 0,
+        weight_machine_raw: formData.weight_machine_raw || capturedWeight?.raw_text || null,
+      },
+    ];
 
-  setRepairDetails(updatedRepairDetails);
-  localStorage.setItem(
-    `repairDetails_${tabId}`,
-    JSON.stringify(updatedRepairDetails),
-  );
+    setRepairDetails(updatedRepairDetails);
+    localStorage.setItem(
+      `repairDetails_${tabId}`,
+      JSON.stringify(updatedRepairDetails),
+    );
 
-  // ===== CRITICAL: Keep packet_barcode when clearing form =====
-  // Save the packet_barcode before resetting
-  const currentPacketBarcode = formData.packet_barcode;
-  const currentIsPacketSelection = formData.is_packet_selection;
+    // ===== CRITICAL: Keep packet_barcode when clearing form =====
+    const currentPacketBarcode = formData.packet_barcode;
+    const currentIsPacketSelection = formData.is_packet_selection;
 
-  setFormData((prevData) => ({
-    ...prevData,
-    disscount: "",
-    disscount_percentage: "",
-    pieace_cost: "",
-    imagePreview: null,
-    sale_status: "Delivered",
-    piece_taxable_amt: "",
-    festival_discount: "",
-    // Clear weight fields from form after adding
-    weight_machine_reading: 0,
-    weight_machine_grams: 0,
-    weight_machine_milligrams: 0,
-    weight_machine_confidence: 0,
-    weight_machine_raw: null,
-    // ===== KEEP packet_barcode so it persists for next product =====
-    packet_barcode: currentPacketBarcode,
-    is_packet_selection: currentIsPacketSelection,
-  }));
+    setFormData((prevData) => ({
+      ...prevData,
+      disscount: "",
+      disscount_percentage: "",
+      pieace_cost: "",
+      imagePreview: null,
+      sale_status: "Delivered",
+      piece_taxable_amt: "",
+      festival_discount: "",
+      // Clear weight fields from form after adding
+      weight_machine_reading: 0,
+      weight_machine_grams: 0,
+      weight_machine_milligrams: 0,
+      weight_machine_confidence: 0,
+      weight_machine_raw: null,
+      // ===== KEEP packet_barcode so it persists for next product =====
+      packet_barcode: currentPacketBarcode,
+      is_packet_selection: currentIsPacketSelection,
+    }));
 
-  resetProductFields();
-};
+    resetProductFields();
+  };
 
   const handleEdit = (index) => {
     setEditIndex(index);
@@ -1853,64 +1873,64 @@ const handleAdd = () => {
     }
   };
 
-const resetProductFields = () => {
-  // Get current packet_barcode before resetting
-  const currentPacketBarcode = formData.packet_barcode;
-  const currentIsPacketSelection = formData.is_packet_selection;
+  const resetProductFields = () => {
+    // Get current packet_barcode before resetting
+    const currentPacketBarcode = formData.packet_barcode;
+    const currentIsPacketSelection = formData.is_packet_selection;
 
-  setFormData((prev) => ({
-    ...prev,
-    code: "",
-    product_id: "",
-    metal: "",
-    product_name: "",
-    metal_type: "",
-    design_name: "",
-    purity: "",
-    selling_purity: "",
-    printing_purity: "",
-    category: "",
-    sub_category: "",
-    gross_weight: "",
-    stone_weight: "",
-    weight_bw: "",
-    stone_price: "",
-    va_on: "Gross Weight",
-    va_percent: "",
-    wastage_weight: "",
-    total_weight_av: "",
-    mc_on: "MC %",
-    mc_per_gram: "",
-    making_charges: "",
-    disscount_percentage: "",
-    disscount: "",
-    rate: "",
-    rate_amt: "",
-    pricing: "By Weight",
-    tax_percent: "03% GST",
-    tax_amt: "",
-    hm_charges: "60.00",
-    total_price: "",
-    qty: "",
-    imagePreview: null,
-    remarks: "",
-    sale_status: "Delivered",
-    piece_taxable_amt: "",
-    festival_discount: "",
-    cover_wt: "",
-    card_wt: "",
-    packing_wt: "",
-    weight_machine_reading: 0,
-    weight_machine_grams: 0,
-    weight_machine_milligrams: 0,
-    weight_machine_confidence: 0,
-    weight_machine_raw: null,
-    // ===== PRESERVE packet_barcode =====
-    packet_barcode: currentPacketBarcode,
-    is_packet_selection: currentIsPacketSelection,
-  }));
-};
-
+    setFormData((prev) => ({
+      ...prev,
+      code: "",
+      product_id: "",
+      metal: "",
+      product_name: "",
+      metal_type: "",
+      design_name: "",
+      purity: "",
+      selling_purity: "",
+      printing_purity: "",
+      category: "",
+      sub_category: "",
+      gross_weight: "",
+      stone_weight: "",
+      weight_bw: "",
+      stone_price: "",
+      va_on: "Gross Weight",
+      va_percent: "",
+      wastage_weight: "",
+      total_weight_av: "",
+      mc_on: "MC %",
+      mc_per_gram: "",
+      making_charges: "",
+      disscount_percentage: "",
+      disscount: "",
+      rate: "",
+      rate_amt: "",
+      pricing: "By Weight",
+      tax_percent: "03% GST",
+      tax_amt: "",
+      hm_charges: "60.00",
+      total_price: "",
+      qty: "",
+      imagePreview: null,
+      remarks: "",
+      sale_status: "Delivered",
+      piece_taxable_amt: "",
+      festival_discount: "",
+      // Reset weight fields
+      cover_wt: "",
+      card_wt: "",
+      packing_wt: "",
+      weight_machine_reading: 0,
+      weight_machine_grams: 0,
+      weight_machine_milligrams: 0,
+      weight_machine_confidence: 0,
+      weight_machine_raw: null,
+      // ===== PRESERVE packet_barcode =====
+      packet_barcode: currentPacketBarcode,
+      is_packet_selection: currentIsPacketSelection,
+    }));
+  };
 
   // Calculate totalPrice (sum of total_price from all repairDetails)
   const totalPrice = repairDetails.reduce(
@@ -1928,39 +1948,39 @@ const resetProductFields = () => {
     return savedData ? JSON.parse(savedData) : [];
   });
 
-const resetForm = () => {
-  setFormData({
-    customer_id: "",
-    mobile: "",
-    account_name: "",
-    email: "",
-    address1: "",
-    address2: "",
-    city: "",
-    pincode: "",
-    state: "",
-    state_code: "",
-    aadhar_card: "",
-    gst_in: "",
-    pan_card: "",
-    date: new Date().toISOString().split("T")[0],
-    transfer_number: "",
-    active_stock_point_id: "",
-    salesman_id: "",        // Add this
-    salesman_name: "",      // Add this
-    active_stock_point_details: null,
-  });
-  setPaymentDetails({
-    cash_amount: 0,
-    card_amt: 0,
-    chq: "",
-    chq_amt: 0,
-    online: "",
-    online_amt: 0,
-  });
-  setRepairDetails([]);
-  setCapturedWeights({});
-};
+  const resetForm = () => {
+    setFormData({
+      customer_id: "",
+      mobile: "",
+      account_name: "",
+      email: "",
+      address1: "",
+      address2: "",
+      city: "",
+      pincode: "",
+      state: "",
+      state_code: "",
+      aadhar_card: "",
+      gst_in: "",
+      pan_card: "",
+      date: new Date().toISOString().split("T")[0],
+      transfer_number: "",
+      active_stock_point_id: "",
+      salesman_id: "",        // Add this
+      salesman_name: "",      // Add this
+      active_stock_point_details: null,
+    });
+    setPaymentDetails({
+      cash_amount: 0,
+      card_amt: 0,
+      chq: "",
+      chq_amt: 0,
+      online: "",
+      online_amt: 0,
+    });
+    setRepairDetails([]);
+    setCapturedWeights({});
+  };
 
   const resetSaleReturnForm = () => {
     setReturnData({
@@ -1969,7 +1989,7 @@ const resetForm = () => {
   };
 
   const handleBack = () => {
-    navigate("/return-to-main-stock-old-items"); // Change from "/salestable" to "/stock-transfers"
+    navigate("/return-to-main-stock-old-items");
   };
 
   // const handleAddCustomer = () => {
@@ -1981,7 +2001,7 @@ const resetForm = () => {
     navigate("/customermaster", {
       state: {
         from: `/sales?tabId=${tabId}`,
-        mobile: mobile, // Pass the mobile number here
+        mobile: mobile,
       },
     });
   };
@@ -2505,38 +2525,38 @@ const resetForm = () => {
     }
   }, []);
 
-//   const resetForm = () => {
-//   setFormData({
-//     customer_id: "",
-//     mobile: "",
-//     account_name: "",
-//     email: "",
-//     address1: "",
-//     address2: "",
-//     city: "",
-//     pincode: "",
-//     state: "",
-//     state_code: "",
-//     aadhar_card: "",
-//     gst_in: "",
-//     pan_card: "",
-//     date: new Date().toISOString().split("T")[0],
-//     transfer_number: "",
-//     active_stock_point_id: "",
-//     salesman_id: "",        // Add this
-//     salesman_name: "",      // Add this
-//     active_stock_point_details: null,
-//   });
-//   setPaymentDetails({
-//     cash_amount: 0,
-//     card_amt: 0,
-//     chq: "",
-//     chq_amt: 0,
-//     online: "",
-//     online_amt: 0,
-//   });
-//   setRepairDetails([]);
-// };
+  //   const resetForm = () => {
+  //   setFormData({
+  //     customer_id: "",
+  //     mobile: "",
+  //     account_name: "",
+  //     email: "",
+  //     address1: "",
+  //     address2: "",
+  //     city: "",
+  //     pincode: "",
+  //     state: "",
+  //     state_code: "",
+  //     aadhar_card: "",
+  //     gst_in: "",
+  //     pan_card: "",
+  //     date: new Date().toISOString().split("T")[0],
+  //     transfer_number: "",
+  //     active_stock_point_id: "",
+  //     salesman_id: "",        // Add this
+  //     salesman_name: "",      // Add this
+  //     active_stock_point_details: null,
+  //   });
+  //   setPaymentDetails({
+  //     cash_amount: 0,
+  //     card_amt: 0,
+  //     chq: "",
+  //     chq_amt: 0,
+  //     online: "",
+  //     online_amt: 0,
+  //   });
+  //   setRepairDetails([]);
+  // };
 
   const [product, setProduct] = useState([]); // State to store table data
   const [company, setCompany] = useState(null);
@@ -2882,258 +2902,251 @@ const resetForm = () => {
   };
 
   // ============================================================
-  // UPDATED handleSave - Uses POST API to save return to main stock
+  // UPDATED handleSave - With barcode_status and packet barcode tracking
   // ============================================================
-// ============================================================
-// UPDATED handleSave - With Weight Calculation
-// ============================================================
-// ============================================================
-// UPDATED handleSave - With barcode_status and packet barcode tracking
-// ============================================================
-const handleSave = async () => {
-  try {
-    const activeStockPointDetails = formData.active_stock_point_details;
-    const selectedSalesman = formData.salesman_id ? {
-      salesman_id: formData.salesman_id,
-      salesman_name: formData.salesman_name
-    } : null;
+  const handleSave = async () => {
+    try {
+      const activeStockPointDetails = formData.active_stock_point_details;
+      const selectedSalesman = formData.salesman_id ? {
+        salesman_id: formData.salesman_id,
+        salesman_name: formData.salesman_name
+      } : null;
 
-    if (!activeStockPointDetails) {
-      alert("Please select an Active Stock Point");
-      return;
-    }
-
-    if (!repairDetails || repairDetails.length === 0) {
-      alert("Please add items to transfer");
-      return;
-    }
-
-    // Get all barcodes from the selected products
-    const barcodes = repairDetails.map(item => item.code).filter(Boolean);
-    
-    if (barcodes.length === 0) {
-      alert("No valid barcodes found to update");
-      return;
-    }
-
-    console.log("Updating opening tags for barcodes:", barcodes);
-
-    // ===== CALCULATE TOTAL WEIGHT MACHINE READING (take first valid weight) =====
-    let totalWeightMachineReading = 0;
-    let totalWeightMachineGrams = 0;
-    let totalWeightMachineMilligrams = 0;
-    let totalWeightMachineConfidence = 0;
-    let hasWeightData = false;
-    let latestWeightExtractedAt = null;
-
-    // Check all captured weights and take the first valid one
-    const weightKeys = Object.keys(capturedWeights);
-    for (const key of weightKeys) {
-      const weight = capturedWeights[key];
-      if (weight && weight.total_grams > 0) {
-        totalWeightMachineReading = parseFloat(weight.total_grams) || 0;
-        totalWeightMachineGrams = parseInt(weight.grams) || 0;
-        totalWeightMachineMilligrams = parseInt(weight.milligrams) || 0;
-        totalWeightMachineConfidence = parseInt(weight.confidence) || 0;
-        hasWeightData = true;
-        latestWeightExtractedAt = new Date().toISOString();
-        break; // Take the first valid weight as the total
+      if (!activeStockPointDetails) {
+        alert("Please select an Active Stock Point");
+        return;
       }
-    }
 
-    // If no weight in capturedWeights, check items directly
-    if (!hasWeightData) {
-      for (const item of repairDetails) {
-        if (item.weight_machine_reading && parseFloat(item.weight_machine_reading) > 0) {
-          totalWeightMachineReading = parseFloat(item.weight_machine_reading) || 0;
-          totalWeightMachineGrams = parseInt(item.weight_machine_grams) || 0;
-          totalWeightMachineMilligrams = parseInt(item.weight_machine_milligrams) || 0;
-          totalWeightMachineConfidence = parseInt(item.weight_machine_confidence) || 0;
+      if (!repairDetails || repairDetails.length === 0) {
+        alert("Please add items to transfer");
+        return;
+      }
+
+      // Get all barcodes from the selected products
+      const barcodes = repairDetails.map(item => item.code).filter(Boolean);
+      
+      if (barcodes.length === 0) {
+        alert("No valid barcodes found to update");
+        return;
+      }
+
+      console.log("Updating opening tags for barcodes:", barcodes);
+
+      // ===== CALCULATE TOTAL WEIGHT MACHINE READING (take first valid weight) =====
+      let totalWeightMachineReading = 0;
+      let totalWeightMachineGrams = 0;
+      let totalWeightMachineMilligrams = 0;
+      let totalWeightMachineConfidence = 0;
+      let hasWeightData = false;
+      let latestWeightExtractedAt = null;
+
+      // Check all captured weights and take the first valid one
+      const weightKeys = Object.keys(capturedWeights);
+      for (const key of weightKeys) {
+        const weight = capturedWeights[key];
+        if (weight && weight.total_grams > 0) {
+          totalWeightMachineReading = parseFloat(weight.total_grams) || 0;
+          totalWeightMachineGrams = parseInt(weight.grams) || 0;
+          totalWeightMachineMilligrams = parseInt(weight.milligrams) || 0;
+          totalWeightMachineConfidence = parseInt(weight.confidence) || 0;
           hasWeightData = true;
-          latestWeightExtractedAt = item.weight_extracted_at || new Date().toISOString();
-          break;
-        }
-      }
-    }
-
-    console.log(`📊 Total weight machine reading: ${totalWeightMachineReading}g`);
-    console.log(`📊 Has weight data: ${hasWeightData}`);
-
-    // ============================================================
-    // STEP 1: Update opening_tags_entry table via PUT API
-    // Use baseURL2 for Jiya Jewellery (port 5000)
-    // ============================================================
-    const updateResponse = await axios.put(`${baseURL}/update-opening-tags-status`, {
-      barcodes: barcodes,
-      status: "Selected",
-      stock_point: "MAIN STOCK ROOM",
-      user_id: null,
-      received_status: "pending"
-    });
-
-    if (updateResponse.status === 200) {
-      console.log("Opening tags updated successfully:", updateResponse.data);
-      
-      // ============================================================
-      // STEP 2: Save to Return to Main Stock table via POST API
-      // Use baseURL for ERP (port 5001)
-      // ============================================================
-      
-      let nextReturnNumber = formData.return_number || formData.transfer_number;
-      
-      if (!nextReturnNumber) {
-        try {
-          const response = await axios.get(`${baseURL}/api/return-to-main-stock/lastReturnNumber`);
-          nextReturnNumber = response.data.lastReturnNumber;
-        } catch (error) {
-          console.error("Error fetching next return number:", error);
-          nextReturnNumber = "RTN001";
+          latestWeightExtractedAt = new Date().toISOString();
+          break; // Take the first valid weight as the total
         }
       }
 
-      console.log("Saving with Return Number:", nextReturnNumber);
-      console.log("From User ID (loggedInUserId):", loggedInUserId);
+      // If no weight in capturedWeights, check items directly
+      if (!hasWeightData) {
+        for (const item of repairDetails) {
+          if (item.weight_machine_reading && parseFloat(item.weight_machine_reading) > 0) {
+            totalWeightMachineReading = parseFloat(item.weight_machine_reading) || 0;
+            totalWeightMachineGrams = parseInt(item.weight_machine_grams) || 0;
+            totalWeightMachineMilligrams = parseInt(item.weight_machine_milligrams) || 0;
+            totalWeightMachineConfidence = parseInt(item.weight_machine_confidence) || 0;
+            hasWeightData = true;
+            latestWeightExtractedAt = item.weight_extracted_at || new Date().toISOString();
+            break;
+          }
+        }
+      }
 
-      const captureImage = formData.capture_image || null;
-      console.log("📷 Capture Image present:", !!captureImage);
+      console.log(`📊 Total weight machine reading: ${totalWeightMachineReading}g`);
+      console.log(`📊 Has weight data: ${hasWeightData}`);
 
-      const hasPacketSelection = repairDetails.some(item => item.is_packet_selection === true || item.packet_barcode !== null);
-      console.log("Has packet selection:", hasPacketSelection);
-
-      // ===== DETERMINE BARCODE STATUS FOR EACH ITEM =====
-      // Items with packet_barcode get 'Selected', items without get 'Unselected'
-      // This is handled in the backend model based on packet_barcode presence
-
-      // Prepare return data with weight fields and barcode_status
-      const returnData = repairDetails.map(item => ({
-        item_id: item.item_id || null,
-        assigned_id: item.assigned_id || null,
-        product_id: item.product_id || null,
-        PCode_BarCode: item.code,
-        packet_barcode: item.packet_barcode || null,
-        // barcode_status will be set in backend based on packet_barcode
-        product_name: item.product_name || null,
-        metal_type: item.metal_type || null,
-        purity: item.purity || item.selling_purity || null,
-        category: item.category || null,
-        sub_category: item.sub_category || item.product_name || null,
-        design_name: item.design_name || null,
-        qty: parseFloat(item.qty) || 1,
-        gross_weight: parseFloat(item.gross_weight) || 0,
-        stone_weight: parseFloat(item.stone_weight) || 0,
-        net_weight: parseFloat(item.total_weight_av) || parseFloat(item.weight_bw) || 0,
-        rate: parseFloat(item.rate) || 0,
-        making_charges: parseFloat(item.making_charges) || 0,
-        stone_price: parseFloat(item.stone_price) || 0,
-        total_price: parseFloat(item.total_price) || 0,
-        remarks: item.remarks || null,
-        is_packet_selection: item.is_packet_selection || false,
-        image: item.image || null,
-        cover_wt: parseFloat(item.cover_wt) || 0,
-        card_wt: parseFloat(item.card_wt) || 0,
-        packing_wt: parseFloat(item.packing_wt) || 0,
-        // ===== WEIGHT MACHINE FIELDS - use total weight for all items =====
-        weight_machine_reading: parseFloat(item.weight_machine_reading) || totalWeightMachineReading || 0,
-        weight_machine_grams: parseInt(item.weight_machine_grams) || totalWeightMachineGrams || 0,
-        weight_machine_milligrams: parseInt(item.weight_machine_milligrams) || totalWeightMachineMilligrams || 0,
-        weight_machine_confidence: parseInt(item.weight_machine_confidence) || totalWeightMachineConfidence || 0,
-        weight_machine_raw: item.weight_machine_raw || (hasWeightData ? `Total: ${totalWeightMachineReading}g` : null),
-        weight_extracted_at: item.weight_extracted_at || latestWeightExtractedAt,
-      }));
-
-      const assignedIds = repairDetails
-        .map(item => item.assigned_id)
-        .filter(id => id !== null && id !== undefined);
-
-      // Build payload with weight fields
-      const payload = {
-        return_data: returnData,
-        from_stock_point_id: parseInt(formData.active_stock_point_id),
-        to_stock_point_id: null,
-        return_date: formData.date || new Date().toISOString().split('T')[0],
-        reference_number: nextReturnNumber,
-        remarks: `Returned to MAIN STOCK ROOM from ${activeStockPointDetails.stock_point_name}`,
-        created_by: formData.account_name || "system",
-        from_user_id: loggedInUserId,
-        to_user_id: null,
-        assigned_ids: assignedIds,
-        is_packet_selection: hasPacketSelection,
-        capture_image: captureImage,
-        // ===== ADD WEIGHT FIELDS TO PAYLOAD =====
-        weight_machine_reading: totalWeightMachineReading || 0,
-        weight_machine_grams: totalWeightMachineGrams || 0,
-        weight_machine_milligrams: totalWeightMachineMilligrams || 0,
-        weight_machine_confidence: totalWeightMachineConfidence || 0,
-        weight_machine_raw: hasWeightData ? `Total: ${totalWeightMachineReading}g` : null,
-        weight_extracted_at: latestWeightExtractedAt,
-      };
-
-      console.log("📦 Sending Return to Main Stock Payload:", payload);
-
+      // ============================================================
+      // STEP 1: Update opening_tags_entry table via PUT API
       // Use baseURL for ERP (port 5001)
-      const response = await axios.post(`${baseURL}/api/return-to-main-stock/save-return-to-main-stock`, payload);
-     
-      if (response.status === 200 || response.status === 201) {
-        alert(`Return to Main Stock completed successfully! Return Number: ${nextReturnNumber}`);
+      // ============================================================
+      const updateResponse = await axios.put(`${baseURL}/update-opening-tags-status`, {
+        barcodes: barcodes,
+        status: "Selected",
+        stock_point: "MAIN STOCK ROOM",
+        user_id: null,
+        received_status: "pending"
+      });
+
+      if (updateResponse.status === 200) {
+        console.log("Opening tags updated successfully:", updateResponse.data);
         
-        // Clear data
-        setOldSalesData([]);
-        setSchemeSalesData([]);
-        setRepairDetails([]);
-        setPaymentDetails({
-          cash_amount: 0,
-          card_amt: 0,
-          chq: "",
-          chq_amt: 0,
-          online: "",
-          online_amt: 0,
-        });
-        setOldTableData([]);
-        setSchemeTableData([]);
-        setDiscount(0);
-        setCapturedWeights({});
+        // ============================================================
+        // STEP 2: Save to Return to Main Stock table via POST API
+        // Use baseURL for ERP (port 5001)
+        // ============================================================
         
-        // Reset form data
-        setFormData({
-          ...formData,
-          customer_id: "",
-          mobile: "",
-          account_name: "",
-          email: "",
-          address1: "",
-          address2: "",
-          city: "",
-          pincode: "",
-          state: "",
-          state_code: "",
-          aadhar_card: "",
-          gst_in: "",
-          pan_card: "",
-          date: new Date().toISOString().split("T")[0],
-          transfer_number: "",
-          active_stock_point_id: "",
-          salesman_id: "",
-          salesman_name: "",
-          active_stock_point_details: null,
-          return_number: "",
-          received_number: "",
-          capture_image: null,
-          capture_image_file: null
-        });
+        let nextReturnNumber = formData.return_number || formData.transfer_number;
         
-        navigate("/return-to-main-stock-old-items");
+        if (!nextReturnNumber) {
+          try {
+            const response = await axios.get(`${baseURL}/api/return-to-main-stock/lastReturnNumber`);
+            nextReturnNumber = response.data.lastReturnNumber;
+          } catch (error) {
+            console.error("Error fetching next return number:", error);
+            nextReturnNumber = "RTN001";
+          }
+        }
+
+        console.log("Saving with Return Number:", nextReturnNumber);
+        console.log("From User ID (loggedInUserId):", loggedInUserId);
+
+        const captureImage = formData.capture_image || null;
+        console.log("📷 Capture Image present:", !!captureImage);
+
+        const hasPacketSelection = repairDetails.some(item => item.is_packet_selection === true || item.packet_barcode !== null);
+        console.log("Has packet selection:", hasPacketSelection);
+
+        // ===== DETERMINE BARCODE STATUS FOR EACH ITEM =====
+        // Items with packet_barcode get 'Selected', items without get 'Unselected'
+        // This is handled in the backend model based on packet_barcode presence
+
+        // Prepare return data with weight fields and barcode_status
+        const returnData = repairDetails.map(item => ({
+          item_id: item.item_id || null,
+          assigned_id: item.assigned_id || null,
+          product_id: item.product_id || null,
+          PCode_BarCode: item.code,
+          packet_barcode: item.packet_barcode || null,
+          // barcode_status will be set in backend based on packet_barcode
+          product_name: item.product_name || null,
+          metal_type: item.metal_type || null,
+          purity: item.purity || item.selling_purity || null,
+          category: item.category || null,
+          sub_category: item.sub_category || item.product_name || null,
+          design_name: item.design_name || null,
+          qty: parseFloat(item.qty) || 1,
+          gross_weight: parseFloat(item.gross_weight) || 0,
+          stone_weight: parseFloat(item.stone_weight) || 0,
+          net_weight: parseFloat(item.total_weight_av) || parseFloat(item.weight_bw) || 0,
+          rate: parseFloat(item.rate) || 0,
+          making_charges: parseFloat(item.making_charges) || 0,
+          stone_price: parseFloat(item.stone_price) || 0,
+          total_price: parseFloat(item.total_price) || 0,
+          remarks: item.remarks || null,
+          is_packet_selection: item.is_packet_selection || false,
+          image: item.image || null,
+          cover_wt: parseFloat(item.cover_wt) || 0,
+          card_wt: parseFloat(item.card_wt) || 0,
+          packing_wt: parseFloat(item.packing_wt) || 0,
+          // ===== WEIGHT MACHINE FIELDS - use total weight for all items =====
+          weight_machine_reading: parseFloat(item.weight_machine_reading) || totalWeightMachineReading || 0,
+          weight_machine_grams: parseInt(item.weight_machine_grams) || totalWeightMachineGrams || 0,
+          weight_machine_milligrams: parseInt(item.weight_machine_milligrams) || totalWeightMachineMilligrams || 0,
+          weight_machine_confidence: parseInt(item.weight_machine_confidence) || totalWeightMachineConfidence || 0,
+          weight_machine_raw: item.weight_machine_raw || (hasWeightData ? `Total: ${totalWeightMachineReading}g` : null),
+          weight_extracted_at: item.weight_extracted_at || latestWeightExtractedAt,
+        }));
+
+        const assignedIds = repairDetails
+          .map(item => item.assigned_id)
+          .filter(id => id !== null && id !== undefined);
+
+        // Build payload with weight fields
+        const payload = {
+          return_data: returnData,
+          from_stock_point_id: parseInt(formData.active_stock_point_id),
+          to_stock_point_id: null,
+          return_date: formData.date || new Date().toISOString().split('T')[0],
+          reference_number: nextReturnNumber,
+          remarks: `Returned to MAIN STOCK ROOM from ${activeStockPointDetails.stock_point_name}`,
+          created_by: formData.account_name || "system",
+          from_user_id: loggedInUserId,
+          to_user_id: null,
+          assigned_ids: assignedIds,
+          is_packet_selection: hasPacketSelection,
+          capture_image: captureImage,
+          // ===== ADD WEIGHT FIELDS TO PAYLOAD =====
+          weight_machine_reading: totalWeightMachineReading || 0,
+          weight_machine_grams: totalWeightMachineGrams || 0,
+          weight_machine_milligrams: totalWeightMachineMilligrams || 0,
+          weight_machine_confidence: totalWeightMachineConfidence || 0,
+          weight_machine_raw: hasWeightData ? `Total: ${totalWeightMachineReading}g` : null,
+          weight_extracted_at: latestWeightExtractedAt,
+        };
+
+        console.log("📦 Sending Return to Main Stock Payload:", payload);
+
+        // Use baseURL for ERP (port 5001)
+        const response = await axios.post(`${baseURL}/api/return-to-main-stock/save-return-to-main-stock`, payload);
+       
+        if (response.status === 200 || response.status === 201) {
+          alert(`Return to Main Stock completed successfully! Return Number: ${nextReturnNumber}`);
+          
+          // Clear data
+          setOldSalesData([]);
+          setSchemeSalesData([]);
+          setRepairDetails([]);
+          setPaymentDetails({
+            cash_amount: 0,
+            card_amt: 0,
+            chq: "",
+            chq_amt: 0,
+            online: "",
+            online_amt: 0,
+          });
+          setOldTableData([]);
+          setSchemeTableData([]);
+          setDiscount(0);
+          setCapturedWeights({});
+          
+          // Reset form data
+          setFormData({
+            ...formData,
+            customer_id: "",
+            mobile: "",
+            account_name: "",
+            email: "",
+            address1: "",
+            address2: "",
+            city: "",
+            pincode: "",
+            state: "",
+            state_code: "",
+            aadhar_card: "",
+            gst_in: "",
+            pan_card: "",
+            date: new Date().toISOString().split("T")[0],
+            transfer_number: "",
+            active_stock_point_id: "",
+            salesman_id: "",
+            salesman_name: "",
+            active_stock_point_details: null,
+            return_number: "",
+            received_number: "",
+            capture_image: null,
+            capture_image_file: null
+          });
+          
+          navigate("/return-to-main-stock-old-items");
+        } else {
+          alert("Failed to save return to main stock record");
+        }
       } else {
-        alert("Failed to save return to main stock record");
+        alert("Failed to update product status");
       }
-    } else {
-      alert("Failed to update product status");
+    } catch (error) {
+      console.error("Error saving data:", error);
+      alert("Error: " + (error.response?.data?.message || error.message));
     }
-  } catch (error) {
-    console.error("Error saving data:", error);
-    alert("Error: " + (error.response?.data?.message || error.message));
-  }
-};
-
+  };
 
   const refreshSalesData = () => {
     setOldSalesData([]);
@@ -3326,6 +3339,8 @@ const handleSave = async () => {
               // ============= NEW: Trigger weight camera from table =============
               triggerWeightCamera={triggerWeightCamera}
               setTriggerWeightCamera={setTriggerWeightCamera}
+              // ============= NEW: Loading state =============
+              isStockLoading={isStockLoading}
             />
           </div>
 

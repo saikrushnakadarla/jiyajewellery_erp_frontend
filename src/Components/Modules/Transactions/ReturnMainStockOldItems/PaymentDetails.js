@@ -13,7 +13,7 @@ const PaymentDetails = ({
   const navigate = useNavigate();
 
   const handleClose = () => {
-    navigate("/return-to-main-stock");
+    navigate("/return-to-main-stock-old-items");
   };
 
   // Check if any weight has been captured (for the entire batch)
