@@ -68,6 +68,12 @@ const ProductDetails = ({
   currentItemId,
   triggerWeightCamera,
   setTriggerWeightCamera,
+  // ============= BAG WEIGHT PROPS =============
+  receivedBagWeight = 0,
+  returnCaptureWeightOfBag = 0,
+  onReturnCaptureWeightOfBagChange,
+  // ============= NEW: Direct weight detection callback =============
+  onReceivedBagWeightDetected,
 }) => {
 
   const [showModal, setShowModal] = useState(false);
@@ -102,6 +108,9 @@ const ProductDetails = ({
   const [weightCaptureError, setWeightCaptureError] = useState(null);
   const [weightCaptureItemId, setWeightCaptureItemId] = useState(null);
 
+  // ============= BAG WEIGHT CAPTURE STATE =============
+  const [isBagWeightCapture, setIsBagWeightCapture] = useState(false);
+
   useEffect(() => {
     const userId = localStorage.getItem('userId');
     if (userId) {
@@ -131,12 +140,8 @@ const ProductDetails = ({
   // ============= WEIGHT CAMERA FUNCTIONS =============
 
   // Process weight image using Gemini API
-  // REMOVED the alert - now processes weight even without product selected
   const processWeightImage = async (imageFile) => {
     const targetItemId = weightCaptureItemId || formData.code;
-    
-    // REMOVED: alert("Please select a product first before capturing weight.")
-    // If no product is selected, use a fallback key
     
     setIsProcessingWeight(true);
     setExtractedWeight(null);
@@ -165,9 +170,26 @@ const ProductDetails = ({
 
         setExtractedWeight(weightData);
 
-        // Notify parent component about the captured weight
+        // ============= NEW: Branch for bag weight capture =============
+        if (isBagWeightCapture) {
+          if (onReturnCaptureWeightOfBagChange) {
+            onReturnCaptureWeightOfBagChange(record.total_grams);
+          }
+          setIsBagWeightCapture(false);
+          stopWeightCamera();
+          Swal.fire({
+            icon: 'success',
+            title: '✅ Bag Weight Captured',
+            text: `${record.total_grams.toFixed(3)} g`,
+            timer: 1500,
+            showConfirmButton: false
+          });
+          setIsProcessingWeight(false);
+          return; // skip the per-item onCaptureWeight path
+        }
+
+        // Notify parent component about the captured weight (per-item)
         if (onCaptureWeight) {
-          // If we have a targetItemId, use it, otherwise use 'total_weight' as the key
           const key = targetItemId && targetItemId !== 'unknown' ? targetItemId : 'total_weight';
           onCaptureWeight(key, weightData);
         }
@@ -225,6 +247,7 @@ const ProductDetails = ({
 
   // Start weight camera for a specific item (called from ProductTable)
   const startWeightCameraForItem = (itemId, itemDetails = null) => {
+    setIsBagWeightCapture(false);
     setWeightCaptureItemId(itemId);
 
     // Open the camera
@@ -244,11 +267,30 @@ const ProductDetails = ({
       });
   };
 
+  // Start weight camera for bag weight capture
+  const startWeightCameraForBag = () => {
+    setIsBagWeightCapture(true);
+    setWeightCaptureItemId(null);
+    
+    navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'environment' }
+    })
+      .then(stream => {
+        setWeightCameraStream(stream);
+        setShowWeightCamera(true);
+        setTimeout(() => {
+          if (weightVideoRef.current) weightVideoRef.current.srcObject = stream;
+        }, 100);
+      })
+      .catch(error => {
+        console.error('Error accessing camera:', error);
+        alert('Failed to access camera. Please check permissions.');
+      });
+  };
+
   // Start weight camera - called from the Capture Weight button
-  // REMOVED the alert - now opens camera regardless of product selection
   const startWeightCamera = () => {
-    // Just start the camera - even if no product is selected
-    // If no product is selected, we'll capture and store weight for later assignment
+    setIsBagWeightCapture(false);
     
     navigator.mediaDevices.getUserMedia({
       video: { facingMode: 'environment' }
@@ -440,6 +482,10 @@ const ProductDetails = ({
         if (assignedProduct) {
           Swal.close();
           handleBarcodeChange(barcode);
+          // NEW: Notify parent of bag weight immediately for single item
+          if (onReceivedBagWeightDetected) {
+            onReceivedBagWeightDetected(assignedProduct.capture_weight_of_bag || 0);
+          }
           Swal.fire({
             icon: 'success',
             title: 'Product Found!',
@@ -593,6 +639,7 @@ const ProductDetails = ({
             return;
           }
 
+          // ===== FIXED: Add capture_weight_of_bag to packet products =====
           const productsWithImages = newProducts.map(product => {
             const assignedProduct = selectedSalesmanProducts?.find(
               p => p.PCode_BarCode === product.code
@@ -654,11 +701,20 @@ const ProductDetails = ({
               is_packet_selection: true,
               assigned_id: assignedProduct?.assigned_id || null,
               item_id: assignedProduct?.item_id || null,
+              // ===== FIXED: Include capture_weight_of_bag =====
+              capture_weight_of_bag: assignedProduct?.capture_weight_of_bag || 0,
+              received_id: assignedProduct?.received_id || null,
               cover_wt: product.cover_wt || assignedProduct?.cover_wt || "",
               card_wt: product.card_wt || assignedProduct?.card_wt || "",
               packing_wt: product.packing_wt || assignedProduct?.packing_wt || "",
             };
           });
+
+          // ===== NEW: Notify parent immediately with the bag weight =====
+          const packetBagWeight = productsWithImages.find(p => p.capture_weight_of_bag > 0)?.capture_weight_of_bag || 0;
+          if (onReceivedBagWeightDetected) {
+            onReceivedBagWeightDetected(packetBagWeight);
+          }
 
           const updatedRepairDetails = [...storedRepairDetails, ...productsWithImages];
           setRepairDetails(updatedRepairDetails);
@@ -928,6 +984,7 @@ const ProductDetails = ({
     return `${baseURL}/${imagePath}`;
   };
 
+  // ===== UPDATED handleBarcodeSelect with immediate weight notification =====
   const handleBarcodeSelect = (selectedValue) => {
     const selectedOption = uniqueBarcodeOptions.find(opt => opt.value === selectedValue);
 
@@ -990,6 +1047,7 @@ const ProductDetails = ({
           return;
         }
 
+        // ===== FIXED: Add capture_weight_of_bag to productsWithImages =====
         const productsWithImages = newProducts.map(product => {
           const assignedProduct = selectedSalesmanProducts?.find(
             p => p.PCode_BarCode === product.code
@@ -1048,11 +1106,20 @@ const ProductDetails = ({
             is_packet_selection: true,
             assigned_id: assignedProduct?.assigned_id || null,
             item_id: assignedProduct?.item_id || null,
+            // ===== FIXED: Include capture_weight_of_bag =====
+            capture_weight_of_bag: assignedProduct?.capture_weight_of_bag || 0,
+            received_id: assignedProduct?.received_id || null,
             cover_wt: product.cover_wt || assignedProduct?.cover_wt || "",
             card_wt: product.card_wt || assignedProduct?.card_wt || "",
             packing_wt: packingWt || "",
           };
         });
+
+        // ===== NEW: Notify parent immediately with the bag weight =====
+        const packetBagWeight = productsWithImages.find(p => p.capture_weight_of_bag > 0)?.capture_weight_of_bag || 0;
+        if (onReceivedBagWeightDetected) {
+          onReceivedBagWeightDetected(packetBagWeight);
+        }
 
         const updatedRepairDetails = [...storedRepairDetails, ...productsWithImages];
         setRepairDetails(updatedRepairDetails);
@@ -1113,6 +1180,13 @@ const ProductDetails = ({
         setIsPacketAdded(false);
         setPacketImage(null);
         setPacketTotals({ grossWeight: 0, packingWt: 0 });
+        
+        // ===== NEW: For single barcode selection, look up capture_weight_of_bag =====
+        const matchedProduct = selectedSalesmanProducts?.find(p => p.PCode_BarCode === selectedValue);
+        if (onReceivedBagWeightDetected) {
+          onReceivedBagWeightDetected(matchedProduct?.capture_weight_of_bag || 0);
+        }
+
         if (selectedOption.packetBarcode) {
           setFormData(prev => ({
             ...prev,
@@ -1141,12 +1215,17 @@ const ProductDetails = ({
     }
   };
 
+  // ===== UPDATED handleClear - Reset bag weight notification =====
   const handleClear = () => {
     setIsPacketAdded(false);
     setPacketImage(null);
     setPacketTotals({ grossWeight: 0, packingWt: 0 });
     setExtractedWeight(null);
     setWeightCaptureError(null);
+    // NEW: Reset bag weight to 0 when clearing
+    if (onReceivedBagWeightDetected) {
+      onReceivedBagWeightDetected(0);
+    }
     setFormData(prevFormData => ({
       ...prevFormData,
       code: "",
@@ -1316,6 +1395,10 @@ const ProductDetails = ({
     borderRadius: '4px',
     border: '1px solid transparent',
   };
+
+  // Check if weights match
+  const doWeightsMatch = returnCaptureWeightOfBag > 0 && receivedBagWeight > 0 &&
+    Math.abs(returnCaptureWeightOfBag - receivedBagWeight) < 0.001;
 
   return (
     <Col>
@@ -1556,6 +1639,46 @@ const ProductDetails = ({
                     <span style={{ fontSize: '14px', fontWeight: 'bold', color: '#007bff' }}>
                       {packetTotals.packingWt.toFixed(2)}g
                     </span>
+                  </div>
+                </div>
+                
+                {/* NEW: Weight comparison UI for Return to Main Stock */}
+                <div style={{ marginTop: '8px', display: 'flex', gap: '20px', alignItems: 'center', flexWrap: 'wrap' }}>
+                  <div>
+                    <span style={{ fontSize: '12px', color: '#666' }}>Capture Weight of ReceivedSalesmanForm: </span>
+                    <span style={{ fontSize: '14px', fontWeight: 'bold', color: '#a36e29' }}>
+                      {receivedBagWeight ? receivedBagWeight.toFixed(3) : '0.000'}g
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontSize: '12px', color: '#666' }}>Capture Weight here:</span>
+                    <input
+                      type="number"
+                      step="0.001"
+                      readOnly
+                      value={returnCaptureWeightOfBag || ''}
+                      placeholder="Capture with camera"
+                      style={{
+                        width: '110px', 
+                        padding: '4px 8px',
+                        border: `2px solid ${doWeightsMatch ? '#28a745' : '#dc3545'}`,
+                        borderRadius: '4px', 
+                        fontWeight: 'bold'
+                      }}
+                    />
+                    <Button
+                      variant="warning"
+                      size="sm"
+                      onClick={startWeightCameraForBag}
+                      style={{ padding: '4px 10px', fontSize: '12px' }}
+                    >
+                      <FaWeightHanging /> Capture
+                    </Button>
+                    {returnCaptureWeightOfBag > 0 && receivedBagWeight > 0 && (
+                      doWeightsMatch
+                        ? <span style={{ color: '#28a745', fontWeight: 'bold' }}>✅ Match</span>
+                        : <span style={{ color: '#dc3545', fontWeight: 'bold' }}>❌ Mismatch</span>
+                    )}
                   </div>
                 </div>
               </div>

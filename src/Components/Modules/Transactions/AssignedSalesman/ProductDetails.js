@@ -571,101 +571,106 @@ const ProductDetails = ({
   // ============= WEIGHT CAPTURE FUNCTIONS =============
 
   // Process weight image using Gemini API
- // Process weight image using Gemini API
-const processWeightImage = async (imageFile) => {
-  const targetItemId = weightCaptureItemId || formData.code;
-  
-  setIsProcessingWeight(true);
-  setExtractedWeight(null);
-  setWeightCaptureError(null);
+  // Process weight image using Gemini API
+  const processWeightImage = async (imageFile) => {
+    const targetItemId = weightCaptureItemId || formData.code;
+    
+    setIsProcessingWeight(true);
+    setExtractedWeight(null);
+    setWeightCaptureError(null);
 
-  try {
-    const formDataObj = new FormData();
-    formDataObj.append('image', imageFile);
-    formDataObj.append('estimate_number', '');
-    formDataObj.append('item_id', targetItemId || 'total_weight');
+    try {
+      const formDataObj = new FormData();
+      formDataObj.append('image', imageFile);
+      formDataObj.append('estimate_number', '');
+      formDataObj.append('item_id', targetItemId || 'total_weight');
 
-    const response = await axios.post(`${baseURL}/api/extract-weight-gemini`, formDataObj, {
-      headers: { 'Content-Type': 'multipart/form-data' }
-    });
-
-    if (response.data.success && response.data.record) {
-      const record = response.data.record;
-
-      setExtractedRawText(record.raw_text);
-      setExtractedGrams(record.grams);
-      setExtractedMilligrams(record.milligrams);
-      setExtractedTotalGrams(record.total_grams);
-
-      const weightData = {
-        total_grams: record.total_grams,
-        grams: record.grams,
-        milligrams: record.milligrams,
-        raw_text: record.raw_text,
-        confidence: record.confidence || 100
-      };
-
-      setExtractedWeight(weightData);
-
-      // ========== FIX: Always call onCaptureWeight ==========
-      // Use 'total_weight' as the key when no specific item is selected
-      const key = targetItemId && targetItemId !== 'unknown' ? targetItemId : 'total_weight';
-      if (onCaptureWeight) {
-        onCaptureWeight(key, weightData);
-      } else {
-        console.warn('onCaptureWeight prop is not defined');
-      }
-
-      stopWeightCamera();
-
-      Swal.fire({
-        icon: 'success',
-        title: '✅ Weight Extracted!',
-        html: `
-          <div style="font-size: 24px; padding: 10px 0;">
-            <strong>${record.total_grams.toFixed(3)} g</strong>
-            <div style="font-size: 14px; color: #666; margin-top: 5px;">
-              ${record.grams} g / ${record.milligrams} mg
-            </div>
-            <div style="font-size: 12px; color: #888; margin-top: 5px;">
-              Raw: ${record.raw_text}
-            </div>
-            ${!targetItemId ? '<div style="font-size: 12px; color: #ff9800; margin-top: 5px;">⚠️ No product selected. Weight saved as total weight.</div>' : ''}
-          </div>
-        `,
-        timer: 3000,
-        showConfirmButton: false
+      const response = await axios.post(`${baseURL}/api/extract-weight-gemini`, formDataObj, {
+        headers: { 'Content-Type': 'multipart/form-data' }
       });
 
-      setWeightCaptureItemId(null);
-      setWeightCaptureItemDetails(null);
+      if (response.data.success && response.data.record) {
+        const record = response.data.record;
 
-    } else {
-      setWeightCaptureError(response.data.message || 'Could not extract weight from image');
+        setExtractedRawText(record.raw_text);
+        setExtractedGrams(record.grams);
+        setExtractedMilligrams(record.milligrams);
+        setExtractedTotalGrams(record.total_grams);
+
+        const weightData = {
+          total_grams: record.total_grams,
+          grams: record.grams,
+          milligrams: record.milligrams,
+          raw_text: record.raw_text,
+          confidence: record.confidence || 100
+        };
+
+        setExtractedWeight(weightData);
+
+        // ========== FIX: Always call onCaptureWeight ==========
+        // Use 'total_weight' as the key when no specific item is selected
+        const key = targetItemId && targetItemId !== 'unknown' ? targetItemId : 'total_weight';
+        if (onCaptureWeight) {
+          onCaptureWeight(key, weightData);
+        } else {
+          console.warn('onCaptureWeight prop is not defined');
+        }
+
+        // NEW: Auto-fill "Capture Weight of Bag" from the machine reading
+        if (onTotalWeightWithBagChange) {
+          onTotalWeightWithBagChange(record.total_grams);
+        }
+
+        stopWeightCamera();
+
+        Swal.fire({
+          icon: 'success',
+          title: '✅ Weight Extracted!',
+          html: `
+            <div style="font-size: 24px; padding: 10px 0;">
+              <strong>${record.total_grams.toFixed(3)} g</strong>
+              <div style="font-size: 14px; color: #666; margin-top: 5px;">
+                ${record.grams} g / ${record.milligrams} mg
+              </div>
+              <div style="font-size: 12px; color: #888; margin-top: 5px;">
+                Raw: ${record.raw_text}
+              </div>
+              ${!targetItemId ? '<div style="font-size: 12px; color: #ff9800; margin-top: 5px;">⚠️ No product selected. Weight saved as total weight.</div>' : ''}
+            </div>
+          `,
+          timer: 3000,
+          showConfirmButton: false
+        });
+
+        setWeightCaptureItemId(null);
+        setWeightCaptureItemDetails(null);
+
+      } else {
+        setWeightCaptureError(response.data.message || 'Could not extract weight from image');
+        Swal.fire({
+          icon: 'warning',
+          title: 'Could Not Detect Weight',
+          text: response.data.message || 'Please try a clearer photo of the weight machine display.',
+          confirmButtonText: 'OK'
+        });
+      }
+    } catch (error) {
+      console.error('Gemini API Error:', error);
+      let errorMessage = 'Error processing weight image.';
+      if (error.response) {
+        errorMessage = error.response.data?.message || errorMessage;
+      }
+      setWeightCaptureError(errorMessage);
       Swal.fire({
-        icon: 'warning',
-        title: 'Could Not Detect Weight',
-        text: response.data.message || 'Please try a clearer photo of the weight machine display.',
+        icon: 'error',
+        title: 'Extraction Failed',
+        text: errorMessage,
         confirmButtonText: 'OK'
       });
+    } finally {
+      setIsProcessingWeight(false);
     }
-  } catch (error) {
-    console.error('Gemini API Error:', error);
-    let errorMessage = 'Error processing weight image.';
-    if (error.response) {
-      errorMessage = error.response.data?.message || errorMessage;
-    }
-    setWeightCaptureError(errorMessage);
-    Swal.fire({
-      icon: 'error',
-      title: 'Extraction Failed',
-      text: errorMessage,
-      confirmButtonText: 'OK'
-    });
-  } finally {
-    setIsProcessingWeight(false);
-  }
-};
+  };
 
   // Start weight camera for a specific item (called from ProductTable)
   const startWeightCameraForItem = (itemId, itemDetails = null) => {
@@ -797,90 +802,90 @@ const processWeightImage = async (imageFile) => {
         </Col>
 
         {/* ============= ACTION BUTTONS ============= */}
-       <Col xs={12} md={8}>
-  <div className="d-flex align-items-center" style={{ gap: '10px', flexWrap: 'wrap' }}>
-    {/* 1. Choose / Capture Image Dropdown */}
-    <DropdownButton
-      id="dropdown-basic-button"
-      title="Choose / Capture Image"
-      variant="primary"
-      size="sm"
-      onClick={() => setShowOptions(!showOptions)}
-      style={{ minWidth: '170px' }}
-    >
-      {showOptions && (
-        <>
-          <Dropdown.Item
-            onClick={() => fileInputRef.current && fileInputRef.current.click()}
-          >
-            <FaUpload /> Choose Image
-          </Dropdown.Item>
-          <Dropdown.Item onClick={() => setShowWebcam(true)}>
-            <FaCamera /> Capture Image
-          </Dropdown.Item>
-        </>
-      )}
-    </DropdownButton>
+        <Col xs={12} md={8}>
+          <div className="d-flex align-items-center" style={{ gap: '10px', flexWrap: 'wrap' }}>
+            {/* 1. Choose / Capture Image Dropdown */}
+            <DropdownButton
+              id="dropdown-basic-button"
+              title="Choose / Capture Image"
+              variant="primary"
+              size="sm"
+              onClick={() => setShowOptions(!showOptions)}
+              style={{ minWidth: '170px' }}
+            >
+              {showOptions && (
+                <>
+                  <Dropdown.Item
+                    onClick={() => fileInputRef.current && fileInputRef.current.click()}
+                  >
+                    <FaUpload /> Choose Image
+                  </Dropdown.Item>
+                  <Dropdown.Item onClick={() => setShowWebcam(true)}>
+                    <FaCamera /> Capture Image
+                  </Dropdown.Item>
+                </>
+              )}
+            </DropdownButton>
 
-    {/* 2. Capture Weight Button */}
-    <Button
-      variant="warning"
-      size="sm"
-      onClick={startWeightCamera}
-      style={{
-        backgroundColor: '#ff9800',
-        borderColor: '#ff9800',
-        color: 'white',
-        padding: '4px 15px',
-        fontSize: '13px',
-        whiteSpace: 'nowrap',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '6px'
-      }}
-      title="Capture Weight from Machine"
-    >
-      <FaWeightHanging size={14} /> Capture Weight
-    </Button>
+            {/* 2. Capture Weight Button */}
+            <Button
+              variant="warning"
+              size="sm"
+              onClick={startWeightCamera}
+              style={{
+                backgroundColor: '#ff9800',
+                borderColor: '#ff9800',
+                color: 'white',
+                padding: '4px 15px',
+                fontSize: '13px',
+                whiteSpace: 'nowrap',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}
+              title="Capture Weight from Machine"
+            >
+              <FaWeightHanging size={14} /> Capture Weight
+            </Button>
 
-    {/* Hidden file input for weight upload */}
-    <input
-      ref={weightFileInputRef}
-      type="file"
-      accept="image/*"
-      onChange={handleWeightFileUpload}
-      style={{ display: 'none' }}
-    />
+            {/* Hidden file input for weight upload */}
+            <input
+              ref={weightFileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleWeightFileUpload}
+              style={{ display: 'none' }}
+            />
 
-    {/* 3. Add / Update Button */}
-    <Button
-      onClick={isEditing ? handleUpdate : handleAdd}
-      style={{
-        backgroundColor: "#a36e29",
-        borderColor: "#a36e29",
-        padding: "4px 20px",
-        fontSize: "13px",
-        whiteSpace: 'nowrap'
-      }}
-    >
-      {isEditing ? "Update" : "Add"}
-    </Button>
+            {/* 3. Add / Update Button */}
+            <Button
+              onClick={isEditing ? handleUpdate : handleAdd}
+              style={{
+                backgroundColor: "#a36e29",
+                borderColor: "#a36e29",
+                padding: "4px 20px",
+                fontSize: "13px",
+                whiteSpace: 'nowrap'
+              }}
+            >
+              {isEditing ? "Update" : "Add"}
+            </Button>
 
-    {/* 4. Clear Button */}
-    <Button
-      variant="secondary"
-      onClick={handleClear}
-      style={{
-        backgroundColor: 'gray',
-        padding: "4px 20px",
-        fontSize: "13px",
-        whiteSpace: 'nowrap'
-      }}
-    >
-      Clear
-    </Button>
-  </div>
-</Col>
+            {/* 4. Clear Button */}
+            <Button
+              variant="secondary"
+              onClick={handleClear}
+              style={{
+                backgroundColor: 'gray',
+                padding: "4px 20px",
+                fontSize: "13px",
+                whiteSpace: 'nowrap'
+              }}
+            >
+              Clear
+            </Button>
+          </div>
+        </Col>
       </Row>
 
       {/* Display extracted weight info */}
@@ -1009,7 +1014,8 @@ const processWeightImage = async (imageFile) => {
                 <span style={{ marginLeft: '8px', fontWeight: 'bold' }}>{packetGrossTotal?.toFixed(3) || '0.000'} g</span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ fontWeight: 'bold', color: '#a36e29' }}>Total Weight with Bag:</span>
+                {/* CHANGED: Label updated to "Capture Weight of Bag" */}
+                <span style={{ fontWeight: 'bold', color: '#a36e29' }}>Capture Weight of Bag:</span>
                 <input
                   type="number"
                   step="0.001"
@@ -1130,7 +1136,9 @@ const processWeightImage = async (imageFile) => {
             style={{ 
               width: '100%', 
               maxHeight: '400px', 
-              objectFit: 'contain' 
+              objectFit: 'contain',
+              backgroundColor: '#000',
+              borderRadius: '8px'
             }} 
           />
           <canvas ref={weightCanvasRef} style={{ display: 'none' }} />
@@ -1138,7 +1146,7 @@ const processWeightImage = async (imageFile) => {
             Point the camera at the weight machine display to capture and extract the weight using Gemini AI
           </p>
           <p className="text-muted" style={{ fontSize: '12px' }}>
-            Or use the "Upload Weight" button below to select an image from your device
+            Or use the "Upload Weight Image" button below to select an image from your device
           </p>
           <Button 
             variant="outline-secondary" 
@@ -1146,8 +1154,16 @@ const processWeightImage = async (imageFile) => {
             onClick={triggerWeightFileUpload}
             style={{ marginTop: '5px' }}
           >
-            📤 Upload Weight Image
+            <FaUpload /> Upload Weight Image
           </Button>
+          {isProcessingWeight && (
+            <div className="mt-2">
+              <div className="spinner-border spinner-border-sm text-primary" role="status">
+                <span className="visually-hidden">Processing...</span>
+              </div>
+              <span className="ms-2 text-muted">Processing with Gemini AI...</span>
+            </div>
+          )}
         </Modal.Body>
         <Modal.Footer>
           <Button variant="secondary" onClick={stopWeightCamera}>Cancel</Button>
@@ -1160,61 +1176,7 @@ const processWeightImage = async (imageFile) => {
             {isProcessingWeight ? 'Processing...' : 'Capture & Extract Weight'}
           </Button>
         </Modal.Footer>
-      </Modal> 
-
-      <Modal show={showWeightCamera} onHide={stopWeightCamera} centered size="lg">
-  <Modal.Header closeButton>
-    <Modal.Title>Capture Weight Machine Display</Modal.Title>
-  </Modal.Header>
-  <Modal.Body style={{ textAlign: 'center' }}>
-    <video 
-      ref={weightVideoRef} 
-      autoPlay 
-      playsInline 
-      style={{ 
-        width: '100%', 
-        maxHeight: '400px', 
-        objectFit: 'contain',
-        backgroundColor: '#000',
-        borderRadius: '8px'
-      }} 
-    />
-    <canvas ref={weightCanvasRef} style={{ display: 'none' }} />
-    <p className="mt-2 text-muted">
-      Point the camera at the weight machine display to capture and extract the weight using Gemini AI
-    </p>
-    <p className="text-muted" style={{ fontSize: '12px' }}>
-      Or use the "Upload Weight Image" button below to select an image from your device
-    </p>
-    <Button 
-      variant="outline-secondary" 
-      size="sm" 
-      onClick={triggerWeightFileUpload}
-      style={{ marginTop: '5px' }}
-    >
-      <FaUpload /> Upload Weight Image
-    </Button>
-    {isProcessingWeight && (
-      <div className="mt-2">
-        <div className="spinner-border spinner-border-sm text-primary" role="status">
-          <span className="visually-hidden">Processing...</span>
-        </div>
-        <span className="ms-2 text-muted">Processing with Gemini AI...</span>
-      </div>
-    )}
-  </Modal.Body>
-  <Modal.Footer>
-    <Button variant="secondary" onClick={stopWeightCamera}>Cancel</Button>
-    <Button 
-      variant="primary" 
-      onClick={captureWeightImage} 
-      disabled={isProcessingWeight}
-      style={{ backgroundColor: '#28a745', borderColor: '#28a745' }}
-    >
-      {isProcessingWeight ? 'Processing...' : 'Capture & Extract Weight'}
-    </Button>
-  </Modal.Footer>
-</Modal>
+      </Modal>
     </Col>
   );
 };

@@ -8,7 +8,11 @@ const PaymentDetails = ({
   // ===== NEW: Weight validation props =====
   capturedWeights = {},
   requireWeightForAll = false,
-  repairDetails = []
+  repairDetails = [],
+  // ===== BAG WEIGHT MATCH PROPS =====
+  assignedCaptureWeight = 0,
+  receivedCaptureWeightOfBag = 0,
+  weightsMatch = false,
 }) => {
   const navigate = useNavigate();
 
@@ -40,10 +44,13 @@ const PaymentDetails = ({
     return hasTotalWeightCaptured() || hasAnyItemWithDirectWeight();
   };
 
-  // Determine if Save should be disabled
-  const isSaveDisabled = requireWeightForAll && !hasAnyWeightCaptured();
+  // Determine if Save should be disabled - include bag weight match check
+  const isSaveDisabled = 
+    (requireWeightForAll && !hasAnyWeightCaptured()) ||
+    (assignedCaptureWeight > 0 && !weightsMatch);
 
   const showWeightWarning = requireWeightForAll && !hasAnyWeightCaptured();
+  const showBagWeightWarning = assignedCaptureWeight > 0 && !weightsMatch;
 
   return (
     <div>
@@ -62,7 +69,8 @@ const PaymentDetails = ({
                 cursor: isSaveDisabled ? "not-allowed" : "pointer",
               }}
               title={isSaveDisabled ? 
-                "Please capture total weight for all items first" : 
+                (showBagWeightWarning ? "Weight mismatch - please recapture" :
+                 "Please capture total weight for all items first") : 
                 "Save & Receive"}
             >
               Save & Receive
@@ -115,6 +123,25 @@ const PaymentDetails = ({
           </Row>
         )}
 
+        {/* ===== Show bag weight mismatch warning ===== */}
+        {showBagWeightWarning && (
+          <Row className="mt-2">
+            <Col>
+              <div style={{ 
+                color: "#856404", 
+                backgroundColor: "#fff3cd", 
+                padding: "8px 12px", 
+                borderRadius: "4px",
+                fontSize: "13px",
+                border: "1px solid #ffeeba"
+              }}>
+                <strong>⚠️ Weight Mismatch:</strong> Captured weight here ({receivedCaptureWeightOfBag.toFixed(3)}g)
+                does not match Assigned Salesman's captured weight ({assignedCaptureWeight.toFixed(3)}g).
+              </div>
+            </Col>
+          </Row>
+        )}
+
         {!isSaveDisabled && !requireWeightForAll && (
           <Row className="mt-2">
             <Col>
@@ -140,6 +167,9 @@ const PaymentDetails = ({
                 Debug: repairDetails: {repairDetails.length}, 
                 capturedWeights keys: {Object.keys(capturedWeights).join(', ') || 'none'},
                 hasWeight: {hasAnyWeightCaptured() ? 'YES' : 'NO'},
+                assignedWeight: {assignedCaptureWeight ? assignedCaptureWeight.toFixed(3) : '0'},
+                receivedWeight: {receivedCaptureWeightOfBag ? receivedCaptureWeightOfBag.toFixed(3) : '0'},
+                weightsMatch: {weightsMatch ? 'YES' : 'NO'},
                 disabled: {isSaveDisabled ? 'YES' : 'NO'}
               </div>
             </Col>

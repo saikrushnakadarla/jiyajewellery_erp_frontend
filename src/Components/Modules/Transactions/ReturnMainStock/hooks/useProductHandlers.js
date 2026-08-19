@@ -743,6 +743,7 @@ const useProductHandlers = (selectedSalesmanProducts = []) => {
     return `${baseURL}/${imagePath}`;
   };
 
+  // ===== UPDATED handleBarcodeChange with capture_weight_of_bag =====
   const handleBarcodeChange = async (code) => {
   try {
     if (!code) {
@@ -791,6 +792,9 @@ const useProductHandlers = (selectedSalesmanProducts = []) => {
         cover_wt: "",
         card_wt: "",
         packing_wt: "",
+        // Reset capture_weight_of_bag and received_id
+        capture_weight_of_bag: 0,
+        received_id: null,
       }));
       setIsQtyEditable(true);
       return;
@@ -858,6 +862,9 @@ const useProductHandlers = (selectedSalesmanProducts = []) => {
         cover_wt: assignedProduct.cover_wt || "",
         card_wt: assignedProduct.card_wt || "",
         packing_wt: assignedProduct.packing_wt || "",
+        // NEW: Load capture_weight_of_bag and received_id from assigned product
+        capture_weight_of_bag: assignedProduct.capture_weight_of_bag || 0,
+        received_id: assignedProduct.received_id || null,
       }));
       setIsQtyEditable(false);
       return;
@@ -902,6 +909,8 @@ const useProductHandlers = (selectedSalesmanProducts = []) => {
         cover_wt: "",
         card_wt: "",
         packing_wt: "",
+        capture_weight_of_bag: 0,
+        received_id: null,
       }));
       setIsQtyEditable(true);
       return;
@@ -1005,6 +1014,9 @@ const useProductHandlers = (selectedSalesmanProducts = []) => {
         cover_wt: tag.Cover_Wt || "",
         card_wt: tag.Card_Wt || "",
         packing_wt: tag.Packing_Wt || "",
+        // NEW: Load capture_weight_of_bag and received_id from tag
+        capture_weight_of_bag: tag.capture_weight_of_bag || 0,
+        received_id: tag.received_id || null,
       }));
       setIsQtyEditable(false);
       return;
@@ -1051,6 +1063,8 @@ const useProductHandlers = (selectedSalesmanProducts = []) => {
       cover_wt: "",
       card_wt: "",
       packing_wt: "",
+      capture_weight_of_bag: 0,
+      received_id: null,
     }));
     setIsQtyEditable(true);
     

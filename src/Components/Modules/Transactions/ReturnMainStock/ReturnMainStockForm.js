@@ -40,6 +40,10 @@ const ReturnMainStockForm = () => {
   const [isWeightProcessing, setIsWeightProcessing] = useState(false);
   const [currentWeightItem, setCurrentWeightItem] = useState(null);
 
+  // ============= BAG WEIGHT COMPARISON STATES =============
+  const [receivedBagWeight, setReceivedBagWeight] = useState(0);
+  const [returnCaptureWeightOfBag, setReturnCaptureWeightOfBag] = useState(0);
+
   // ============= WEIGHT CAPTURE TRIGGER FOR TABLE =============
   const [triggerWeightCamera, setTriggerWeightCamera] = useState(null);
 
@@ -103,44 +107,117 @@ useEffect(() => {
   fetchEstimates();
 }, []);
 
-// Function to fetch image from received_salesman_items for a given barcode
-const fetchImageForBarcode = async (barcode) => {
+// Function to fetch received info for a barcode (includes image and capture_weight_of_bag)
+const fetchReceivedInfoForBarcode = async (barcode) => {
   try {
-    // First check if we already have the image in selectedSalesmanProducts
-    const existingProduct = selectedSalesmanProducts.find(
-      p => p.PCode_BarCode === barcode
-    );
-    if (existingProduct && existingProduct.image) {
-      return existingProduct.image;
+    // First, try to get from cache to avoid repeated API calls
+    if (receivedInfoCache && receivedInfoCache[barcode]) {
+      console.log(`✅ Using cached received info for ${barcode}:`, receivedInfoCache[barcode]);
+      return receivedInfoCache[barcode];
     }
-    
-    // If not, fetch from received_salesman_items
+
+    console.log(`🔍 Fetching received info for barcode: ${barcode}`);
     const response = await axios.get(`${baseURL}/api/received-salesman/get-received-transfers`);
     const transfers = response.data || [];
+    console.log(`📦 Found ${transfers.length} transfers to check`);
     
-    // Look through all transfers for items with this barcode
     for (const transfer of transfers) {
       try {
+        console.log(`🔍 Checking transfer ID: ${transfer.received_id}`);
         const detailResponse = await axios.get(`${baseURL}/api/received-salesman/get-received-transfer/${transfer.received_id}`);
+        
+        const transferDetails = detailResponse.data?.transfer_details;
         const items = detailResponse.data?.transfer_items || [];
+        
+        // Log what we're looking for
+        console.log(`🔍 Looking for barcode: ${barcode} in transfer ${transfer.received_id}`);
+        console.log(`📋 Items in this transfer:`, items.map(i => i.PCode_BarCode));
+        
         const foundItem = items.find(item => item.PCode_BarCode === barcode);
-        if (foundItem && foundItem.image) {
-          return foundItem.image;
+        
+        if (foundItem) {
+          const bagWeight = parseFloat(transferDetails?.capture_weight_of_bag) || 0;
+          console.log(`✅ Found item ${barcode} in transfer ${transfer.received_id}, bag weight: ${bagWeight}`);
+          
+          const result = {
+            image: foundItem.image || null,
+            received_id: transfer.received_id,
+            capture_weight_of_bag: bagWeight
+          };
+          
+          // Cache the result
+          if (!receivedInfoCache) receivedInfoCache = {};
+          receivedInfoCache[barcode] = result;
+          
+          return result;
         }
       } catch (e) {
-        console.error("Error fetching transfer details:", e);
+        console.error(`❌ Error fetching transfer details for ${transfer.received_id}:`, e);
         continue;
       }
     }
-    return null;
+    
+    console.log(`⚠️ No transfer found for barcode: ${barcode}`);
+    const result = { image: null, received_id: null, capture_weight_of_bag: 0 };
+    
+    // Cache the empty result too
+    if (!receivedInfoCache) receivedInfoCache = {};
+    receivedInfoCache[barcode] = result;
+    
+    return result;
   } catch (error) {
-    console.error("Error fetching image for barcode:", error);
-    return null;
+    console.error(`❌ Error fetching received info for barcode ${barcode}:`, error);
+    return { image: null, received_id: null, capture_weight_of_bag: 0 };
   }
 };
 
-// Also modify the existing stock fetch to include estimate data
-// Update the useEffect that fetches stock to combine with estimate data
+// Add this cache variable outside the component or use useRef
+const receivedInfoCache = {};
+
+// Also add this function to fetch all received transfers at once for better performance
+const fetchAllReceivedInfo = async (barcodes) => {
+  try {
+    console.log(`🔍 Fetching received info for ${barcodes.length} barcodes`);
+    const response = await axios.get(`${baseURL}/api/received-salesman/get-received-transfers`);
+    const transfers = response.data || [];
+    
+    // Create a map of barcode to received info
+    const infoMap = {};
+    
+    for (const barcode of barcodes) {
+      infoMap[barcode] = { image: null, received_id: null, capture_weight_of_bag: 0 };
+      
+      for (const transfer of transfers) {
+        try {
+          const detailResponse = await axios.get(`${baseURL}/api/received-salesman/get-received-transfer/${transfer.received_id}`);
+          const transferDetails = detailResponse.data?.transfer_details;
+          const items = detailResponse.data?.transfer_items || [];
+          
+          const foundItem = items.find(item => item.PCode_BarCode === barcode);
+          
+          if (foundItem) {
+            infoMap[barcode] = {
+              image: foundItem.image || null,
+              received_id: transfer.received_id,
+              capture_weight_of_bag: parseFloat(transferDetails?.capture_weight_of_bag) || 0
+            };
+            break; // Found the barcode, no need to check more transfers
+          }
+        } catch (e) {
+          console.error(`Error fetching transfer details for ${transfer.received_id}:`, e);
+          continue;
+        }
+      }
+    }
+    
+    console.log(`✅ Received info map:`, infoMap);
+    return infoMap;
+  } catch (error) {
+    console.error('Error fetching all received info:', error);
+    return {};
+  }
+};
+
 // Also modify the existing stock fetch to include estimate data
 // Update the useEffect that fetches stock to combine with estimate data
 useEffect(() => {
@@ -231,24 +308,26 @@ useEffect(() => {
       });
       setEstimatedProducts(estMap);
       
-      // Fetch images for each product from received_salesman_items
-      const productsWithImages = [];
+      // Fetch received info for each product (image and capture_weight_of_bag)
+      const productsWithInfo = [];
       for (const item of filteredStock) {
-        const imagePath = await fetchImageForBarcode(item.PCode_BarCode);
-        productsWithImages.push({
+        const receivedInfo = await fetchReceivedInfoForBarcode(item.PCode_BarCode);
+        productsWithInfo.push({
           ...item,
-          image: imagePath,
+          image: receivedInfo.image,
+          received_id: receivedInfo.received_id,
+          capture_weight_of_bag: receivedInfo.capture_weight_of_bag,
           packetBarcode: estMap[item.PCode_BarCode]?.packetBarcode || null,
           isEstimated: !!estMap[item.PCode_BarCode]?.packetBarcode,
           estimateInfo: estMap[item.PCode_BarCode] || null
         });
       }
       
-      console.log("Combined stock with estimate data and images:", productsWithImages);
+      console.log("Combined stock with estimate data and images:", productsWithInfo);
       
       // Extract unique barcodes for dropdown - only show items with Status = "Selected"
       // FIXED: Include cover_wt, card_wt, packing_wt in the uniqueBarcodes mapping
-      const uniqueBarcodes = [...new Map(productsWithImages.map(item => 
+      const uniqueBarcodes = [...new Map(productsWithInfo.map(item => 
         [item.PCode_BarCode, { 
           PCode_BarCode: item.PCode_BarCode, 
           product_name: item.product_Name || item.sub_category || "",
@@ -278,6 +357,9 @@ useEffect(() => {
           cover_wt: item.Cover_Wt || 0,
           card_wt: item.Card_Wt || 0,
           packing_wt: item.Packing_Wt || 0,
+          // NEW: Include capture_weight_of_bag from received info
+          capture_weight_of_bag: item.capture_weight_of_bag || 0,
+          received_id: item.received_id || null
         }
       ])).values()];
       
@@ -286,10 +368,11 @@ useEffect(() => {
         hasImage: !!b.image,
         cover_wt: b.cover_wt,
         card_wt: b.card_wt,
-        packing_wt: b.packing_wt
+        packing_wt: b.packing_wt,
+        capture_weight_of_bag: b.capture_weight_of_bag
       })));
       setSelectedSalesmanProducts(uniqueBarcodes);
-      setStock(productsWithImages);
+      setStock(productsWithInfo);
       console.log("========== END DEBUG ==========");
       
     } catch (error) {
@@ -419,6 +502,43 @@ useEffect(() => {
 }, [formData.salesman_id]);
 
 
+  // ============= REPAIR DETAILS STATE =============
+  const [repairDetails, setRepairDetails] = useState(() => {
+    const savedData = localStorage.getItem(`repairDetails_${tabId}`);
+    return savedData ? JSON.parse(savedData) : [];
+  });
+
+  // ============= SAVE REPAIR DETAILS TO LOCALSTORAGE =============
+  useEffect(() => {
+    localStorage.setItem(
+      `repairDetails_${tabId}`,
+      JSON.stringify(repairDetails),
+    );
+  }, [repairDetails, tabId]);
+
+// ============= TRACK RECEIVED BAG WEIGHT FROM REPAIR DETAILS =============
+useEffect(() => {
+  const firstItem = repairDetails.find(i => i.capture_weight_of_bag !== undefined && i.capture_weight_of_bag > 0);
+  if (firstItem) {
+    setReceivedBagWeight(parseFloat(firstItem.capture_weight_of_bag) || 0);
+  }
+}, [repairDetails]);
+
+// ============= NEW: Called immediately when a barcode/packet is selected in ProductDetails =============
+const handleReceivedBagWeightDetected = (weight) => {
+  setReceivedBagWeight(parseFloat(weight) || 0);
+};
+
+// ============= HANDLE RETURN CAPTURE WEIGHT OF BAG =============
+const handleReturnCaptureWeightOfBag = (grams) => {
+  setReturnCaptureWeightOfBag(parseFloat(grams) || 0);
+};
+
+// ============= WEIGHTS MATCH CALCULATION =============
+const weightsMatch =
+  receivedBagWeight > 0 &&
+  returnCaptureWeightOfBag > 0 &&
+  Math.abs(receivedBagWeight - returnCaptureWeightOfBag) < 0.001;
 
   // const {
   //   formData,
@@ -462,17 +582,6 @@ useEffect(() => {
   //   manualTotalPriceRef,
   // } = useProductHandlers(selectedSalesmanProducts);
 
-  const [repairDetails, setRepairDetails] = useState(() => {
-    const savedData = localStorage.getItem(`repairDetails_${tabId}`);
-    return savedData ? JSON.parse(savedData) : [];
-  });
-
-  useEffect(() => {
-    localStorage.setItem(
-      `repairDetails_${tabId}`,
-      JSON.stringify(repairDetails),
-    );
-  }, [repairDetails, tabId]);
 
   useEffect(() => {
     const fetchCustomers = async () => {
@@ -1715,13 +1824,14 @@ const handleAdd = () => {
     return;
   }
 
-  // Get image from selectedSalesmanProducts if available
+  // Get image and capture_weight_of_bag from selectedSalesmanProducts if available
   const assignedProduct = selectedSalesmanProducts.find(
     p => p.PCode_BarCode === formData.code
   );
   
   let imageToSave = formData.image || null;
   let imagePreviewToSave = formData.imagePreview || null;
+  let captureWeightOfBag = assignedProduct?.capture_weight_of_bag || 0;
   
   if (!imageToSave && assignedProduct?.image) {
     imageToSave = assignedProduct.image;
@@ -1765,6 +1875,9 @@ const handleAdd = () => {
       weight_machine_milligrams: parseInt(formData.weight_machine_milligrams) || capturedWeight?.milligrams || 0,
       weight_machine_confidence: parseInt(formData.weight_machine_confidence) || capturedWeight?.confidence || 0,
       weight_machine_raw: formData.weight_machine_raw || capturedWeight?.raw_text || null,
+      // ===== BAG WEIGHT FROM RECEIVED =====
+      capture_weight_of_bag: captureWeightOfBag,
+      received_id: assignedProduct?.received_id || null,
     },
   ];
 
@@ -1865,7 +1978,7 @@ const handleAdd = () => {
     pricing: "By Weight",
     tax_percent: "03% GST",
     tax_amt: "",
-    hm_charges: "60.00",
+    hm_charges: "",
     total_price: "",
     qty: "",
     imagePreview: null,
@@ -1884,6 +1997,8 @@ const handleAdd = () => {
     weight_machine_milligrams: 0,
     weight_machine_confidence: 0,
     weight_machine_raw: null,
+    capture_weight_of_bag: 0,
+    received_id: null,
   }));
 };
 
@@ -1935,6 +2050,8 @@ const resetForm = () => {
   });
   setRepairDetails([]);
   setCapturedWeights({});
+  setReceivedBagWeight(0);
+  setReturnCaptureWeightOfBag(0);
 };
 
   const resetSaleReturnForm = () => {
@@ -2852,11 +2969,8 @@ const resetForm = () => {
   };
 
   // ============================================================
-  // UPDATED handleSave - Uses POST API to save return to main stock
+  // UPDATED handleSave - With Weight Calculation
   // ============================================================
-// ============================================================
-// UPDATED handleSave - With Weight Calculation
-// ============================================================
 const handleSave = async () => {
   try {
     const activeStockPointDetails = formData.active_stock_point_details;
@@ -2872,6 +2986,12 @@ const handleSave = async () => {
 
     if (!repairDetails || repairDetails.length === 0) {
       alert("Please add items to transfer");
+      return;
+    }
+
+    // Check if weights match when receivedBagWeight exists
+    if (receivedBagWeight > 0 && !weightsMatch) {
+      alert(`Weight mismatch! Captured weight (${returnCaptureWeightOfBag.toFixed(3)}g) does not match received weight (${receivedBagWeight.toFixed(3)}g).`);
       return;
     }
 
@@ -3005,7 +3125,7 @@ const handleSave = async () => {
         .map(item => item.assigned_id)
         .filter(id => id !== null && id !== undefined);
 
-      // Build payload with weight fields
+      // Build payload with weight fields and capture_weight_of_bag
       const payload = {
         return_data: returnData,
         from_stock_point_id: parseInt(formData.active_stock_point_id),
@@ -3026,6 +3146,8 @@ const handleSave = async () => {
         weight_machine_confidence: totalWeightMachineConfidence || 0,
         weight_machine_raw: hasWeightData ? `Total: ${totalWeightMachineReading}g` : null,
         weight_extracted_at: latestWeightExtractedAt,
+        // ===== ADD CAPTURE WEIGHT OF BAG =====
+        capture_weight_of_bag: returnCaptureWeightOfBag || 0,
       };
 
       console.log("📦 Sending Return to Main Stock Payload:", payload);
@@ -3051,6 +3173,8 @@ const handleSave = async () => {
         setSchemeTableData([]);
         setDiscount(0);
         setCapturedWeights({});
+        setReceivedBagWeight(0);
+        setReturnCaptureWeightOfBag(0);
         
         // Reset form data
         setFormData({
@@ -3110,6 +3234,8 @@ const handleSave = async () => {
     setSchemeTableData([]);
     setDiscount(0);
     setCapturedWeights({});
+    setReceivedBagWeight(0);
+    setReturnCaptureWeightOfBag(0);
     localStorage.removeItem("oldSalesData");
     localStorage.removeItem("schemeSalesData");
     localStorage.removeItem(`repairDetails_${tabId}`);
@@ -3285,6 +3411,12 @@ const handleSave = async () => {
               // ============= NEW: Trigger weight camera from table =============
               triggerWeightCamera={triggerWeightCamera}
               setTriggerWeightCamera={setTriggerWeightCamera}
+              // ============= BAG WEIGHT PROPS =============
+              receivedBagWeight={receivedBagWeight}
+              returnCaptureWeightOfBag={returnCaptureWeightOfBag}
+              onReturnCaptureWeightOfBagChange={handleReturnCaptureWeightOfBag}
+              // ============= NEW: Direct weight detection callback =============
+              onReceivedBagWeightDetected={handleReceivedBagWeightDetected}
             />
           </div>
 
@@ -3405,6 +3537,10 @@ const handleSave = async () => {
                 // ===== NEW: Weight validation props =====
                 capturedWeights={capturedWeights}
                 requireWeightForAll={true}  // Set to true to enforce weight capture, false to make it optional
+                // ===== BAG WEIGHT MATCH PROPS =====
+                receivedBagWeight={receivedBagWeight}
+                returnCaptureWeightOfBag={returnCaptureWeightOfBag}
+                weightsMatch={weightsMatch}
                 repairDetails={repairDetails}
               />
             </div>

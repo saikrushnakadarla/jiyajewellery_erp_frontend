@@ -1185,7 +1185,8 @@ const useProductHandlers = (selectedSalesmanProducts = []) => {
     isManualTotalPriceChange,
     setIsManualTotalPriceChange,
     isTotalPriceCleared,
-    setIsTotalPriceCleared
+    setIsTotalPriceCleared,
+    manualTotalPriceRef: useRef(null)
   };
 };
 

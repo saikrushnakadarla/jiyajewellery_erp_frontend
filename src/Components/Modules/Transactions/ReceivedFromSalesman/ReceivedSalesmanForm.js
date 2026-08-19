@@ -40,6 +40,10 @@ const ReceivedSalesmanForm = () => {
   const [isWeightProcessing, setIsWeightProcessing] = useState(false);
   const [currentWeightItem, setCurrentWeightItem] = useState(null);
 
+  // ============= BAG WEIGHT COMPARISON STATES =============
+  const [assignedCaptureWeight, setAssignedCaptureWeight] = useState(0);
+  const [receivedCaptureWeightOfBag, setReceivedCaptureWeightOfBag] = useState(0);
+
   // ============= WEIGHT CAPTURE TRIGGER FOR TABLE =============
   const [triggerWeightCamera, setTriggerWeightCamera] = useState(null);
 
@@ -285,52 +289,52 @@ const ReceivedSalesmanForm = () => {
     }
   }, [formData.salesman_id, formData.active_stock_point_id]);
 
-  // const {
-  //   formData,
-  //   setFormData,
-  //   products,
-  //   data,
-  //   isQtyEditable,
-  //   handleChange,
-  //   handleBarcodeChange,
-  //   handleProductChange,
-  //   handleProductNameChange,
-  //   handleMetalTypeChange,
-  //   handleDesignNameChange,
-  //   filteredDesignOptions,
-  //   filteredPurityOptions,
-  //   filteredMetalTypes,
-  //   uniqueProducts,
-  //   metaltypeOptions,
-  //   purityOptions,
-  //   categoryOptions,
-  //   subcategoryOptions,
-  //   designOptions,
-  //   isBarcodeSelected,
-  //   handleImageChange,
-  //   image,
-  //   fileInputRef,
-  //   clearImage,
-  //   captureImage,
-  //   setShowWebcam,
-  //   showWebcam,
-  //   webcamRef,
-  //   setShowOptions,
-  //   showOptions,
-  //   fetchCategory,
-  //   fetchSubCategory,
-  //   isManualTotalPriceChange,
-  //   setIsManualTotalPriceChange,
-  //   tabId,
-  //   isTotalPriceCleared,
-  //   setIsTotalPriceCleared,
-  //   manualTotalPriceRef,
-  // } = useProductHandlers(selectedSalesmanProducts);
+  // ============= FETCH ASSIGNED BAG WEIGHT =============
 
+    // ============= REPAIR DETAILS STATE =============
   const [repairDetails, setRepairDetails] = useState(() => {
     const savedData = localStorage.getItem(`repairDetails_${tabId}`);
     return savedData ? JSON.parse(savedData) : [];
   });
+
+
+  useEffect(() => {
+    const fetchAssignedBagWeight = async (assignedId) => {
+      if (!assignedId) { 
+        setAssignedCaptureWeight(0); 
+        return; 
+      }
+      try {
+        const res = await axios.get(`${baseURL}/api/assigned-salesman/get-assigned-transfer/${assignedId}`);
+        const wt = parseFloat(res.data?.transfer_details?.total_weight_with_bag) || 0;
+        setAssignedCaptureWeight(wt);
+        console.log("Fetched assigned bag weight:", wt);
+      } catch (err) {
+        console.error("Error fetching assigned bag weight:", err);
+        setAssignedCaptureWeight(0);
+      }
+    };
+
+    const firstAssignedId = repairDetails.find(i => i.assigned_id)?.assigned_id;
+    if (firstAssignedId) {
+      fetchAssignedBagWeight(firstAssignedId);
+    } else {
+      setAssignedCaptureWeight(0);
+    }
+  }, [repairDetails]);
+
+  // ============= HANDLE RECEIVED CAPTURE WEIGHT OF BAG =============
+  const handleReceivedCaptureWeightOfBag = (grams) => {
+    setReceivedCaptureWeightOfBag(parseFloat(grams) || 0);
+  };
+
+  // ============= WEIGHTS MATCH CALCULATION =============
+  const weightsMatch =
+    assignedCaptureWeight > 0 &&
+    receivedCaptureWeightOfBag > 0 &&
+    Math.abs(assignedCaptureWeight - receivedCaptureWeightOfBag) < 0.001;
+
+     // ============= SAVE REPAIR DETAILS TO LOCALSTORAGE =============
 
   useEffect(() => {
     localStorage.setItem(
@@ -1761,6 +1765,8 @@ const ReceivedSalesmanForm = () => {
       online_amt: 0,
     });
     setRepairDetails([]);
+    setAssignedCaptureWeight(0);
+    setReceivedCaptureWeightOfBag(0);
   };
 
   const resetSaleReturnForm = () => {
@@ -2578,93 +2584,6 @@ const ReceivedSalesmanForm = () => {
     }
   };
 
-  // const handleSave = async () => {
-  //   if (!formData.account_name || !formData.mobile) {
-  //     alert("Please select the Customer or enter the Customer Mobile Number");
-  //     return;
-  //   }
-  //   const dataToSave = {
-  //     repairDetails: repairDetails.map(item => ({
-  //       ...item,
-  //       customer_id: formData.customer_id,
-  //       mobile: formData.mobile,
-  //       account_name: formData.account_name,
-  //       email: formData.email,
-  //       address1: formData.address1,
-  //       address2: formData.address2,
-  //       city: formData.city,
-  //       pincode: formData.pincode,
-  //       state: formData.state,
-  //       state_code: formData.state_code,
-  //       aadhar_card: formData.aadhar_card,
-  //       gst_in: formData.gst_in,
-  //       pan_card: formData.pan_card,
-  //       terms: formData.terms,
-  //       cash_amount: paymentDetails.cash_amount || 0,
-  //       card_amt: paymentDetails.card_amt || 0,
-  //       chq_amt: paymentDetails.chq_amt || 0,
-  //       online_amt: paymentDetails.online_amt || 0,
-  //     })),
-  //     oldItems: oldSalesData,
-  //     memberSchemes: schemeSalesData,
-  //     oldItemsAmount: oldItemsAmount || 0, // Explicitly include value
-  //     schemeAmount: schemeAmount || 0,    // Explicitly include value
-  //     salesNetAmount: salesAmountToPass || 0,
-  //   };
-
-  //   console.log("Payload to be sent:", JSON.stringify(dataToSave, null, 2));
-
-  //   console.log("Saving data:", dataToSave);
-
-  //   try {
-  //     await axios.post(`${baseURL}/save-repair-details`, dataToSave);
-  //     alert("Sales added successfully");
-
-  //     // Generate PDF Blob
-  //     const pdfDoc = (
-  //       <PDFLayout
-  //         formData={formData}
-  //         repairDetails={repairDetails}
-  //         cash_amount={paymentDetails.cash_amount || 0}
-  //         card_amt={paymentDetails.card_amt || 0}
-  //         chq_amt={paymentDetails.chq_amt || 0}
-  //         online_amt={paymentDetails.online_amt || 0}
-  //         taxableAmount={taxableAmount}
-  //         taxAmount={taxAmount}
-  //         discountAmt={discountAmt}
-  //         oldItemsAmount={oldItemsAmount}
-  //         schemeAmount={schemeAmount}
-  //         salesNetAmount={salesAmountToPass}
-  //         netAmount={netAmount}
-  //         netPayableAmount={netPayableAmount}
-  //       />
-  //     );
-
-  //     const pdfBlob = await pdf(pdfDoc).toBlob();
-
-  //     // Create a download link and trigger it
-  //     const link = document.createElement("a");
-  //     link.href = URL.createObjectURL(pdfBlob);
-  //     link.download = `invoice-${formData.invoice_number}.pdf`;
-  //     link.click();
-
-  //     // Clean up
-  //     URL.revokeObjectURL(link.href);
-
-  //     // Clear all data after saving
-  //     clearData();
-
-  //     // Reset the form and reload the page if necessary
-  //     resetForm();
-  //     navigate("/salestable");
-  //     window.location.reload();
-  //     await handleCheckout();
-  //   } catch (error) {
-  //     console.error("Error saving data:", error);
-  //     alert("Error saving data");
-  //   }
-  // };
-
   // ============= HANDLE WEIGHT CAPTURE FROM PRODUCT DETAILS =============
   const handleCaptureWeight = async (itemId, weightData) => {
     // Update the captured weights state
@@ -2763,220 +2682,230 @@ const ReceivedSalesmanForm = () => {
   };
 
   // In ReceivedSalesmanForm.js, update the handleSave function:
- const handleSave = async () => {
-  try {
-    const activeStockPointDetails = formData.active_stock_point_details;
-    const selectedSalesman = formData.salesman_id ? {
-      salesman_id: formData.salesman_id,
-      salesman_name: formData.salesman_name
-    } : null;
+  const handleSave = async () => {
+    try {
+      const activeStockPointDetails = formData.active_stock_point_details;
+      const selectedSalesman = formData.salesman_id ? {
+        salesman_id: formData.salesman_id,
+        salesman_name: formData.salesman_name
+      } : null;
 
-    if (!activeStockPointDetails) {
-      alert("Please select an Active Stock Point");
-      return;
-    }
-
-    if (!selectedSalesman) {
-      alert("Please select a Salesman");
-      return;
-    }
-
-    if (!repairDetails || repairDetails.length === 0) {
-      alert("Please add items to transfer");
-      return;
-    }
-
-    // Get next received number from API
-    let nextReceivedNumber = formData.received_number;
-    
-    if (!nextReceivedNumber) {
-      try {
-        const response = await axios.get(`${baseURL}/api/received-salesman/lastReceivedNumber`);
-        nextReceivedNumber = response.data.lastReceivedNumber;
-      } catch (error) {
-        console.error("Error fetching next received number:", error);
-        nextReceivedNumber = `RCN001`;
+      if (!activeStockPointDetails) {
+        alert("Please select an Active Stock Point");
+        return;
       }
-    }
 
-    console.log("Saving with Received Number:", nextReceivedNumber);
-    console.log("Logged in User ID (to_user_id):", loggedInUserId);
-
-    // Get the capture image from formData
-    const captureImage = formData.capture_image || null;
-    console.log("📷 Capture Image present:", !!captureImage);
-
-    // ===== GET STOCK OUTWARD FIELDS FROM FORMDATA =====
-    const stockOutwardBarcode = formData.stock_outward_barcode || null;
-    const stockOutwardGrossWt = formData.stock_outward_gross_wt || null;
-    const stockOutwardType = formData.stock_outward_type || null;
-    const stockOutwardPacketBarcode = formData.stock_outward_packet_barcode || null;
-    
-    console.log("📦 StockOutWard Barcode from formData:", stockOutwardBarcode);
-    console.log("📦 StockOutWard Gross WT from formData:", stockOutwardGrossWt);
-    console.log("📦 StockOutWard Type from formData:", stockOutwardType);
-    console.log("📦 StockOutWard Packet Barcode from formData:", stockOutwardPacketBarcode);
-
-    // Check if any product was selected via packet barcode
-    const hasPacketSelection = repairDetails.some(item => item.is_packet_selection === true || item.packet_barcode !== null);
-    console.log("Has packet selection:", hasPacketSelection);
-
-    // ===== CALCULATE TOTAL WEIGHT MACHINE READING (take first valid weight) =====
-    let totalWeightMachineReading = 0;
-    let totalWeightMachineGrams = 0;
-    let totalWeightMachineMilligrams = 0;
-    let totalWeightMachineConfidence = 0;
-    let hasWeightData = false;
-    let latestWeightExtractedAt = null;
-
-    // Check all captured weights and take the first valid one
-    const weightKeys = Object.keys(capturedWeights);
-    for (const key of weightKeys) {
-      const weight = capturedWeights[key];
-      if (weight && weight.total_grams > 0) {
-        totalWeightMachineReading = parseFloat(weight.total_grams) || 0;
-        totalWeightMachineGrams = parseInt(weight.grams) || 0;
-        totalWeightMachineMilligrams = parseInt(weight.milligrams) || 0;
-        totalWeightMachineConfidence = parseInt(weight.confidence) || 0;
-        hasWeightData = true;
-        latestWeightExtractedAt = new Date().toISOString();
-        break; // Take the first valid weight as the total
+      if (!selectedSalesman) {
+        alert("Please select a Salesman");
+        return;
       }
-    }
 
-    // If no weight in capturedWeights, check items directly
-    if (!hasWeightData) {
-      for (const item of repairDetails) {
-        if (item.weight_machine_reading && parseFloat(item.weight_machine_reading) > 0) {
-          totalWeightMachineReading = parseFloat(item.weight_machine_reading) || 0;
-          totalWeightMachineGrams = parseInt(item.weight_machine_grams) || 0;
-          totalWeightMachineMilligrams = parseInt(item.weight_machine_milligrams) || 0;
-          totalWeightMachineConfidence = parseInt(item.weight_machine_confidence) || 0;
-          hasWeightData = true;
-          latestWeightExtractedAt = item.weight_extracted_at || new Date().toISOString();
-          break;
+      if (!repairDetails || repairDetails.length === 0) {
+        alert("Please add items to transfer");
+        return;
+      }
+
+      // Check if weights match when assignedCaptureWeight exists
+      if (assignedCaptureWeight > 0 && !weightsMatch) {
+        alert(`Weight mismatch! Captured weight (${receivedCaptureWeightOfBag.toFixed(3)}g) does not match assigned weight (${assignedCaptureWeight.toFixed(3)}g).`);
+        return;
+      }
+
+      // Get next received number from API
+      let nextReceivedNumber = formData.received_number;
+      
+      if (!nextReceivedNumber) {
+        try {
+          const response = await axios.get(`${baseURL}/api/received-salesman/lastReceivedNumber`);
+          nextReceivedNumber = response.data.lastReceivedNumber;
+        } catch (error) {
+          console.error("Error fetching next received number:", error);
+          nextReceivedNumber = `RCN001`;
         }
       }
+
+      console.log("Saving with Received Number:", nextReceivedNumber);
+      console.log("Logged in User ID (to_user_id):", loggedInUserId);
+
+      // Get the capture image from formData
+      const captureImage = formData.capture_image || null;
+      console.log("📷 Capture Image present:", !!captureImage);
+
+      // ===== GET STOCK OUTWARD FIELDS FROM FORMDATA =====
+      const stockOutwardBarcode = formData.stock_outward_barcode || null;
+      const stockOutwardGrossWt = formData.stock_outward_gross_wt || null;
+      const stockOutwardType = formData.stock_outward_type || null;
+      const stockOutwardPacketBarcode = formData.stock_outward_packet_barcode || null;
+      
+      console.log("📦 StockOutWard Barcode from formData:", stockOutwardBarcode);
+      console.log("📦 StockOutWard Gross WT from formData:", stockOutwardGrossWt);
+      console.log("📦 StockOutWard Type from formData:", stockOutwardType);
+      console.log("📦 StockOutWard Packet Barcode from formData:", stockOutwardPacketBarcode);
+
+      // Check if any product was selected via packet barcode
+      const hasPacketSelection = repairDetails.some(item => item.is_packet_selection === true || item.packet_barcode !== null);
+      console.log("Has packet selection:", hasPacketSelection);
+
+      // ===== CALCULATE TOTAL WEIGHT MACHINE READING (take first valid weight) =====
+      let totalWeightMachineReading = 0;
+      let totalWeightMachineGrams = 0;
+      let totalWeightMachineMilligrams = 0;
+      let totalWeightMachineConfidence = 0;
+      let hasWeightData = false;
+      let latestWeightExtractedAt = null;
+
+      // Check all captured weights and take the first valid one
+      const weightKeys = Object.keys(capturedWeights);
+      for (const key of weightKeys) {
+        const weight = capturedWeights[key];
+        if (weight && weight.total_grams > 0) {
+          totalWeightMachineReading = parseFloat(weight.total_grams) || 0;
+          totalWeightMachineGrams = parseInt(weight.grams) || 0;
+          totalWeightMachineMilligrams = parseInt(weight.milligrams) || 0;
+          totalWeightMachineConfidence = parseInt(weight.confidence) || 0;
+          hasWeightData = true;
+          latestWeightExtractedAt = new Date().toISOString();
+          break; // Take the first valid weight as the total
+        }
+      }
+
+      // If no weight in capturedWeights, check items directly
+      if (!hasWeightData) {
+        for (const item of repairDetails) {
+          if (item.weight_machine_reading && parseFloat(item.weight_machine_reading) > 0) {
+            totalWeightMachineReading = parseFloat(item.weight_machine_reading) || 0;
+            totalWeightMachineGrams = parseInt(item.weight_machine_grams) || 0;
+            totalWeightMachineMilligrams = parseInt(item.weight_machine_milligrams) || 0;
+            totalWeightMachineConfidence = parseInt(item.weight_machine_confidence) || 0;
+            hasWeightData = true;
+            latestWeightExtractedAt = item.weight_extracted_at || new Date().toISOString();
+            break;
+          }
+        }
+      }
+
+      console.log(`📊 Total weight machine reading: ${totalWeightMachineReading}g`);
+      console.log(`📊 Has weight data: ${hasWeightData}`);
+
+      // Prepare transfer data with proper fields for received salesman
+      const transferData = repairDetails.map(item => ({
+        item_id: item.item_id || null,
+        assigned_id: item.assigned_id || null,
+        product_id: item.product_id || null,
+        product_name: item.product_name || null,
+        metal_type: item.metal_type || null,
+        purity: item.purity || item.selling_purity || null,
+        category: item.category || null,
+        sub_category: item.sub_category || item.product_name || null,
+        design_name: item.design_name || null,
+        qty: parseFloat(item.qty) || 1,
+        gross_weight: parseFloat(item.gross_weight) || 0,
+        stone_weight: parseFloat(item.stone_weight) || 0,
+        net_weight: parseFloat(item.total_weight_av) || parseFloat(item.weight_bw) || 0,
+        rate: parseFloat(item.rate) || 0,
+        making_charges: parseFloat(item.making_charges) || 0,
+        stone_price: parseFloat(item.stone_price) || 0,
+        total_price: parseFloat(item.total_price) || 0,
+        remarks: item.remarks || null,
+        PCode_BarCode: item.code,
+        is_packet_selection: item.is_packet_selection || false,
+        packet_barcode: item.packet_barcode || null,
+        image: item.image || null,
+        // NEW: Include Cover Wt, Card Wt, Packing Wt
+        cover_wt: parseFloat(item.cover_wt) || 0,
+        card_wt: parseFloat(item.card_wt) || 0,
+        packing_wt: parseFloat(item.packing_wt) || 0,
+        // ===== WEIGHT MACHINE FIELDS - use total weight for all items =====
+        weight_machine_reading: parseFloat(item.weight_machine_reading) || totalWeightMachineReading || 0,
+        weight_machine_grams: parseInt(item.weight_machine_grams) || totalWeightMachineGrams || 0,
+        weight_machine_milligrams: parseInt(item.weight_machine_milligrams) || totalWeightMachineMilligrams || 0,
+        weight_machine_confidence: parseInt(item.weight_machine_confidence) || totalWeightMachineConfidence || 0,
+        weight_machine_raw: item.weight_machine_raw || (hasWeightData ? `Total: ${totalWeightMachineReading}g` : null),
+        weight_extracted_at: item.weight_extracted_at || latestWeightExtractedAt,
+      }));
+
+      // Build payload for Received Salesman API
+      const payload = {
+        transfer_data: transferData,
+        from_salesman_id: parseInt(selectedSalesman.salesman_id),
+        to_stock_point_id: parseInt(formData.active_stock_point_id),
+        transfer_date: formData.date || new Date().toISOString().split('T')[0],
+        reference_number: nextReceivedNumber,
+        remarks: `Received from ${selectedSalesman.salesman_name} to ${activeStockPointDetails.stock_point_name}`,
+        created_by: formData.account_name || "system",
+        from_user_id: selectedSalesman.salesman_id ? parseInt(selectedSalesman.salesman_id) : null,
+        to_user_id: loggedInUserId,
+        is_packet_selection: hasPacketSelection,
+        capture_image: captureImage,
+        // ===== ADD STOCK OUTWARD FIELDS TO PAYLOAD =====
+        stock_outward_barcode: stockOutwardBarcode,
+        stock_outward_gross_wt: stockOutwardGrossWt,
+        stock_outward_type: stockOutwardType,
+        stock_outward_packet_barcode: stockOutwardPacketBarcode,
+        // ===== ADD WEIGHT FIELDS TO PAYLOAD =====
+        weight_machine_reading: totalWeightMachineReading || 0,
+        weight_machine_grams: totalWeightMachineGrams || 0,
+        weight_machine_milligrams: totalWeightMachineMilligrams || 0,
+        weight_machine_confidence: totalWeightMachineConfidence || 0,
+        weight_machine_raw: hasWeightData ? `Total: ${totalWeightMachineReading}g` : null,
+        weight_extracted_at: latestWeightExtractedAt,
+        // ===== ADD BAG WEIGHT CAPTURE =====
+        capture_weight_of_bag: receivedCaptureWeightOfBag || 0,
+      };
+
+      console.log("📦 Full Payload being sent:", JSON.stringify(payload, null, 2));
+
+      // Call the RECEIVED SALESMAN API
+      const response = await axios.post(`${baseURL}/api/received-salesman/save-received-salesman`, payload);
+     
+      if (response.status === 200 || response.status === 201) {
+        const statusUsed = response.data.status_used || 'Available';
+        alert(`Received from Salesman completed successfully! Received Number: ${nextReceivedNumber}\nStatus set to: ${statusUsed}`);
+        
+        // Clear data
+        setOldSalesData([]);
+        setSchemeSalesData([]);
+        setRepairDetails([]);
+        setPaymentDetails({
+          cash_amount: 0,
+          card_amt: 0,
+          chq: "",
+          chq_amt: 0,
+          online: "",
+          online_amt: 0,
+        });
+        setOldTableData([]);
+        setSchemeTableData([]);
+        setDiscount(0);
+        setCapturedWeights({});
+        setAssignedCaptureWeight(0);
+        setReceivedCaptureWeightOfBag(0);
+        
+        // Reset form data
+        setFormData({
+          ...formData,
+          active_stock_point_id: "",
+          salesman_id: "",
+          salesman_name: "",
+          active_stock_point_details: null,
+          received_number: "",
+          transfer_number: "",
+          capture_image: null,
+          capture_image_file: null,
+          // ===== RESET STOCK OUTWARD FIELDS =====
+          stock_outward_barcode: null,
+          stock_outward_gross_wt: null,
+          stock_outward_type: null,
+          stock_outward_packet_barcode: null
+        });
+        
+        navigate("/receive-from-salesman");
+      }
+    } catch (error) {
+      console.error("Error saving received salesman:", error);
+      alert("Error saving received salesman: " + (error.response?.data?.message || error.message));
     }
-
-    console.log(`📊 Total weight machine reading: ${totalWeightMachineReading}g`);
-    console.log(`📊 Has weight data: ${hasWeightData}`);
-
-    // Prepare transfer data with proper fields for received salesman
-    const transferData = repairDetails.map(item => ({
-      item_id: item.item_id || null,
-      assigned_id: item.assigned_id || null,
-      product_id: item.product_id || null,
-      product_name: item.product_name || null,
-      metal_type: item.metal_type || null,
-      purity: item.purity || item.selling_purity || null,
-      category: item.category || null,
-      sub_category: item.sub_category || item.product_name || null,
-      design_name: item.design_name || null,
-      qty: parseFloat(item.qty) || 1,
-      gross_weight: parseFloat(item.gross_weight) || 0,
-      stone_weight: parseFloat(item.stone_weight) || 0,
-      net_weight: parseFloat(item.total_weight_av) || parseFloat(item.weight_bw) || 0,
-      rate: parseFloat(item.rate) || 0,
-      making_charges: parseFloat(item.making_charges) || 0,
-      stone_price: parseFloat(item.stone_price) || 0,
-      total_price: parseFloat(item.total_price) || 0,
-      remarks: item.remarks || null,
-      PCode_BarCode: item.code,
-      is_packet_selection: item.is_packet_selection || false,
-      packet_barcode: item.packet_barcode || null,
-      image: item.image || null,
-      // NEW: Include Cover Wt, Card Wt, Packing Wt
-      cover_wt: parseFloat(item.cover_wt) || 0,
-      card_wt: parseFloat(item.card_wt) || 0,
-      packing_wt: parseFloat(item.packing_wt) || 0,
-      // ===== WEIGHT MACHINE FIELDS - use total weight for all items =====
-      weight_machine_reading: parseFloat(item.weight_machine_reading) || totalWeightMachineReading || 0,
-      weight_machine_grams: parseInt(item.weight_machine_grams) || totalWeightMachineGrams || 0,
-      weight_machine_milligrams: parseInt(item.weight_machine_milligrams) || totalWeightMachineMilligrams || 0,
-      weight_machine_confidence: parseInt(item.weight_machine_confidence) || totalWeightMachineConfidence || 0,
-      weight_machine_raw: item.weight_machine_raw || (hasWeightData ? `Total: ${totalWeightMachineReading}g` : null),
-      weight_extracted_at: item.weight_extracted_at || latestWeightExtractedAt,
-    }));
-
-    // Build payload for Received Salesman API
-    const payload = {
-      transfer_data: transferData,
-      from_salesman_id: parseInt(selectedSalesman.salesman_id),
-      to_stock_point_id: parseInt(formData.active_stock_point_id),
-      transfer_date: formData.date || new Date().toISOString().split('T')[0],
-      reference_number: nextReceivedNumber,
-      remarks: `Received from ${selectedSalesman.salesman_name} to ${activeStockPointDetails.stock_point_name}`,
-      created_by: formData.account_name || "system",
-      from_user_id: selectedSalesman.salesman_id ? parseInt(selectedSalesman.salesman_id) : null,
-      to_user_id: loggedInUserId,
-      is_packet_selection: hasPacketSelection,
-      capture_image: captureImage,
-      // ===== ADD STOCK OUTWARD FIELDS TO PAYLOAD =====
-      stock_outward_barcode: stockOutwardBarcode,
-      stock_outward_gross_wt: stockOutwardGrossWt,
-      stock_outward_type: stockOutwardType,
-      stock_outward_packet_barcode: stockOutwardPacketBarcode,
-      // ===== ADD WEIGHT FIELDS TO PAYLOAD =====
-      weight_machine_reading: totalWeightMachineReading || 0,
-      weight_machine_grams: totalWeightMachineGrams || 0,
-      weight_machine_milligrams: totalWeightMachineMilligrams || 0,
-      weight_machine_confidence: totalWeightMachineConfidence || 0,
-      weight_machine_raw: hasWeightData ? `Total: ${totalWeightMachineReading}g` : null,
-      weight_extracted_at: latestWeightExtractedAt,
-    };
-
-    console.log("📦 Full Payload being sent:", JSON.stringify(payload, null, 2));
-
-    // Call the RECEIVED SALESMAN API
-    const response = await axios.post(`${baseURL}/api/received-salesman/save-received-salesman`, payload);
-   
-    if (response.status === 200 || response.status === 201) {
-      const statusUsed = response.data.status_used || 'Available';
-      alert(`Received from Salesman completed successfully! Received Number: ${nextReceivedNumber}\nStatus set to: ${statusUsed}`);
-      
-      // Clear data
-      setOldSalesData([]);
-      setSchemeSalesData([]);
-      setRepairDetails([]);
-      setPaymentDetails({
-        cash_amount: 0,
-        card_amt: 0,
-        chq: "",
-        chq_amt: 0,
-        online: "",
-        online_amt: 0,
-      });
-      setOldTableData([]);
-      setSchemeTableData([]);
-      setDiscount(0);
-      setCapturedWeights({});
-      
-      // Reset form data
-      setFormData({
-        ...formData,
-        active_stock_point_id: "",
-        salesman_id: "",
-        salesman_name: "",
-        active_stock_point_details: null,
-        received_number: "",
-        transfer_number: "",
-        capture_image: null,
-        capture_image_file: null,
-        // ===== RESET STOCK OUTWARD FIELDS =====
-        stock_outward_barcode: null,
-        stock_outward_gross_wt: null,
-        stock_outward_type: null,
-        stock_outward_packet_barcode: null
-      });
-      
-      navigate("/receive-from-salesman");
-    }
-  } catch (error) {
-    console.error("Error saving received salesman:", error);
-    alert("Error saving received salesman: " + (error.response?.data?.message || error.message));
-  }
-};
+  };
 
   const refreshSalesData = () => {
     setOldSalesData([]);
@@ -2994,6 +2923,8 @@ const ReceivedSalesmanForm = () => {
     setSchemeTableData([]);
     setDiscount(0);
     setCapturedWeights({});
+    setAssignedCaptureWeight(0);
+    setReceivedCaptureWeightOfBag(0);
     localStorage.removeItem("oldSalesData");
     localStorage.removeItem("schemeSalesData");
     localStorage.removeItem(`repairDetails_${tabId}`);
@@ -3171,6 +3102,10 @@ const ReceivedSalesmanForm = () => {
               // ============= NEW: Trigger weight camera from table =============
               triggerWeightCamera={triggerWeightCamera}
               setTriggerWeightCamera={setTriggerWeightCamera}
+              // ============= BAG WEIGHT PROPS =============
+              assignedCaptureWeight={assignedCaptureWeight}
+              receivedCaptureWeightOfBag={receivedCaptureWeightOfBag}
+              onReceivedCaptureWeightOfBagChange={handleReceivedCaptureWeightOfBag}
             />
           </div>
 
@@ -3291,6 +3226,10 @@ const ReceivedSalesmanForm = () => {
                 // ===== NEW: Weight validation props =====
                 capturedWeights={capturedWeights}
                 requireWeightForAll={true}  // Set to true to enforce weight capture, false to make it optional
+                // ===== BAG WEIGHT MATCH PROPS =====
+                assignedCaptureWeight={assignedCaptureWeight}
+                receivedCaptureWeightOfBag={receivedCaptureWeightOfBag}
+                weightsMatch={weightsMatch}
               />
             </div>
           </div>
