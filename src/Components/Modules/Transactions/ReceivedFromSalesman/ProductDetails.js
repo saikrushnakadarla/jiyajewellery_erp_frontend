@@ -69,11 +69,9 @@ const ProductDetails = ({
   triggerWeightCamera,
   setTriggerWeightCamera,
   // ============= BAG WEIGHT PROPS =============
-  receivedBagWeight = 0,
-  returnCaptureWeightOfBag = 0,
-  onReturnCaptureWeightOfBagChange,
-  // ============= NEW: Direct weight detection callback =============
-  onReceivedBagWeightDetected,
+  assignedCaptureWeight = 0,
+  receivedCaptureWeightOfBag = 0,
+  onReceivedCaptureWeightOfBagChange,
 }) => {
 
   const [showModal, setShowModal] = useState(false);
@@ -107,11 +105,9 @@ const ProductDetails = ({
   const [extractedWeight, setExtractedWeight] = useState(null);
   const [weightCaptureError, setWeightCaptureError] = useState(null);
   const [weightCaptureItemId, setWeightCaptureItemId] = useState(null);
-
+  
   // ============= BAG WEIGHT CAPTURE STATE =============
   const [isBagWeightCapture, setIsBagWeightCapture] = useState(false);
-  // NEW: Flag to control whether bag weight should auto-fill the field
-  const [shouldAutoFillBagWeight, setShouldAutoFillBagWeight] = useState(false);
 
   useEffect(() => {
     const userId = localStorage.getItem('userId');
@@ -142,8 +138,12 @@ const ProductDetails = ({
   // ============= WEIGHT CAMERA FUNCTIONS =============
 
   // Process weight image using Gemini API
+  // REMOVED the alert - now processes weight even without product selected
   const processWeightImage = async (imageFile) => {
     const targetItemId = weightCaptureItemId || formData.code;
+    
+    // REMOVED: alert("Please select a product first before capturing weight.");
+    // If no product is selected, use a fallback key
     
     setIsProcessingWeight(true);
     setExtractedWeight(null);
@@ -172,14 +172,12 @@ const ProductDetails = ({
 
         setExtractedWeight(weightData);
 
-        // ============= BAG WEIGHT CAPTURE BRANCH =============
+        // ============= NEW: Branch for bag weight capture =============
         if (isBagWeightCapture) {
-          // Only auto-fill if the flag is set (i.e., from main Capture Weight button)
-          if (shouldAutoFillBagWeight && onReturnCaptureWeightOfBagChange) {
-            onReturnCaptureWeightOfBagChange(record.total_grams);
+          if (onReceivedCaptureWeightOfBagChange) {
+            onReceivedCaptureWeightOfBagChange(record.total_grams);
           }
           setIsBagWeightCapture(false);
-          setShouldAutoFillBagWeight(false);
           stopWeightCamera();
           Swal.fire({
             icon: 'success',
@@ -194,6 +192,7 @@ const ProductDetails = ({
 
         // Notify parent component about the captured weight (per-item)
         if (onCaptureWeight) {
+          // If we have a targetItemId, use it, otherwise use 'total_weight' as the key
           const key = targetItemId && targetItemId !== 'unknown' ? targetItemId : 'total_weight';
           onCaptureWeight(key, weightData);
         }
@@ -252,98 +251,66 @@ const ProductDetails = ({
   // Start weight camera for a specific item (called from ProductTable)
   const startWeightCameraForItem = (itemId, itemDetails = null) => {
     setIsBagWeightCapture(false);
-    setShouldAutoFillBagWeight(false);
     setWeightCaptureItemId(itemId);
-
+    
     // Open the camera
-    navigator.mediaDevices.getUserMedia({
-      video: { facingMode: 'environment' }
+    navigator.mediaDevices.getUserMedia({ 
+      video: { facingMode: 'environment' } 
     })
-      .then(stream => {
-        setWeightCameraStream(stream);
-        setShowWeightCamera(true);
-        setTimeout(() => {
-          if (weightVideoRef.current) weightVideoRef.current.srcObject = stream;
-        }, 100);
-      })
-      .catch(error => {
-        console.error('Error accessing camera:', error);
-        alert('Failed to access camera. Please check permissions.');
-      });
+    .then(stream => {
+      setWeightCameraStream(stream);
+      setShowWeightCamera(true);
+      setTimeout(() => { 
+        if (weightVideoRef.current) weightVideoRef.current.srcObject = stream; 
+      }, 100);
+    })
+    .catch(error => {
+      console.error('Error accessing camera:', error);
+      alert('Failed to access camera. Please check permissions.');
+    });
   };
 
-  // ===== UPDATED: Start weight camera for bag weight capture (from Packet Summary "Capture" button) =====
-  // This version does NOT auto-fill the field - it only captures for comparison
-  const startWeightCameraForBagOnly = () => {
+  // Start weight camera for bag weight capture
+  const startWeightCameraForBag = () => {
     setIsBagWeightCapture(true);
-    setShouldAutoFillBagWeight(false); // IMPORTANT: Do NOT auto-fill
     setWeightCaptureItemId(null);
     
-    navigator.mediaDevices.getUserMedia({
-      video: { facingMode: 'environment' }
+    navigator.mediaDevices.getUserMedia({ 
+      video: { facingMode: 'environment' } 
     })
-      .then(stream => {
-        setWeightCameraStream(stream);
-        setShowWeightCamera(true);
-        setTimeout(() => {
-          if (weightVideoRef.current) weightVideoRef.current.srcObject = stream;
-        }, 100);
-      })
-      .catch(error => {
-        console.error('Error accessing camera:', error);
-        alert('Failed to access camera. Please check permissions.');
-      });
+    .then(stream => {
+      setWeightCameraStream(stream);
+      setShowWeightCamera(true);
+      setTimeout(() => { 
+        if (weightVideoRef.current) weightVideoRef.current.srcObject = stream; 
+      }, 100);
+    })
+    .catch(error => {
+      console.error('Error accessing camera:', error);
+      alert('Failed to access camera. Please check permissions.');
+    });
   };
 
-  // ===== UPDATED: Start weight camera for bag weight capture WITH auto-fill =====
-  // This is called from the main "Capture Weight" button
-  const startWeightCameraForBagWithAutoFill = () => {
-    setIsBagWeightCapture(true);
-    setShouldAutoFillBagWeight(true); // IMPORTANT: Auto-fill the field
-    setWeightCaptureItemId(null);
-    
-    navigator.mediaDevices.getUserMedia({
-      video: { facingMode: 'environment' }
-    })
-      .then(stream => {
-        setWeightCameraStream(stream);
-        setShowWeightCamera(true);
-        setTimeout(() => {
-          if (weightVideoRef.current) weightVideoRef.current.srcObject = stream;
-        }, 100);
-      })
-      .catch(error => {
-        console.error('Error accessing camera:', error);
-        alert('Failed to access camera. Please check permissions.');
-      });
-  };
-
-  // ===== UPDATED: Start weight camera - called from the main Capture Weight button =====
+  // Start weight camera - called from the Capture Weight button
   const startWeightCamera = () => {
-    // Check if we have a packet selected (packetTotals has values)
-    if (packetTotals.grossWeight > 0 || packetTotals.packingWt > 0) {
-      // This is a packet - use the auto-fill version for bag weight
-      startWeightCameraForBagWithAutoFill();
-    } else {
-      // Regular item weight capture
-      setIsBagWeightCapture(false);
-      setShouldAutoFillBagWeight(false);
-      
-      navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment' }
-      })
-        .then(stream => {
-          setWeightCameraStream(stream);
-          setShowWeightCamera(true);
-          setTimeout(() => {
-            if (weightVideoRef.current) weightVideoRef.current.srcObject = stream;
-          }, 100);
-        })
-        .catch(error => {
-          console.error('Error accessing camera:', error);
-          alert('Failed to access camera. Please check permissions.');
-        });
-    }
+    // Just start the camera - even if no product is selected
+    // If no product is selected, we'll capture and store weight for later assignment
+    setIsBagWeightCapture(false);
+    
+    navigator.mediaDevices.getUserMedia({ 
+      video: { facingMode: 'environment' } 
+    })
+    .then(stream => {
+      setWeightCameraStream(stream);
+      setShowWeightCamera(true);
+      setTimeout(() => { 
+        if (weightVideoRef.current) weightVideoRef.current.srcObject = stream; 
+      }, 100);
+    })
+    .catch(error => {
+      console.error('Error accessing camera:', error);
+      alert('Failed to access camera. Please check permissions.');
+    });
   };
 
   const stopWeightCamera = () => {
@@ -353,7 +320,6 @@ const ProductDetails = ({
     }
     setShowWeightCamera(false);
     setWeightCaptureError(null);
-    setShouldAutoFillBagWeight(false);
   };
 
   const captureWeightImage = () => {
@@ -521,10 +487,6 @@ const ProductDetails = ({
         if (assignedProduct) {
           Swal.close();
           handleBarcodeChange(barcode);
-          // NEW: Notify parent of bag weight immediately for single item
-          if (onReceivedBagWeightDetected) {
-            onReceivedBagWeightDetected(assignedProduct.capture_weight_of_bag || 0);
-          }
           Swal.fire({
             icon: 'success',
             title: 'Product Found!',
@@ -553,7 +515,7 @@ const ProductDetails = ({
         // Check if it's a tag from opening_tags_entry
         const tag = data.find((tag) => String(tag.PCode_BarCode) === String(barcode));
         if (tag) {
-          if (tag.Status !== "Available" && tag.Status !== "Selected") {
+          if (tag.Status !== "Available") {
             Swal.close();
             Swal.fire({
               icon: 'error',
@@ -564,7 +526,7 @@ const ProductDetails = ({
             return;
           }
 
-          if (tag.Status === "Available" && loggedInUserId && tag.user_id !== loggedInUserId) {
+          if (loggedInUserId && tag.user_id !== loggedInUserId) {
             Swal.close();
             Swal.fire({
               icon: 'error',
@@ -678,7 +640,6 @@ const ProductDetails = ({
             return;
           }
 
-          // ===== FIXED: Add capture_weight_of_bag to packet products =====
           const productsWithImages = newProducts.map(product => {
             const assignedProduct = selectedSalesmanProducts?.find(
               p => p.PCode_BarCode === product.code
@@ -740,20 +701,11 @@ const ProductDetails = ({
               is_packet_selection: true,
               assigned_id: assignedProduct?.assigned_id || null,
               item_id: assignedProduct?.item_id || null,
-              // ===== FIXED: Include capture_weight_of_bag =====
-              capture_weight_of_bag: assignedProduct?.capture_weight_of_bag || 0,
-              received_id: assignedProduct?.received_id || null,
               cover_wt: product.cover_wt || assignedProduct?.cover_wt || "",
               card_wt: product.card_wt || assignedProduct?.card_wt || "",
               packing_wt: product.packing_wt || assignedProduct?.packing_wt || "",
             };
           });
-
-          // ===== NEW: Notify parent immediately with the bag weight =====
-          const packetBagWeight = productsWithImages.find(p => p.capture_weight_of_bag > 0)?.capture_weight_of_bag || 0;
-          if (onReceivedBagWeightDetected) {
-            onReceivedBagWeightDetected(packetBagWeight);
-          }
 
           const updatedRepairDetails = [...storedRepairDetails, ...productsWithImages];
           setRepairDetails(updatedRepairDetails);
@@ -849,15 +801,15 @@ const ProductDetails = ({
     }
   };
 
-  // Fetch estimates data from baseURL2
+  // ================================================================
+  // Fetch estimates and filter by Status = "Assigned"
+  // ================================================================
   useEffect(() => {
     const fetchEstimates = async () => {
       try {
         const response = await axios.get(`${baseURL2}/get/estimates`);
-        console.log("Estimates data fetched in ProductDetails:", response.data);
         setEstimatesData(response.data);
 
-        // Group products by packet barcode - ONLY for products assigned to the selected salesman
         const grouped = {};
         const packetImages = {};
 
@@ -867,7 +819,10 @@ const ProductDetails = ({
               assigned => assigned.PCode_BarCode === est.code
             );
 
-            if (isAssignedToSalesman) {
+            const tag = data.find(t => t.PCode_BarCode === est.code);
+            const isStatusAssigned = tag && tag.Status === "Assigned";
+
+            if (isAssignedToSalesman && isStatusAssigned) {
               if (!grouped[est.packet_barcode]) {
                 grouped[est.packet_barcode] = [];
               }
@@ -932,14 +887,14 @@ const ProductDetails = ({
         setGroupedPacketProducts(grouped);
         window.packetImages = packetImages;
 
-        console.log("Grouped packet products for salesman:", grouped);
+        console.log("Grouped packet products with Status=Assigned:", grouped);
         console.log("Packet images:", packetImages);
       } catch (error) {
         console.error("Error fetching estimates:", error);
       }
     };
     fetchEstimates();
-  }, [selectedSalesmanProducts]);
+  }, [selectedSalesmanProducts, data]);
 
   const getPacketBarcode = (productCode) => {
     if (!estimatesData || !productCode) return null;
@@ -959,9 +914,17 @@ const ProductDetails = ({
     ? products.find((product) => product.product_name === formData.category)?.rbarcode || ""
     : "";
 
-  // Build barcode options
+  // ================================================================
+  // Barcode options - filter by Status = "Assigned"
+  // ================================================================
+  const assignedProducts = (selectedSalesmanProducts || []).filter(product => {
+    const tag = data.find(t => t.PCode_BarCode === product.PCode_BarCode);
+    return tag && tag.Status === "Assigned";
+  });
+
   const barcodeOptions = [];
   const seenPacketBarcodes = new Set();
+  const seenProductCodes = new Set();
 
   Object.keys(groupedPacketProducts).forEach(packetBarcode => {
     if (!seenPacketBarcodes.has(packetBarcode)) {
@@ -976,22 +939,24 @@ const ProductDetails = ({
           isEstimated: true,
           products: productsInPacket
         });
+        productsInPacket.forEach(p => seenProductCodes.add(p.code));
       }
     }
   });
 
-  (selectedSalesmanProducts || []).forEach((product) => {
-    const packetBarcode = getPacketBarcode(product.PCode_BarCode);
-    const isEstimated = hasEstimate(product.PCode_BarCode);
-
-    if (!isEstimated || !packetBarcode) {
+  assignedProducts.forEach((product) => {
+    const productCode = product.PCode_BarCode;
+    if (!seenProductCodes.has(productCode)) {
+      seenProductCodes.add(productCode);
+      const packetBarcode = getPacketBarcode(productCode);
+      const isEstimated = hasEstimate(productCode);
       barcodeOptions.push({
-        value: product.PCode_BarCode,
-        label: `${product.PCode_BarCode} - ${product.product_name || product.sub_category || ''}`,
+        value: productCode,
+        label: `${productCode} - ${product.product_name || product.sub_category || ''}`,
         type: "assigned",
         productData: product,
-        packetBarcode: null,
-        isEstimated: false,
+        packetBarcode: packetBarcode || null,
+        isEstimated: isEstimated,
         products: [product]
       });
     }
@@ -1016,14 +981,6 @@ const ProductDetails = ({
     }
   }, [formData.category, defaultBarcode]);
 
-  const getImageUrl = (imagePath) => {
-    if (!imagePath) return null;
-    if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) return imagePath;
-    if (imagePath.startsWith('/')) return `${baseURL}${imagePath}`;
-    return `${baseURL}/${imagePath}`;
-  };
-
-  // ===== UPDATED handleBarcodeSelect with immediate weight notification =====
   const handleBarcodeSelect = (selectedValue) => {
     const selectedOption = uniqueBarcodeOptions.find(opt => opt.value === selectedValue);
 
@@ -1057,7 +1014,6 @@ const ProductDetails = ({
         });
       } else {
         setPacketTotals({ grossWeight: 0, packingWt: 0 });
-        setPacketImage(null);
       }
 
       setPacketImage(packetImageUrl);
@@ -1086,7 +1042,6 @@ const ProductDetails = ({
           return;
         }
 
-        // ===== FIXED: Add capture_weight_of_bag to productsWithImages =====
         const productsWithImages = newProducts.map(product => {
           const assignedProduct = selectedSalesmanProducts?.find(
             p => p.PCode_BarCode === product.code
@@ -1096,7 +1051,13 @@ const ProductDetails = ({
           let imagePreview = null;
 
           if (imagePath) {
-            imagePreview = getImageUrl(imagePath);
+            if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
+              imagePreview = imagePath;
+            } else if (imagePath.startsWith('/')) {
+              imagePreview = `${baseURL}${imagePath}`;
+            } else {
+              imagePreview = `${baseURL}/${imagePath}`;
+            }
           }
 
           const estimateProduct = estimatesData.find(est => est.code === product.code);
@@ -1145,20 +1106,11 @@ const ProductDetails = ({
             is_packet_selection: true,
             assigned_id: assignedProduct?.assigned_id || null,
             item_id: assignedProduct?.item_id || null,
-            // ===== FIXED: Include capture_weight_of_bag =====
-            capture_weight_of_bag: assignedProduct?.capture_weight_of_bag || 0,
-            received_id: assignedProduct?.received_id || null,
             cover_wt: product.cover_wt || assignedProduct?.cover_wt || "",
             card_wt: product.card_wt || assignedProduct?.card_wt || "",
             packing_wt: packingWt || "",
           };
         });
-
-        // ===== NEW: Notify parent immediately with the bag weight =====
-        const packetBagWeight = productsWithImages.find(p => p.capture_weight_of_bag > 0)?.capture_weight_of_bag || 0;
-        if (onReceivedBagWeightDetected) {
-          onReceivedBagWeightDetected(packetBagWeight);
-        }
 
         const updatedRepairDetails = [...storedRepairDetails, ...productsWithImages];
         setRepairDetails(updatedRepairDetails);
@@ -1219,13 +1171,6 @@ const ProductDetails = ({
         setIsPacketAdded(false);
         setPacketImage(null);
         setPacketTotals({ grossWeight: 0, packingWt: 0 });
-        
-        // ===== NEW: For single barcode selection, look up capture_weight_of_bag =====
-        const matchedProduct = selectedSalesmanProducts?.find(p => p.PCode_BarCode === selectedValue);
-        if (onReceivedBagWeightDetected) {
-          onReceivedBagWeightDetected(matchedProduct?.capture_weight_of_bag || 0);
-        }
-
         if (selectedOption.packetBarcode) {
           setFormData(prev => ({
             ...prev,
@@ -1254,21 +1199,11 @@ const ProductDetails = ({
     }
   };
 
-  // ===== UPDATED handleClear - Reset bag weight notification =====
   const handleClear = () => {
     setIsPacketAdded(false);
-    setPacketImage(null);
     setPacketTotals({ grossWeight: 0, packingWt: 0 });
     setExtractedWeight(null);
     setWeightCaptureError(null);
-    // Reset bag weight to 0 when clearing
-    if (onReceivedBagWeightDetected) {
-      onReceivedBagWeightDetected(0);
-    }
-    // Also reset the return capture weight if needed
-    if (onReturnCaptureWeightOfBagChange) {
-      onReturnCaptureWeightOfBagChange(0);
-    }
     setFormData(prevFormData => ({
       ...prevFormData,
       code: "",
@@ -1323,7 +1258,6 @@ const ProductDetails = ({
     }));
   };
 
-  // Calculations for price fields
   useEffect(() => {
     const grossWeight = parseFloat(formData.gross_weight) || 0;
     const stoneWeight = parseFloat(formData.stone_weight) || 0;
@@ -1423,7 +1357,12 @@ const ProductDetails = ({
     formData.pricing,
   ]);
 
-  const displayImage = formData.imagePreview || (formData.image ? getImageUrl(formData.image) : null);
+  const getImageUrl = (imagePath) => {
+    if (!imagePath) return null;
+    if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) return imagePath;
+    if (imagePath.startsWith('/')) return `${baseURL}${imagePath}`;
+    return `${baseURL}/${imagePath}`;
+  };
 
   const buttonHeightStyle = {
     height: '38px',
@@ -1440,8 +1379,8 @@ const ProductDetails = ({
   };
 
   // Check if weights match
-  const doWeightsMatch = returnCaptureWeightOfBag > 0 && receivedBagWeight > 0 &&
-    Math.abs(returnCaptureWeightOfBag - receivedBagWeight) < 0.001;
+  const doWeightsMatch = receivedCaptureWeightOfBag > 0 && assignedCaptureWeight > 0 &&
+    Math.abs(receivedCaptureWeightOfBag - assignedCaptureWeight) < 0.001;
 
   return (
     <Col>
@@ -1597,21 +1536,15 @@ const ProductDetails = ({
             </div>
           )}
           
-          {displayImage && (
+          {formData.imagePreview && (
             <div style={{ position: "relative", display: "inline-block", marginTop: "10px" }}>
               <img
-                src={displayImage}
+                src={formData.imagePreview}
                 alt="Selected"
                 style={{
                   width: "100px",
                   height: "100px",
                   borderRadius: "8px",
-                  objectFit: "cover"
-                }}
-                onError={(e) => {
-                  e.target.onerror = null;
-                  e.target.src = '';
-                  e.target.alt = 'Image not available';
                 }}
               />
               <button
@@ -1685,12 +1618,12 @@ const ProductDetails = ({
                   </div>
                 </div>
                 
-                {/* NEW: Weight comparison UI for Return to Main Stock */}
+                {/* NEW: Weight comparison UI for Received Salesman */}
                 <div style={{ marginTop: '8px', display: 'flex', gap: '20px', alignItems: 'center', flexWrap: 'wrap' }}>
                   <div>
-                    <span style={{ fontSize: '12px', color: '#666' }}>Capture Weight of ReceivedSalesmanForm: </span>
+                    <span style={{ fontSize: '12px', color: '#666' }}>Capture Weight of AssignedSalesForm: </span>
                     <span style={{ fontSize: '14px', fontWeight: 'bold', color: '#a36e29' }}>
-                      {receivedBagWeight ? receivedBagWeight.toFixed(3) : '0.000'}g
+                      {assignedCaptureWeight ? assignedCaptureWeight.toFixed(3) : '0.000'}g
                     </span>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -1699,38 +1632,30 @@ const ProductDetails = ({
                       type="number"
                       step="0.001"
                       readOnly
-                      value={returnCaptureWeightOfBag || ''}
-                      placeholder="Use main Capture Weight button"
+                      value={receivedCaptureWeightOfBag || ''}
+                      placeholder="Capture with camera"
                       style={{
                         width: '110px', 
                         padding: '4px 8px',
-                        border: `2px solid ${doWeightsMatch ? '#28a745' : returnCaptureWeightOfBag > 0 ? '#dc3545' : '#ccc'}`,
+                        border: `2px solid ${doWeightsMatch ? '#28a745' : '#dc3545'}`,
                         borderRadius: '4px', 
-                        fontWeight: 'bold',
-                        backgroundColor: returnCaptureWeightOfBag > 0 ? '#f0f8f0' : '#f9f9f9'
+                        fontWeight: 'bold'
                       }}
                     />
                     <Button
                       variant="warning"
                       size="sm"
-                      onClick={startWeightCameraForBagOnly}
+                      onClick={startWeightCameraForBag}
                       style={{ padding: '4px 10px', fontSize: '12px' }}
-                      title="Capture bag weight for comparison (does NOT auto-fill)"
                     >
                       <FaWeightHanging /> Capture
                     </Button>
-                    {returnCaptureWeightOfBag > 0 && receivedBagWeight > 0 && (
+                    {receivedCaptureWeightOfBag > 0 && assignedCaptureWeight > 0 && (
                       doWeightsMatch
                         ? <span style={{ color: '#28a745', fontWeight: 'bold' }}>✅ Match</span>
                         : <span style={{ color: '#dc3545', fontWeight: 'bold' }}>❌ Mismatch</span>
                     )}
-                    {returnCaptureWeightOfBag > 0 && receivedBagWeight === 0 && (
-                      <span style={{ color: '#ff9800', fontWeight: 'bold' }}>⚠️ No received weight</span>
-                    )}
                   </div>
-                </div>
-                <div style={{ fontSize: '11px', color: '#999', marginTop: '2px' }}>
-                  💡 Use the main <strong>"Capture Weight"</strong> button above to auto-fill this field
                 </div>
               </div>
             </div>
@@ -1821,7 +1746,7 @@ const ProductDetails = ({
         <Modal.Body style={{ textAlign: 'center', padding: '20px' }}>
           <div id="barcode-reader" style={{ width: '100%', minHeight: '300px' }}></div>
           <p className="mt-3">Point your camera at the product barcode to scan and automatically load product details</p>
-          <p className="text-info mt-2">⚠️ Only products assigned to you and with status "Available" or "Selected" can be scanned</p>
+          <p className="text-info mt-2">⚠️ Only products assigned to you and with status "Assigned" can be scanned</p>
         </Modal.Body>
         <Modal.Footer>
           <Button variant="secondary" onClick={stopScanner}>Cancel Scan</Button>
@@ -1835,7 +1760,7 @@ const ProductDetails = ({
         <Modal.Body style={{ textAlign: 'center', padding: '20px' }}>
           <div id="packet-barcode-reader" style={{ width: '100%', minHeight: '300px' }}></div>
           <p className="mt-3">Point your camera at the packet barcode to scan and automatically add all products from that packet</p>
-          <p className="text-info mt-2">⚠️ Only packets with products assigned to you will be added</p>
+          <p className="text-info mt-2">⚠️ Only packets with products assigned to you and status "Assigned" will be added</p>
         </Modal.Body>
         <Modal.Footer>
           <Button variant="secondary" onClick={stopPacketScanner}>Cancel Scan</Button>
@@ -1847,15 +1772,15 @@ const ProductDetails = ({
           <Modal.Title>Capture Weight Machine Display</Modal.Title>
         </Modal.Header>
         <Modal.Body style={{ textAlign: 'center' }}>
-          <video
-            ref={weightVideoRef}
-            autoPlay
-            playsInline
-            style={{
-              width: '100%',
-              maxHeight: '400px',
-              objectFit: 'contain'
-            }}
+          <video 
+            ref={weightVideoRef} 
+            autoPlay 
+            playsInline 
+            style={{ 
+              width: '100%', 
+              maxHeight: '400px', 
+              objectFit: 'contain' 
+            }} 
           />
           <canvas ref={weightCanvasRef} style={{ display: 'none' }} />
           <p className="mt-2 text-muted">
@@ -1864,9 +1789,9 @@ const ProductDetails = ({
           <p className="text-muted" style={{ fontSize: '12px' }}>
             Or use the "Upload Weight" button below to select an image from your device
           </p>
-          <Button
-            variant="outline-secondary"
-            size="sm"
+          <Button 
+            variant="outline-secondary" 
+            size="sm" 
             onClick={triggerWeightFileUpload}
             style={{ marginTop: '5px' }}
           >
@@ -1875,9 +1800,9 @@ const ProductDetails = ({
         </Modal.Body>
         <Modal.Footer>
           <Button variant="secondary" onClick={stopWeightCamera}>Cancel</Button>
-          <Button
-            variant="primary"
-            onClick={captureWeightImage}
+          <Button 
+            variant="primary" 
+            onClick={captureWeightImage} 
             disabled={isProcessingWeight}
             style={{ backgroundColor: '#28a745', borderColor: '#28a745' }}
           >
