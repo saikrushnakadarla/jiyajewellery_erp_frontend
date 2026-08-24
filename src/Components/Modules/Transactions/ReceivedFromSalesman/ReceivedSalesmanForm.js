@@ -1240,6 +1240,15 @@ const ReceivedSalesmanForm = () => {
     }
   };
 
+
+const clearProductTable = () => {
+  setRepairDetails([]);
+  localStorage.removeItem(`repairDetails_${tabId}`);
+  setCapturedWeights({});
+  setAssignedCaptureWeight(0);
+  setReceivedCaptureWeightOfBag(0);
+};
+
   useEffect(() => {
     fetchOrders();
     handleViewDetails();
@@ -3082,6 +3091,7 @@ const ReceivedSalesmanForm = () => {
               selectedEstimate={selectedEstimate}
               handleEstimateChange={handleEstimateChange}
               refreshSalesData={refreshSalesData}
+              clearProductTable={clearProductTable}
               fetchCategory={fetchCategory}
               fetchSubCategory={fetchSubCategory}
               taxableAmount={taxableAmount}

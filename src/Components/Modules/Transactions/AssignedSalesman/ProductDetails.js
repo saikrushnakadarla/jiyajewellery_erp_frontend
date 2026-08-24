@@ -49,6 +49,8 @@ const ProductDetails = ({
   selectedEstimate,
   handleEstimateChange,
   refreshSalesData,
+  // 🆕 NEW: callback from AssignedSalesmanForm to empty the Product Table (repairDetails)
+  clearProductTable,
   fetchCategory,
   fetchSubCategory,
   taxableAmount,
@@ -412,6 +414,8 @@ const ProductDetails = ({
     }
   }, [formData.category, defaultBarcode, formData.salesman_id]);
 
+  // 🆕 UPDATED: Clear now also empties the Product Table (repairDetails) in the parent,
+  // in addition to resetting the current product-entry form fields.
   const handleClear = () => {
     setFormData(prevFormData => ({
       ...prevFormData,
@@ -457,6 +461,11 @@ const ProductDetails = ({
       card_wt: "",
       packing_wt: "",
     }));
+
+    // 🆕 NEW: also clear items from the Product Table
+    if (clearProductTable) {
+      clearProductTable();
+    }
   };
 
   useEffect(() => {

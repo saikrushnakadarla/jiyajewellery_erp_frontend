@@ -881,6 +881,17 @@ const fetchAssignedProducts = async (stockPointId) => {
     localStorage.setItem(`discount_${tabId}`, discount); // Save to localStorage when discount changes
   }, [discount]);
 
+
+// Does not touch customer/invoice/payment data, matching the requested behaviour:
+// "Once i click on Clear button ... it should clear items from Product Table"
+const clearProductTable = () => {
+  setRepairDetails([]);
+  localStorage.removeItem(`repairDetails_${tabId}`);
+  setCapturedWeights({});
+  setReceivedBagWeight(0);
+  setReturnCaptureWeightOfBag(0);
+};
+
   // const handleDiscountChange = (e) => {
   //   const discountValue = parseFloat(e.target.value) || ""; // Default to empty if invalid
 
@@ -3391,6 +3402,7 @@ const handleSave = async () => {
               selectedEstimate={selectedEstimate}
               handleEstimateChange={handleEstimateChange}
               refreshSalesData={refreshSalesData}
+              clearProductTable={clearProductTable}
               fetchCategory={fetchCategory}
               fetchSubCategory={fetchSubCategory}
               taxableAmount={taxableAmount}
@@ -3541,7 +3553,7 @@ const handleSave = async () => {
                 receivedBagWeight={receivedBagWeight}
                 returnCaptureWeightOfBag={returnCaptureWeightOfBag}
                 weightsMatch={weightsMatch}
-                repairDetails={repairDetails}
+                // repairDetails={repairDetails}
               />
             </div>
           </div>

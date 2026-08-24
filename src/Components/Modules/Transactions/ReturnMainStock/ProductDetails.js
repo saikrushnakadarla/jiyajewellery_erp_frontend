@@ -75,6 +75,7 @@ const ProductDetails = ({
   onReturnCaptureWeightOfBagChange,
   // ============= NEW: Direct weight detection callback =============
   onReceivedBagWeightDetected,
+  clearProductTable,
 }) => {
 
   const [showModal, setShowModal] = useState(false);
@@ -1217,69 +1218,75 @@ const ProductDetails = ({
   };
 
   // ===== UPDATED handleClear - Reset bag weight notification =====
-  const handleClear = () => {
-    setIsPacketAdded(false);
-    setPacketImage(null);
-    setPacketTotals({ grossWeight: 0, packingWt: 0 });
-    setExtractedWeight(null);
-    setWeightCaptureError(null);
-    // NEW: Reset bag weight to 0 when clearing
-    if (onReceivedBagWeightDetected) {
-      onReceivedBagWeightDetected(0);
-    }
-    setFormData(prevFormData => ({
-      ...prevFormData,
-      code: "",
-      product_id: "",
-      metal: "",
-      product_name: "",
-      metal_type: "",
-      design_name: "",
-      purity: "",
-      pricing: "By Weight",
-      category: "",
-      sub_category: "",
-      gross_weight: "",
-      stone_weight: "",
-      weight_bw: "",
-      stone_price: "",
-      va_on: "Gross Weight",
-      va_percent: "",
-      wastage_weight: "",
-      total_weight_av: "",
-      mc_on: "MC %",
-      disscount_percentage: "",
-      disscount: "",
-      mc_per_gram: "",
-      making_charges: "",
-      rate: "",
-      pieace_cost: "",
-      mrp_price: "",
-      rate_amt: "",
-      tax_percent: "03% GST",
-      tax_amt: "",
-      hm_charges: "",
-      total_price: "",
-      transaction_status: "Stock Transfer",
-      qty: "1",
-      opentag_id: "",
-      product_image: null,
-      imagePreview: null,
-      sale_status: "Delivered",
-      custom_purity: "",
-      packet_barcode: null,
-      is_estimated: false,
-      is_packet_selection: false,
-      cover_wt: "",
-      card_wt: "",
-      packing_wt: "",
-      weight_machine_reading: 0,
-      weight_machine_grams: 0,
-      weight_machine_milligrams: 0,
-      weight_machine_confidence: 0,
-      weight_machine_raw: null,
-    }));
-  };
+ // ===== UPDATED handleClear - Reset bag weight notification and clear product table =====
+const handleClear = () => {
+  setIsPacketAdded(false);
+  setPacketImage(null);
+  setPacketTotals({ grossWeight: 0, packingWt: 0 });
+  setExtractedWeight(null);
+  setWeightCaptureError(null);
+  // NEW: Reset bag weight to 0 when clearing
+  if (onReceivedBagWeightDetected) {
+    onReceivedBagWeightDetected(0);
+  }
+  setFormData(prevFormData => ({
+    ...prevFormData,
+    code: "",
+    product_id: "",
+    metal: "",
+    product_name: "",
+    metal_type: "",
+    design_name: "",
+    purity: "",
+    pricing: "By Weight",
+    category: "",
+    sub_category: "",
+    gross_weight: "",
+    stone_weight: "",
+    weight_bw: "",
+    stone_price: "",
+    va_on: "Gross Weight",
+    va_percent: "",
+    wastage_weight: "",
+    total_weight_av: "",
+    mc_on: "MC %",
+    disscount_percentage: "",
+    disscount: "",
+    mc_per_gram: "",
+    making_charges: "",
+    rate: "",
+    pieace_cost: "",
+    mrp_price: "",
+    rate_amt: "",
+    tax_percent: "03% GST",
+    tax_amt: "",
+    hm_charges: "",
+    total_price: "",
+    transaction_status: "Stock Transfer",
+    qty: "1",
+    opentag_id: "",
+    product_image: null,
+    imagePreview: null,
+    sale_status: "Delivered",
+    custom_purity: "",
+    packet_barcode: null,
+    is_estimated: false,
+    is_packet_selection: false,
+    cover_wt: "",
+    card_wt: "",
+    packing_wt: "",
+    weight_machine_reading: 0,
+    weight_machine_grams: 0,
+    weight_machine_milligrams: 0,
+    weight_machine_confidence: 0,
+    weight_machine_raw: null,
+  }));
+
+  // 🆕 NEW: also clear items from the Product Table
+  if (clearProductTable) {
+    clearProductTable();
+  }
+};
 
   // Calculations for price fields
   useEffect(() => {
