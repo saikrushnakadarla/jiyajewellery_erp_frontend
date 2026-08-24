@@ -67,7 +67,7 @@ const ProductTable = ({
             <th>MC</th>
             <th>Total Price</th>
             <th>Image</th>
-            <th>Weight</th>
+            {/* <th>Weight</th> */}
             <th>Action</th>
           </tr>
         </thead>
@@ -119,7 +119,7 @@ const ProductTable = ({
                       "No Image"
                     )}
                   </td>
-                  <td>
+                  {/* <td>
                     <Button
                       variant={hasWeightData ? "success" : "outline-secondary"}
                       size="sm"
@@ -144,7 +144,7 @@ const ProductTable = ({
                         {capturedWeights[itemId]?.total_grams?.toFixed(3)}g
                       </span>
                     )}
-                  </td>
+                  </td> */}
                   <td>
                     <div style={{ display: "flex", alignItems: "center" }}>
                       <FaEye

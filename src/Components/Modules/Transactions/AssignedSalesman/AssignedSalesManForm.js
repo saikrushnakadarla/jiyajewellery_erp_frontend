@@ -269,6 +269,20 @@ const handleCaptureWeight = async (itemId, weightData) => {
     setTotalWeightWithBag(value);
   };
 
+  // 🆕 NEW: Clear ONLY the Product Table (repairDetails) — triggered from the
+  // "Clear" button in ProductDetails so items already added to the table are removed too.
+  // Does not touch customer/invoice/payment data, matching the requested behaviour:
+  // "Once i click on Clear button ... it should clear items from Product Table"
+  const clearProductTable = () => {
+    setRepairDetails([]);
+    localStorage.removeItem(`repairDetails_${tabId}`);
+    setCapturedWeights({});
+    setItemGrossTotal(0);
+    setPacketGrossTotal(0);
+    setTotalWeightWithBag(0);
+    setIsAllProductsSelected(false);
+  };
+
   useEffect(() => {
     localStorage.setItem(
       `repairDetails_${tabId}`,
@@ -2887,7 +2901,7 @@ const handleSave = async () => {
     if (response.status === 200 || response.status === 201) {
       alert(`✅ All products assigned to Salesman successfully! Assigned Number: ${nextAssignedNumber}`);
       
-      // Clear data
+      // Clear data — this already empties the Product Table (repairDetails) on successful Save & Send for Approval
       setOldSalesData([]);
       setSchemeSalesData([]);
       setRepairDetails([]);
@@ -3113,6 +3127,8 @@ const handleSave = async () => {
               selectedEstimate={selectedEstimate}
               handleEstimateChange={handleEstimateChange}
               refreshSalesData={refreshSalesData}
+              // 🆕 NEW: Clear the Product Table when the "Clear" button in ProductDetails is clicked
+              clearProductTable={clearProductTable}
               fetchCategory={fetchCategory}
               fetchSubCategory={fetchSubCategory}
               taxableAmount={taxableAmount}
@@ -3263,7 +3279,7 @@ const handleSave = async () => {
                 // 🆕 NEW: Pass validation props
                 isAllProductsSelected={isAllProductsSelected}
                 selectedTransferItems={selectedTransferItems}
-                repairDetails={repairDetails}
+                // repairDetails={repairDetails}
                 // NEW: Weight totals props
                 itemGrossTotal={itemGrossTotal}
                 packetGrossTotal={packetGrossTotal}
