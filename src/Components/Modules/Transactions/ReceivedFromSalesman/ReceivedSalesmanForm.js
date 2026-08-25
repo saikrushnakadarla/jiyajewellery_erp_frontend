@@ -1,3 +1,4 @@
+// ReceivedSalesmanForm.js
 import React, { useState, useEffect, useRef } from "react";
 import { Container, Form } from "react-bootstrap";
 import { useNavigate } from "react-router-dom";
@@ -58,6 +59,10 @@ const ReceivedSalesmanForm = () => {
   const [schemeSalesData, setSchemeSalesData] = useState(
     JSON.parse(localStorage.getItem("schemeSalesData")) || [],
   );
+
+  // ============= AUTO-ADD-ON-SELECT REFS =============
+  const autoAddPendingRef = useRef(false);
+  const autoAddCodeRef = useRef(null);
 
   // Save to localStorage whenever data changes
   useEffect(() => {
@@ -245,7 +250,6 @@ const ReceivedSalesmanForm = () => {
     isQtyEditable,
     handleChange,
     handleBarcodeChange,
-    handleProductChange,
     handleProductNameChange,
     handleMetalTypeChange,
     handleDesignNameChange,
@@ -279,6 +283,46 @@ const ReceivedSalesmanForm = () => {
     manualTotalPriceRef,
   } = useProductHandlers(selectedSalesmanProducts);
 
+  // ============= WRAPPER: handleBarcodeSelectAndAutoAdd =============
+  // Wraps handleBarcodeChange: as soon as a barcode is picked (dropdown or
+  // scanner), we mark it as "pending auto-add". The effect below watches
+  // formData and fires handleAdd() automatically once that product's
+  // calculated fields (total_price) have finished populating.
+  const handleBarcodeSelectAndAutoAdd = async (code) => {
+    if (code) {
+      autoAddPendingRef.current = true;
+      autoAddCodeRef.current = code;
+    } else {
+      autoAddPendingRef.current = false;
+      autoAddCodeRef.current = null;
+    }
+    await handleBarcodeChange(code);
+  };
+
+  // ============= AUTO-ADD EFFECT =============
+  useEffect(() => {
+    // Only auto-add when:
+    // 1. A selection is pending
+    // 2. formData.code still matches the barcode that was selected
+    // 3. isQtyEditable === false -> this means handleBarcodeChange matched a
+    //    real inventory "tag" (opening_tags_entry) with weight/price already
+    //    known
+    // 4. total_price has actually been calculated (non-zero) so we don't add
+    //    a half-populated row before the calculation effects have run.
+    if (
+      autoAddPendingRef.current &&
+      formData.code &&
+      formData.code === autoAddCodeRef.current &&
+      isQtyEditable === false &&
+      formData.total_price &&
+      parseFloat(formData.total_price) > 0
+    ) {
+      autoAddPendingRef.current = false;
+      autoAddCodeRef.current = null;
+      handleAdd();
+    }
+  }, [formData.total_price, formData.code, isQtyEditable]);
+
   // Add useEffect to watch for salesman selection and fetch products
   useEffect(() => {
     if (formData.salesman_id && formData.active_stock_point_id) {
@@ -291,11 +335,19 @@ const ReceivedSalesmanForm = () => {
 
   // ============= FETCH ASSIGNED BAG WEIGHT =============
 
-    // ============= REPAIR DETAILS STATE =============
+// ============= REPAIR DETAILS STATE =============
   const [repairDetails, setRepairDetails] = useState(() => {
     const savedData = localStorage.getItem(`repairDetails_${tabId}`);
     return savedData ? JSON.parse(savedData) : [];
   });
+
+  // ============= SAVE REPAIR DETAILS TO LOCALSTORAGE =============
+  useEffect(() => {
+    localStorage.setItem(
+      `repairDetails_${tabId}`,
+      JSON.stringify(repairDetails),
+    );
+  }, [repairDetails, tabId]);
 
 
   useEffect(() => {
@@ -323,6 +375,12 @@ const ReceivedSalesmanForm = () => {
     }
   }, [repairDetails]);
 
+  // ============= REPAIR DETAILS STATE =============
+  // const [repairDetails, setRepairDetails] = useState(() => {
+  //   const savedData = localStorage.getItem(`repairDetails_${tabId}`);
+  //   return savedData ? JSON.parse(savedData) : [];
+  // });
+
   // ============= HANDLE RECEIVED CAPTURE WEIGHT OF BAG =============
   const handleReceivedCaptureWeightOfBag = (grams) => {
     setReceivedCaptureWeightOfBag(parseFloat(grams) || 0);
@@ -334,8 +392,7 @@ const ReceivedSalesmanForm = () => {
     receivedCaptureWeightOfBag > 0 &&
     Math.abs(assignedCaptureWeight - receivedCaptureWeightOfBag) < 0.001;
 
-     // ============= SAVE REPAIR DETAILS TO LOCALSTORAGE =============
-
+  // ============= SAVE REPAIR DETAILS TO LOCALSTORAGE =============
   useEffect(() => {
     localStorage.setItem(
       `repairDetails_${tabId}`,
@@ -1241,13 +1298,13 @@ const ReceivedSalesmanForm = () => {
   };
 
 
-const clearProductTable = () => {
-  setRepairDetails([]);
-  localStorage.removeItem(`repairDetails_${tabId}`);
-  setCapturedWeights({});
-  setAssignedCaptureWeight(0);
-  setReceivedCaptureWeightOfBag(0);
-};
+  const clearProductTable = () => {
+    setRepairDetails([]);
+    localStorage.removeItem(`repairDetails_${tabId}`);
+    setCapturedWeights({});
+    setAssignedCaptureWeight(0);
+    setReceivedCaptureWeightOfBag(0);
+  };
 
   useEffect(() => {
     fetchOrders();
@@ -1605,12 +1662,12 @@ const clearProductTable = () => {
         ...formData,
         pieace_cost:
           formData.pieace_cost && parseFloat(formData.pieace_cost) > 0
-            ? parseFloat(formData.pieace_cost).toFixed(2)
-            : null,
+          ? parseFloat(formData.pieace_cost).toFixed(2)
+          : null,
         rate:
           formData.rate && parseFloat(formData.rate) > 0
-            ? parseFloat(formData.rate).toFixed(2)
-            : "",
+          ? parseFloat(formData.rate).toFixed(2)
+          : "",
         imagePreview: formData.imagePreview,
         image: imageToSave,
         is_packet_selection: formData.is_packet_selection || false,
@@ -1619,6 +1676,8 @@ const clearProductTable = () => {
         cover_wt: formData.cover_wt || "0",
         card_wt: formData.card_wt || "0",
         packing_wt: formData.packing_wt || "0",
+        assigned_id: assignedProduct?.assigned_id || formData.assigned_id || null,
+        item_id: assignedProduct?.item_id || formData.item_id || null,
       },
     ];
 
@@ -1724,6 +1783,10 @@ const clearProductTable = () => {
       cover_wt: "",
       card_wt: "",
       packing_wt: "",
+      is_packet_selection: false,
+      packet_barcode: null,
+      assigned_id: null,
+      item_id: null,
     }));
   };
 
@@ -1942,6 +2005,7 @@ const clearProductTable = () => {
       const failedRequests = responses.filter(
         (res) => res.status === "rejected",
       );
+      
       if (failedRequests.length > 0) {
         console.error("Some API calls failed:", failedRequests);
         alert("Some updates failed. Please check console for details.");
@@ -2357,6 +2421,7 @@ const clearProductTable = () => {
   const [product, setProduct] = useState([]); // State to store table data
   const [company, setCompany] = useState(null);
   const [error, setError] = useState(null);
+
   const fetchProducts = async () => {
     try {
       const response = await fetch(`${baseURL}/get/products`);
@@ -3056,8 +3121,7 @@ const clearProductTable = () => {
               setFormData={setFormData}
               setRepairDetails={setRepairDetails}
               handleChange={handleChange}
-              handleBarcodeChange={handleBarcodeChange}
-              // handleProductChange={handleProductChange}
+              handleBarcodeChange={handleBarcodeSelectAndAutoAdd}
               handleProductNameChange={handleProductNameChange}
               handleMetalTypeChange={handleMetalTypeChange}
               handleDesignNameChange={handleDesignNameChange}

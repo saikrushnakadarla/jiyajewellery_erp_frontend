@@ -787,6 +787,14 @@ const useProductHandlers = () => {
   }, [formData.metal_type]);
 
   // FIXED: handleBarcodeChange with proper filtering for MAIN STOCK ROOM
+  // 🆕 ALSO FIXED: total_price / tax_amt are now explicitly reset to "" whenever
+  // a NEW barcode/tag is selected. Previously, stale total_price from the
+  // PREVIOUSLY selected item could remain in formData for a render or two,
+  // which (together with the "Auto add on select" effect in
+  // AssignedSalesmanForm.js) could cause an auto-add to fire using the old
+  // item's stale total_price before the new item's own price finished
+  // calculating. Clearing it here forces the auto-add effect to wait for the
+  // freshly-calculated total_price of the newly selected item.
   const handleBarcodeChange = async (code) => {
     try {
       if (!code) {
@@ -870,6 +878,10 @@ const useProductHandlers = () => {
           disscount_percentage: "",
           disscount: "",
           tax_percent: product.tax_slab,
+          // 🆕 clear stale calculated fields from any previously selected item
+          total_price: "",
+          tax_amt: "",
+          rate_amt: "",
           qty: 1,
           festival_discount: "",
           custom_purity: "",
@@ -1018,6 +1030,12 @@ const useProductHandlers = () => {
             mc_per_gram: tag.MC_Per_Gram || "",
             making_charges: tag.Making_Charges || "",
             tax_percent: productDetails?.tax_slab || tag.tax_percent || "03% GST",
+            // 🆕 clear stale calculated fields from any previously selected item so
+            // the auto-add effect only fires once THIS item's price is (re)computed
+            total_price: "",
+            tax_amt: "",
+            rate_amt: "",
+            piece_taxable_amt: "",
             qty: 1,
             rate: rateValue,
             image: imagePath,
