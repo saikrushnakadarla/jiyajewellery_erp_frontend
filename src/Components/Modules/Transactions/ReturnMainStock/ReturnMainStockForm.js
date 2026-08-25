@@ -1,3 +1,4 @@
+// ReturnMainStockForm.js
 import React, { useState, useEffect, useRef } from "react";
 import { Container, Form } from "react-bootstrap";
 import { useNavigate } from "react-router-dom";
@@ -46,6 +47,10 @@ const ReturnMainStockForm = () => {
 
   // ============= WEIGHT CAPTURE TRIGGER FOR TABLE =============
   const [triggerWeightCamera, setTriggerWeightCamera] = useState(null);
+
+  // ============= AUTO-ADD-ON-SELECT REFS =============
+  const autoAddPendingRef = useRef(false);
+  const autoAddCodeRef = useRef(null);
 
   // Add these states with your other states
   const [estimatesData, setEstimatesData] = useState([]);
@@ -457,7 +462,6 @@ useEffect(() => {
     isQtyEditable,
     handleChange,
     handleBarcodeChange,
-    handleProductChange,
     handleProductNameChange,
     handleMetalTypeChange,
     handleDesignNameChange,
@@ -490,6 +494,46 @@ useEffect(() => {
     setIsTotalPriceCleared,
     manualTotalPriceRef,
   } = useProductHandlers(selectedSalesmanProducts);
+
+// ============= WRAPPER: handleBarcodeSelectAndAutoAdd =============
+// Wraps handleBarcodeChange: as soon as a barcode is picked (dropdown or
+// scanner), we mark it as "pending auto-add". The effect below watches
+// formData and fires handleAdd() automatically once that product's
+// calculated fields (total_price) have finished populating.
+const handleBarcodeSelectAndAutoAdd = async (code) => {
+  if (code) {
+    autoAddPendingRef.current = true;
+    autoAddCodeRef.current = code;
+  } else {
+    autoAddPendingRef.current = false;
+    autoAddCodeRef.current = null;
+  }
+  await handleBarcodeChange(code);
+};
+
+// ============= AUTO-ADD EFFECT =============
+useEffect(() => {
+  // Only auto-add when:
+  // 1. A selection is pending
+  // 2. formData.code still matches the barcode that was selected
+  // 3. isQtyEditable === false -> this means handleBarcodeChange matched a
+  //    real inventory "tag" (opening_tags_entry) with weight/price already
+  //    known
+  // 4. total_price has actually been calculated (non-zero) so we don't add
+  //    a half-populated row before the calculation effects have run.
+  if (
+    autoAddPendingRef.current &&
+    formData.code &&
+    formData.code === autoAddCodeRef.current &&
+    isQtyEditable === false &&
+    formData.total_price &&
+    parseFloat(formData.total_price) > 0
+  ) {
+    autoAddPendingRef.current = false;
+    autoAddCodeRef.current = null;
+    handleAdd();
+  }
+}, [formData.total_price, formData.code, isQtyEditable]);
 
 // Add useEffect to watch for salesman selection and fetch products
 useEffect(() => {
@@ -3367,7 +3411,7 @@ const handleSave = async () => {
               setFormData={setFormData}
               setRepairDetails={setRepairDetails}
               handleChange={handleChange}
-              handleBarcodeChange={handleBarcodeChange}
+              handleBarcodeChange={handleBarcodeSelectAndAutoAdd}
               // handleProductChange={handleProductChange}
               handleProductNameChange={handleProductNameChange}
               handleMetalTypeChange={handleMetalTypeChange}

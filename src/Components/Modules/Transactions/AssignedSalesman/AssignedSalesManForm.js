@@ -128,13 +128,18 @@ const AssignedSalesmanForm = () => {
     visitLogsData, // <-- ADD THIS: Get visitLogsData from the hook
   } = useProductHandlers();
 
+  // ============= AUTO-ADD-ON-SELECT REFS =============
+  // Tracks whether a barcode selection is waiting to be auto-added to the table
+  // once its calculated fields (total_price etc.) have finished populating.
+  const autoAddPendingRef = useRef(false);
+  const autoAddCodeRef = useRef(null);
+
   const [repairDetails, setRepairDetails] = useState(() => {
     const savedData = localStorage.getItem(`repairDetails_${tabId}`);
     return savedData ? JSON.parse(savedData) : [];
   });
 
   // ============= HANDLE WEIGHT CAPTURE FROM PRODUCT DETAILS =============
-// ============= HANDLE WEIGHT CAPTURE FROM PRODUCT DETAILS =============
 const handleCaptureWeight = async (itemId, weightData) => {
   // Update the captured weights state using the itemId (which is the barcode or item_id)
   setCapturedWeights(prev => ({
@@ -1683,6 +1688,48 @@ const handleCaptureWeight = async (itemId, weightData) => {
     resetProductFields();
   };
 
+  // ============= AUTO-ADD-ON-SELECT: wrapper + effect =============
+  // Wraps handleBarcodeChange: as soon as a barcode is picked (dropdown or
+  // scanner), we mark it as "pending auto-add". The effect below watches
+  // formData and fires handleAdd() automatically once that product's
+  // calculated fields (total_price) have finished populating - instead of
+  // requiring the user to click "Add" manually.
+  const handleBarcodeSelectAndAutoAdd = async (code) => {
+    if (code) {
+      autoAddPendingRef.current = true;
+      autoAddCodeRef.current = code;
+    } else {
+      autoAddPendingRef.current = false;
+      autoAddCodeRef.current = null;
+    }
+    await handleBarcodeChange(code);
+  };
+
+  useEffect(() => {
+    // Only auto-add when:
+    // 1. A selection is pending
+    // 2. formData.code still matches the barcode that was selected (user
+    //    hasn't changed it again in the meantime)
+    // 3. isQtyEditable === false -> this means handleBarcodeChange matched a
+    //    real inventory "tag" (opening_tags_entry) with weight/price already
+    //    known - NOT the bare category/product barcode branch, which still
+    //    needs the user to fill in weight/price manually.
+    // 4. total_price has actually been calculated (non-zero) so we don't add
+    //    a half-populated row before the calculation effects have run.
+    if (
+      autoAddPendingRef.current &&
+      formData.code &&
+      formData.code === autoAddCodeRef.current &&
+      isQtyEditable === false &&
+      formData.total_price &&
+      parseFloat(formData.total_price) > 0
+    ) {
+      autoAddPendingRef.current = false;
+      autoAddCodeRef.current = null;
+      handleAdd();
+    }
+  }, [formData.total_price, formData.code, isQtyEditable]);
+
   const handleEdit = (index) => {
     setEditIndex(index);
 
@@ -3092,7 +3139,7 @@ const handleSave = async () => {
               formData={formData}
               setFormData={setFormData}
               handleChange={handleChange}
-              handleBarcodeChange={handleBarcodeChange}
+              handleBarcodeChange={handleBarcodeSelectAndAutoAdd}
               // handleProductChange={handleProductChange}
               handleProductNameChange={handleProductNameChange}
               handleMetalTypeChange={handleMetalTypeChange}
@@ -3247,7 +3294,6 @@ const handleSave = async () => {
                 salesNetAmount={salesNetAmount}
                 salesAmountToPass={salesAmountToPass}
                 salesTaxableAmount={salesTaxableAmount}
-                // updatedOldItemsAmount={updatedOldItemsAmount}
                 netPayAmount={netPayAmount}
                 oldSalesData={oldSalesData}
                 schemeSalesData={schemeSalesData}
