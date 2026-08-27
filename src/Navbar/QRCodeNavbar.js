@@ -636,7 +636,7 @@ function QRCodeNavbar() {
               )}
             {(location.pathname === "/workermaster" ||
               location.pathname === "/workerstable") && (
-                <h1 className="path-heading">WORKERS</h1>
+                <h1 className="path-heading">KARIGARS</h1>
               )}
             {location.pathname === "/rates" && (
               <h1 className="path-heading">RATES</h1>

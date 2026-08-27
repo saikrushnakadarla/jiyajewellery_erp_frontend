@@ -485,7 +485,7 @@ function StockNavbar() {
                       onClick={handleItemClick}
                       className={isActive("/return-to-main-stock-old-items")}
                     >
-                      Outward to Main Admin (Old)
+                      Outward to Main Admin (Non Selection)
                     </Link>
                     <Link
                       to="/return-to-main-stock"

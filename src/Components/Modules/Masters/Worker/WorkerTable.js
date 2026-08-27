@@ -145,7 +145,7 @@ const WorkerTable = () => {
       <div className="customers-table-container">
         <Row className="mb-3">
           <Col className="d-flex justify-content-between align-items-center">
-            <h3>Workers</h3>
+            <h3>Karigars</h3>
             <Button
               className="create_but"
               onClick={handleCreate}
