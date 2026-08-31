@@ -9,6 +9,29 @@ import baseURL2 from '../../../../Url/NodeBaseURL2';
 import { FaUpload, FaTrash, FaEye, FaEyeSlash } from 'react-icons/fa';
 import Webcam from 'react-webcam';
 
+// ---------------------------------------------------------------------------
+// Date validation helpers
+// ---------------------------------------------------------------------------
+const MIN_YEAR = 1900;
+const MAX_YEAR = 2100;
+
+const isValidDateYear = (value) => {
+  if (!value) return true;
+
+  const [yearPart] = value.split('-');
+
+  if (!/^\d{1,4}$/.test(yearPart)) {
+    return false;
+  }
+
+  const yearNum = Number(yearPart);
+  if (yearPart.length === 4 && (yearNum < MIN_YEAR || yearNum > MAX_YEAR)) {
+    return false;
+  }
+
+  return true;
+};
+
 function Customer_Master() {
   const location = useLocation();
   const [formData, setFormData] = useState({
@@ -57,6 +80,28 @@ function Customer_Master() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
+  // Helper function to parse images from API response
+  const parseImages = (imagesData) => {
+    if (!imagesData) return null;
+    
+    // If it's already an array, return it
+    if (Array.isArray(imagesData)) {
+      return imagesData;
+    }
+    
+    // If it's a string, try to parse it as JSON
+    if (typeof imagesData === 'string') {
+      try {
+        return JSON.parse(imagesData);
+      } catch (e) {
+        console.error('Error parsing images JSON:', e);
+        return null;
+      }
+    }
+    
+    return null;
+  };
+
   useEffect(() => {
     const fetchCustomers = async () => {
       try {
@@ -82,6 +127,7 @@ function Customer_Master() {
             const parseDate = (dateString) => {
               if (!dateString) return '';
               const date = new Date(dateString);
+              if (isNaN(date.getTime())) return '';
               const year = date.getFullYear();
               const month = String(date.getMonth() + 1).padStart(2, '0');
               const day = String(date.getDate()).padStart(2, '0');
@@ -96,12 +142,26 @@ function Customer_Master() {
 
             setFormData(customerData);
 
-            if (result.images) {
-              const imagesArray = Array.isArray(result.images) ? result.images : [result.images];
-              const imageUrls = imagesArray.map(img => img.url);
-              const imageFilenames = imagesArray.map(img => img.filename);
+            // Parse images from API response
+            const parsedImages = parseImages(result.images);
+            
+            if (parsedImages && parsedImages.length > 0) {
+              // Construct full URLs for images
+              const imageUrls = parsedImages.map(img => {
+                // If the URL already starts with http, use it as is
+                if (img.url && (img.url.startsWith('http://') || img.url.startsWith('https://'))) {
+                  return img.url;
+                }
+                // Otherwise, prepend the base URL
+                return `${baseURL}${img.url}`;
+              });
+              const imageFilenames = parsedImages.map(img => img.filename);
               setImagePreviews(imageUrls);
               setExistingImages(imageFilenames);
+            } else {
+              // Reset images if none found
+              setImagePreviews([]);
+              setExistingImages([]);
             }
           }
         } catch (error) {
@@ -122,7 +182,6 @@ function Customer_Master() {
       case "account_name":
         updatedValue = value.toUpperCase();
 
-        // Prevent only numbers
         if (/^\d+$/.test(updatedValue)) {
           return;
         }
@@ -142,13 +201,8 @@ function Customer_Master() {
 
       case "birthday":
       case "anniversary":
-        // Restrict year to maximum 4 digits
-        if (value) {
-          const parts = value.split("-");
-
-          if (parts.length > 0 && parts[0].length > 4) {
-            return;
-          }
+        if (!isValidDateYear(value)) {
+          return;
         }
         updatedValue = value;
         break;
@@ -180,11 +234,6 @@ function Customer_Master() {
 
       case "bank_account_no":
         updatedValue = value.replace(/\D/g, "").slice(0, 18);
-        break;
-
-      case "password":
-      case "confirm_password":
-        // No formatting for password fields
         break;
 
       default:
@@ -230,8 +279,16 @@ function Customer_Master() {
       alert("IFSC Code must be exactly 11 characters.");
       return false;
     }
-    
-    // Validate password for new customers
+
+    if (formData.birthday && !isValidDateYear(formData.birthday)) {
+      alert("Birthday year must be a valid 4-digit year.");
+      return false;
+    }
+    if (formData.anniversary && !isValidDateYear(formData.anniversary)) {
+      alert("Anniversary year must be a valid 4-digit year.");
+      return false;
+    }
+
     if (!id) {
       if (!formData.password || formData.password.length < 6) {
         alert("Password must be at least 6 characters long.");
@@ -289,12 +346,10 @@ function Customer_Master() {
     setImagePreviews(updatedPreviews);
   };
 
-  // Function to store customer in users database
   const storeInUsersDB = async (customerData, customerId) => {
     try {
-      // Use provided password or generate random one
       const passwordToUse = customerData.password || Math.random().toString(36).slice(-8) + "@123";
-      
+
       const usersData = {
         full_name: customerData.account_name,
         email_id: customerData.email || "",
@@ -353,7 +408,6 @@ function Customer_Master() {
     setIsSaving(true);
 
     try {
-      // Duplicate check
       if (!id) {
         const response = await fetch(`${baseURL}/get/account-details`);
         if (!response.ok) {
@@ -362,7 +416,7 @@ function Customer_Master() {
 
         const result = await response.json();
         const isDuplicateMobile = result.some(
-          (item) => item.mobile === formData.mobile && item.account_id !== id 
+          (item) => item.mobile === formData.mobile && item.account_id !== id
         );
 
         if (isDuplicateMobile) {
@@ -372,7 +426,6 @@ function Customer_Master() {
         }
       }
 
-      // Prepare FormData for main DB (with images)
       const formDataToSend = new FormData();
 
       Object.keys(formData).forEach(key => {
@@ -392,7 +445,6 @@ function Customer_Master() {
         );
       }
 
-      // Main API call (only baseURL)
       const endpoint = id
         ? `${baseURL}/edit/account-details/${id}`
         : `${baseURL}/account-details`;
@@ -411,11 +463,9 @@ function Customer_Master() {
 
       const result = await response.json();
       console.log("Customer saved in main DB:", result);
-      
-      // Get the customer_id from response
+
       const generatedCustomerId = result.customer_id;
 
-      // Second API call - Store in users database (only for new customers, not for edits)
       if (!id) {
         const customerDataForUsers = {
           account_name: formData.account_name,
@@ -428,14 +478,14 @@ function Customer_Master() {
           district: formData.district,
           pincode: formData.pincode,
           company_name: formData.company_name,
-          password: formData.password, // Pass the password
+          password: formData.password,
           gender: "",
           latitude: null,
           longitude: null
         };
 
         const userStoreResult = await storeInUsersDB(customerDataForUsers, generatedCustomerId);
-        
+
         if (userStoreResult.success) {
           alert(`Customer created successfully! Customer ID: ${generatedCustomerId}\nUser account also created in the system.`);
         } else {
@@ -444,8 +494,7 @@ function Customer_Master() {
       } else {
         alert(`Customer updated successfully!`);
       }
-      
-      // Navigate on success
+
       navigate(location.state?.from || "/customerstable", {
         state: { mobile: formData.mobile },
       });
@@ -484,7 +533,6 @@ function Customer_Master() {
     });
   };
 
-  // Toggle password visibility
   const togglePasswordVisibility = () => {
     setShowPassword(!showPassword);
   };
@@ -622,6 +670,8 @@ function Customer_Master() {
                 type="date"
                 value={formData.birthday}
                 onChange={handleChange}
+                min={`${MIN_YEAR}-01-01`}
+                max={`${MAX_YEAR}-12-31`}
               />
             </Col>
             <Col md={2}>
@@ -631,6 +681,8 @@ function Customer_Master() {
                 type="date"
                 value={formData.anniversary}
                 onChange={handleChange}
+                min={`${MIN_YEAR}-01-01`}
+                max={`${MAX_YEAR}-12-31`}
               />
             </Col>
             <Col md={4}>
@@ -690,7 +742,6 @@ function Customer_Master() {
               />
             </Col>
 
-            {/* Password Fields with Eye Icons - Only for New Customers */}
             {!id && (
               <>
                 <Col md={4}>
@@ -792,6 +843,10 @@ function Customer_Master() {
                             alt={`Preview ${index}`}
                             className="img-thumbnail h-100 w-100"
                             style={{ objectFit: 'cover' }}
+                            onError={(e) => {
+                              console.error('Image failed to load:', preview);
+                              e.target.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100"%3E%3Crect fill="%23f0f0f0" width="100" height="100"/%3E%3Ctext x="50" y="50" font-family="Arial" font-size="12" text-anchor="middle" dy=".3em" fill="%23999"%3ENo Image%3C/text%3E%3C/svg%3E';
+                            }}
                           />
                           <Button
                             variant="danger"

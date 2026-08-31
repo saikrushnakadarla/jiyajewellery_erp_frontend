@@ -84,6 +84,7 @@ function Login() {
         backgroundSize: 'cover',
         backgroundRepeat: 'no-repeat',
         backgroundPosition: 'center',
+        backgroundAttachment: 'fixed',
         paddingRight: '150px',
       }}
     >

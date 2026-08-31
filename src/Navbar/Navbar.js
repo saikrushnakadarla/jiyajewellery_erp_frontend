@@ -143,23 +143,36 @@ function Navbar() {
     setIsOpen(false);
   };
 
-  const handleLogout = () => {
-    Swal.fire({
-      title: "Are you sure?",
-      text: "Do you really want to log out?",
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonColor: "#3085d6",
-      cancelButtonColor: "#d33",
-      confirmButtonText: "Yes, log out!",
-      cancelButtonText: "Cancel",
-    }).then((result) => {
-      if (result.isConfirmed) {
-        // Navigate to the home page or perform logout logic
-        navigate("/");
-      }
-    });
-  };
+ const handleLogout = () => {
+  Swal.fire({
+    title: "Are you sure?",
+    text: "Do you really want to log out?",
+    icon: "warning",
+    showCancelButton: true,
+    confirmButtonColor: "#3085d6",
+    cancelButtonColor: "#d33",
+    confirmButtonText: "Yes, log out!",
+    cancelButtonText: "Cancel",
+  }).then((result) => {
+    if (result.isConfirmed) {
+      // Clear all localStorage items related to authentication
+      localStorage.removeItem("authToken");
+      localStorage.removeItem("userId");
+      localStorage.removeItem("userRole");
+      localStorage.removeItem("userName");
+      localStorage.removeItem("userType");
+      
+      // Clear all sessionStorage items
+      sessionStorage.clear();
+      
+      // Optional: Clear all localStorage (if you want to clear everything)
+      // localStorage.clear();
+      
+      // Navigate to login page
+      navigate("/");
+    }
+  });
+};
 
   // Function to check if the link is active based on the current location
   const isActive = (path) => {

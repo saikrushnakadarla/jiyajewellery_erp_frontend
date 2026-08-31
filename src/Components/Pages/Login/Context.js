@@ -1,3 +1,4 @@
+// src/Components/Pages/Login/Context.js
 import React, { createContext, useState, useEffect } from 'react';
 
 export const AuthContext = createContext();
@@ -37,6 +38,12 @@ export const AuthProvider = ({ children }) => {
     localStorage.removeItem('userType');
   };
 
+  // Check if user is authenticated
+  const isAuthenticated = () => {
+    const token = localStorage.getItem('authToken');
+    return token !== null && token !== undefined && token !== '';
+  };
+
   useEffect(() => {
     setAuthToken(localStorage.getItem('authToken'));
     setUserId(localStorage.getItem('userId'));
@@ -53,7 +60,8 @@ export const AuthProvider = ({ children }) => {
       userName, 
       userType, 
       login, 
-      logout 
+      logout,
+      isAuthenticated
     }}>
       {children}
     </AuthContext.Provider>

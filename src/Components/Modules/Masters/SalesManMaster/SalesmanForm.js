@@ -11,6 +11,29 @@ import { FaUpload, FaTrash, FaEye, FaEyeSlash, FaCamera } from 'react-icons/fa';
 import Webcam from 'react-webcam';
 import Swal from 'sweetalert2';
 
+// ---------------------------------------------------------------------------
+// Date validation helpers
+// ---------------------------------------------------------------------------
+const MIN_YEAR = 1900;
+const MAX_YEAR = 2100;
+
+const isValidDateYear = (value) => {
+  if (!value) return true;
+
+  const [yearPart] = value.split('-');
+
+  if (!/^\d{1,4}$/.test(yearPart)) {
+    return false;
+  }
+
+  const yearNum = Number(yearPart);
+  if (yearPart.length === 4 && (yearNum < MIN_YEAR || yearNum > MAX_YEAR)) {
+    return false;
+  }
+
+  return true;
+};
+
 // Static data for Indian states, districts, and cities
 const indiaStateDistrictCityData = {
   "Andhra Pradesh": {
@@ -228,7 +251,7 @@ function Salesman_Master() {
     confirm_password: '',
     gender: '',
     country: 'India',
-    designation: 'Salesman',
+    designation: '',
     company_name: '',
     duty_start_time: '',
     duty_end_time: '',
@@ -259,13 +282,16 @@ function Salesman_Master() {
     if (formData.state && indiaStateDistrictCityData[formData.state]) {
       const districts = Object.keys(indiaStateDistrictCityData[formData.state].districts);
       setAvailableDistricts(districts);
-      setFormData(prev => ({ ...prev, district: "", city: "" }));
-      setAvailableCities([]);
+      // Only reset district and city if they are not being set from fetched data
+      if (!id) {
+        setFormData(prev => ({ ...prev, district: "", city: "" }));
+        setAvailableCities([]);
+      }
     } else {
       setAvailableDistricts([]);
       setAvailableCities([]);
     }
-  }, [formData.state]);
+  }, [formData.state, id]);
 
   // Update cities when district changes
   useEffect(() => {
@@ -273,11 +299,13 @@ function Salesman_Master() {
       indiaStateDistrictCityData[formData.state]?.districts[formData.district]) {
       const cities = indiaStateDistrictCityData[formData.state].districts[formData.district];
       setAvailableCities(cities);
-      setFormData(prev => ({ ...prev, city: "" }));
+      if (!id) {
+        setFormData(prev => ({ ...prev, city: "" }));
+      }
     } else {
       setAvailableCities([]);
     }
-  }, [formData.district, formData.state]);
+  }, [formData.district, formData.state, id]);
 
   useEffect(() => {
     const fetchSalesmen = async () => {
@@ -301,6 +329,8 @@ function Salesman_Master() {
           const response = await fetch(`${baseURL}/get/account-details/${id}`);
           if (response.ok) {
             const result = await response.json();
+            console.log('Fetched salesman data:', result); // Debug log
+            
             const parseDate = (dateString) => {
               if (!dateString) return '';
               const date = new Date(dateString);
@@ -312,7 +342,9 @@ function Salesman_Master() {
 
             const formatDutyTime = (timeString) => {
               if (!timeString) return '';
+              // Check if it's already in HH:MM format
               if (/^\d{2}:\d{2}$/.test(timeString)) return timeString;
+              // Try to extract time from string
               if (timeString.includes(':')) {
                 const parts = timeString.split(' ');
                 if (parts.length > 1) {
@@ -329,13 +361,38 @@ function Salesman_Master() {
               anniversary: parseDate(result.anniversary),
               duty_start_time: formatDutyTime(result.duty_start_time),
               duty_end_time: formatDutyTime(result.duty_end_time),
+              // Ensure these fields are properly set
+              designation: result.designation || '',
+              company_name: result.company_name || '',
+              country: result.country || 'India',
+              state: result.state || '',
+              district: result.district || '',
+              city: result.city || '',
+              // Handle password - don't set it for edit mode
+              password: '',
+              confirm_password: '',
             };
 
             setFormData(salesmanData);
 
+            // Set districts and cities after state and district are set
+            if (result.state && indiaStateDistrictCityData[result.state]) {
+              const districts = Object.keys(indiaStateDistrictCityData[result.state].districts);
+              setAvailableDistricts(districts);
+              
+              if (result.district && indiaStateDistrictCityData[result.state].districts[result.district]) {
+                const cities = indiaStateDistrictCityData[result.state].districts[result.district];
+                setAvailableCities(cities);
+              }
+            }
+
+            // Handle profile photo
             if (result.profile_photo) {
+              const photoUrl = result.profile_photo.startsWith('http') 
+                ? result.profile_photo 
+                : `${baseURL}${result.profile_photo}`;
               setExistingProfilePhoto(result.profile_photo);
-              setImagePreview(`${baseURL}${result.profile_photo}`);
+              setImagePreview(photoUrl);
             }
           }
         } catch (error) {
@@ -373,11 +430,8 @@ function Salesman_Master() {
 
       case "birthday":
       case "anniversary":
-        if (value) {
-          const parts = value.split("-");
-          if (parts.length > 0 && parts[0].length > 4) {
-            return;
-          }
+        if (!isValidDateYear(value)) {
+          return;
         }
         updatedValue = value;
         break;
@@ -479,6 +533,15 @@ function Salesman_Master() {
       return false;
     }
 
+    if (formData.birthday && !isValidDateYear(formData.birthday)) {
+      Swal.fire({ icon: 'error', title: 'Validation Error', text: 'Birthday year must be a valid 4-digit year between 1900 and 2100.' });
+      return false;
+    }
+    if (formData.anniversary && !isValidDateYear(formData.anniversary)) {
+      Swal.fire({ icon: 'error', title: 'Validation Error', text: 'Anniversary year must be a valid 4-digit year between 1900 and 2100.' });
+      return false;
+    }
+
     if (!id) {
       if (!formData.password || formData.password.length < 6) {
         Swal.fire({ icon: 'error', title: 'Validation Error', text: 'Password must be at least 6 characters long.' });
@@ -490,7 +553,6 @@ function Salesman_Master() {
       }
     }
 
-    // Validate profile photo for new salesmen
     if (!id && !imagePreview) {
       Swal.fire({ 
         icon: 'warning', 
@@ -622,109 +684,134 @@ function Salesman_Master() {
     }
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+// Salesman_Master.js - Updated handleSubmit function
 
-    if (!validateForm()) {
-      return;
-    }
+const handleSubmit = async (e) => {
+  e.preventDefault();
 
-    setIsSaving(true);
+  if (!validateForm()) {
+    return;
+  }
 
-    try {
-      if (!id) {
-        const response = await fetch(`${baseURL}/get/account-details`);
-        if (!response.ok) {
-          throw new Error("Failed to fetch data for duplicate check.");
-        }
+  setIsSaving(true);
 
-        const result = await response.json();
-        const isDuplicateMobile = result.some(
-          (item) => item.mobile === formData.mobile && item.account_id !== id
-        );
-
-        if (isDuplicateMobile) {
-          Swal.fire({ icon: 'error', title: 'Duplicate Entry', text: 'This mobile number is already associated with another entry.' });
-          setIsSaving(false);
-          return;
-        }
-      }
-
-      const formDataToSend = new FormData();
-
-      Object.keys(formData).forEach(key => {
-        if (formData[key] !== undefined && formData[key] !== null && formData[key] !== '') {
-          formDataToSend.append(key, formData[key]);
-        }
-      });
-
-      if (newProfilePhoto) {
-        formDataToSend.append("profile_photo", newProfilePhoto);
-      }
-
-      const endpoint = id
-        ? `${baseURL}/edit/account-details/${id}`
-        : `${baseURL}/account-details`;
-
-      const method = id ? "PUT" : "POST";
-
-      const response = await fetch(endpoint, {
-        method: method,
-        body: formDataToSend,
-      });
-
+  try {
+    // Check for duplicate mobile
+    if (!id) {
+      const response = await fetch(`${baseURL}/get/account-details`);
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || "Failed to save salesman");
+        throw new Error("Failed to fetch data for duplicate check.");
       }
 
       const result = await response.json();
-      const generatedAccountId = result.account_id || id;
+      const isDuplicateMobile = result.some(
+        (item) => item.mobile === formData.mobile && item.account_id !== id
+      );
 
-      if (!id) {
-        const salesmanDataForUsers = {
-          account_name: formData.account_name,
-          email: formData.email,
-          mobile: formData.mobile,
-          birthday: formData.birthday,
-          anniversary: formData.anniversary,
-          state: formData.state,
-          city: formData.city,
-          district: formData.district,
-          pincode: formData.pincode,
-          company_name: formData.company_name,
-          password: formData.password,
-          duty_start_time: formData.duty_start_time,
-          duty_end_time: formData.duty_end_time,
-          gender: formData.gender,
-          designation: formData.designation,
-          country: formData.country,
-        };
-
-        await storeInUsersDB(salesmanDataForUsers, generatedAccountId);
+      if (isDuplicateMobile) {
+        Swal.fire({ icon: 'error', title: 'Duplicate Entry', text: 'This mobile number is already associated with another entry.' });
+        setIsSaving(false);
+        return;
       }
-
-      Swal.fire({
-        icon: 'success',
-        title: 'Success!',
-        text: id ? 'Salesman updated successfully!' : 'Salesman created successfully!',
-        confirmButtonColor: '#a36e29',
-      }).then(() => {
-        navigate("/salesmantable");
-      });
-
-    } catch (error) {
-      console.error("Error:", error);
-      Swal.fire({
-        icon: 'error',
-        title: 'Error',
-        text: error.message || "An error occurred while processing the request.",
-        confirmButtonColor: '#a36e29',
-      });
-    } finally {
-      setIsSaving(false);
     }
-  };
+
+    const formDataToSend = new FormData();
+
+    // FIX: Include ALL fields, even empty strings
+    // Only skip undefined or null values
+    Object.keys(formData).forEach(key => {
+      if (formData[key] !== undefined && formData[key] !== null) {
+        // For strings, we want to keep empty strings too
+        if (typeof formData[key] === 'string') {
+          formDataToSend.append(key, formData[key]);
+        } else {
+          formDataToSend.append(key, formData[key]);
+        }
+      }
+    });
+
+    // Ensure designation and company_name are always sent, even if empty
+    // (they should never be empty due to validation, but this is extra safety)
+    if (!formDataToSend.has('designation') && formData.designation !== undefined) {
+      formDataToSend.append('designation', formData.designation || '');
+    }
+    if (!formDataToSend.has('company_name') && formData.company_name !== undefined) {
+      formDataToSend.append('company_name', formData.company_name || '');
+    }
+
+    // Log the form data for debugging
+    console.log('FormData being sent:');
+    for (let [key, value] of formDataToSend.entries()) {
+      console.log(key, value);
+    }
+
+    if (newProfilePhoto) {
+      formDataToSend.append("profile_photo", newProfilePhoto);
+    }
+
+    const endpoint = id
+      ? `${baseURL}/edit/account-details/${id}`
+      : `${baseURL}/account-details`;
+
+    const method = id ? "PUT" : "POST";
+
+    const response = await fetch(endpoint, {
+      method: method,
+      body: formDataToSend,
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || "Failed to save salesman");
+    }
+
+    const result = await response.json();
+    const generatedAccountId = result.account_id || id;
+
+    if (!id) {
+      const salesmanDataForUsers = {
+        account_name: formData.account_name,
+        email: formData.email,
+        mobile: formData.mobile,
+        birthday: formData.birthday,
+        anniversary: formData.anniversary,
+        state: formData.state,
+        city: formData.city,
+        district: formData.district,
+        pincode: formData.pincode,
+        company_name: formData.company_name,
+        password: formData.password,
+        duty_start_time: formData.duty_start_time,
+        duty_end_time: formData.duty_end_time,
+        gender: formData.gender,
+        designation: formData.designation,
+        country: formData.country,
+      };
+
+      await storeInUsersDB(salesmanDataForUsers, generatedAccountId);
+    }
+
+    Swal.fire({
+      icon: 'success',
+      title: 'Success!',
+      text: id ? 'Salesman updated successfully!' : 'Salesman created successfully!',
+      confirmButtonColor: '#a36e29',
+    }).then(() => {
+      navigate("/salesmantable");
+    });
+
+  } catch (error) {
+    console.error("Error:", error);
+    Swal.fire({
+      icon: 'error',
+      title: 'Error',
+      text: error.message || "An error occurred while processing the request.",
+      confirmButtonColor: '#a36e29',
+    });
+  } finally {
+    setIsSaving(false);
+  }
+};
 
   const handleBack = () => {
     navigate("/salesmantable");
@@ -765,6 +852,8 @@ function Salesman_Master() {
                 type="date"
                 value={formData.birthday}
                 onChange={handleChange}
+                min={`${MIN_YEAR}-01-01`}
+                max={`${MAX_YEAR}-12-31`}
                 placeholder="mm/dd/yyyy"
               />
             </Col>
@@ -775,6 +864,8 @@ function Salesman_Master() {
                 type="date"
                 value={formData.anniversary}
                 onChange={handleChange}
+                min={`${MIN_YEAR}-01-01`}
+                max={`${MAX_YEAR}-12-31`}
                 placeholder="mm/dd/yyyy"
               />
             </Col>
@@ -966,13 +1057,13 @@ function Salesman_Master() {
             <Col md={6}>
               <div className="password-field-wrapper">
                 <InputField
-                  label="Password *"
+                  label={id ? "Password" : "Password *"}
                   name="password"
                   type={showPassword ? "text" : "password"}
                   value={formData.password}
                   onChange={handleChange}
                   required={!id}
-                  placeholder="********"
+                  placeholder={id ? "Leave blank to keep current password" : "********"}
                 />
                 <button
                   type="button"
@@ -987,13 +1078,13 @@ function Salesman_Master() {
             <Col md={6}>
               <div className="password-field-wrapper">
                 <InputField
-                  label="Confirm Password *"
+                  label={id ? "Confirm Password" : "Confirm Password *"}
                   name="confirm_password"
                   type={showConfirmPassword ? "text" : "password"}
                   value={formData.confirm_password}
                   onChange={handleChange}
                   required={!id}
-                  placeholder="Enter your confirm password"
+                  placeholder={id ? "Leave blank to keep current password" : "Enter your confirm password"}
                 />
                 <button
                   type="button"
@@ -1039,8 +1130,9 @@ function Salesman_Master() {
             <Col md={12}>
               <div className="profile-photo-section">
                 <label className="input-label">
-                  Profile Photo * <span className="required-star">*</span>
-                  <span className="mandatory-text">(Mandatory)</span>
+                  Profile Photo {!id && <span className="required-star">*</span>}
+                  {!id && <span className="mandatory-text">(Mandatory)</span>}
+                  {id && <span className="optional-text">(Optional - Upload new photo to change)</span>}
                 </label>
 
                 <input
@@ -1092,7 +1184,14 @@ function Salesman_Master() {
                 {imagePreview && (
                   <div className="profile-photo-preview">
                     <div className="photo-preview-wrapper">
-                      <img src={imagePreview} alt="Profile Preview" />
+                      <img 
+                        src={imagePreview} 
+                        alt="Profile Preview" 
+                        onError={(e) => {
+                          console.error('Image failed to load:', imagePreview);
+                          e.target.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100"%3E%3Crect fill="%23f0f0f0" width="100" height="100"/%3E%3Ctext x="50" y="50" font-family="Arial" font-size="12" text-anchor="middle" dy=".3em" fill="%23999"%3ENo Image%3C/text%3E%3C/svg%3E';
+                        }}
+                      />
                       <button
                         type="button"
                         className="remove-photo-btn"
