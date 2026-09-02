@@ -36,24 +36,31 @@ const CustomerDetails = ({
   const [loadingPackets, setLoadingPackets] = useState(false);
   const [loadingProducts, setLoadingProducts] = useState(false);
 
+  // 🆕 FIX: account_details records only expose `account_id` — there is no
+  // `customer_id` field on them. Match on account_id (still accept
+  // customer_id too, in case a record ever has it) and ALWAYS store the
+  // real identifier into both formData.customer_id and formData.cust_id.
+  // This is what handleSave's `if (updatedFormData.customer_id)` check
+  // relies on to fire the ledger POST — previously it was always empty.
   const handleCustomerChangeWrapper = (customerId) => {
     console.log("🔄 handleCustomerChange called with:", customerId);
     
     const customer = customers.find(
-      (cust) => String(cust.customer_id) === String(customerId) || 
-                 String(cust.account_id) === String(customerId)
+      (cust) => String(cust.account_id) === String(customerId) || 
+                 String(cust.customer_id) === String(customerId)
     );
 
     if (customer) {
       console.log("✅ Customer found:", customer);
-      console.log("   Customer ID:", customer.customer_id);
+      console.log("   Customer ID (account_id):", customer.account_id);
       console.log("   Customer Name:", customer.account_name);
       console.log("   Mobile:", customer.mobile);
       
       setFormData((prevData) => ({
         ...prevData,
-        customer_id: customer.customer_id,
-        cust_id: customer.customer_id,
+        // 🆕 FIX: use account_id as the canonical customer identifier
+        customer_id: customer.account_id,
+        cust_id: customer.account_id,
         account_name: customer.account_name || "",
         mobile: customer.mobile || "",
         email: customer.email || "",
@@ -117,7 +124,8 @@ const CustomerDetails = ({
         (cust) => cust.mobile === location.state.mobile
       );
       if (customer) {
-        handleCustomerChangeWrapper(customer.customer_id);
+        // 🆕 FIX: pass account_id (customer.customer_id doesn't exist)
+        handleCustomerChangeWrapper(customer.account_id);
         setSelectedMobileState(location.state.mobile);
         fetchBalance(location.state.mobile);
       }
@@ -213,7 +221,8 @@ const CustomerDetails = ({
 
       const existing = customers.find(c => c.mobile === location.state.selectedMobile);
       if (existing) {
-        handleCustomerChangeWrapper(existing.customer_id);
+        // 🆕 FIX: pass account_id (existing.customer_id doesn't exist)
+        handleCustomerChangeWrapper(existing.account_id);
         fetchBalance(existing.mobile);
       }
 
@@ -226,7 +235,7 @@ const CustomerDetails = ({
     console.log("========== FETCHING CUSTOMER PACKETS ==========");
     
     const selectedCustomerId = formData.customer_id || formData.cust_id;
-    console.log("Selected Customer ID from formData:", selectedCustomerId);
+    console.log("Selected Customer ID (account_id) from formData:", selectedCustomerId);
     
     if (!selectedCustomerId) {
       console.log("❌ No customer selected");
@@ -249,7 +258,11 @@ const CustomerDetails = ({
                                  estimate.packet_barcode !== 'null' &&
                                  estimate.packet_barcode !== '';
         
-        const isMatch = estimateCustId === selectedCustomerId;
+        // NOTE: this compares estimate.cust_id against the account_id now
+        // being stored in formData.customer_id. Confirm your estimates
+        // table's cust_id actually stores account_id values — if it stores
+        // a different customer PK, this match will silently return nothing.
+        const isMatch = String(estimateCustId) === String(selectedCustomerId);
         
         if (isMatch && hasPacketBarcode) {
           console.log(`✅ MATCH FOUND!`);
@@ -272,143 +285,144 @@ const CustomerDetails = ({
     }
   };
 
-// Fetch products for selected packet
-const fetchProductsForPacket = async (packetBarcode) => {
-  console.log("========== FETCHING PRODUCTS FOR PACKET ==========");
-  console.log("Selected Packet Barcode:", packetBarcode);
-  
-  setLoadingProducts(true);
-  try {
-    // Step 1: Get all estimates to find code for this packet
-    const estimatesResponse = await axios.get(`${baseURL2}/get/estimates`);
-    const allEstimates = Array.isArray(estimatesResponse.data) ? estimatesResponse.data : [];
+  // Fetch products for selected packet
+  const fetchProductsForPacket = async (packetBarcode) => {
+    console.log("========== FETCHING PRODUCTS FOR PACKET ==========");
+    console.log("Selected Packet Barcode:", packetBarcode);
     
-    // Find estimates with this packet_barcode
-    const matchedEstimates = allEstimates.filter(
-      estimate => estimate.packet_barcode === packetBarcode
-    );
-    
-    console.log(`✅ Found ${matchedEstimates.length} estimates with packet: ${packetBarcode}`);
-    
-    if (matchedEstimates.length === 0) {
-      Swal.fire({
-        icon: 'warning',
-        title: 'No Products',
-        text: 'No products found for this packet'
-      });
-      setLoadingProducts(false);
-      return;
-    }
-    
-    // Step 2: Get all opening tags (stock entries)
-    const stockResponse = await axios.get(`${baseURL}/get/opening-tags-entry`);
-    const stockData = stockResponse.data.result || [];
-    
-    console.log(`✅ Total stock entries fetched: ${stockData.length}`);
-    
-    // Step 3: Get codes from matched estimates and find matching stock entries
-    const matchedProducts = [];
-    const codesNotFound = [];
-    
-    matchedEstimates.forEach(estimate => {
-      const code = estimate.code;
-      console.log(`🔍 Searching for code: ${code}`);
+    setLoadingProducts(true);
+    try {
+      // Step 1: Get all estimates to find code for this packet
+      const estimatesResponse = await axios.get(`${baseURL2}/get/estimates`);
+      const allEstimates = Array.isArray(estimatesResponse.data) ? estimatesResponse.data : [];
       
-      // Find matching stock entry with Status 'Selected'
-      const stockEntry = stockData.find(
-        item => item.PCode_BarCode === code && item.Status === 'Selected'
+      // Find estimates with this packet_barcode
+      const matchedEstimates = allEstimates.filter(
+        estimate => estimate.packet_barcode === packetBarcode
       );
       
-      if (stockEntry) {
-        console.log(`✅ Found stock entry for code ${code}:`, stockEntry);
-        console.log(`   Status: ${stockEntry.Status}`);
-        
-        // Map stock entry to product format
-        const product = {
-          code: stockEntry.PCode_BarCode,
-          product_id: stockEntry.product_id,
-          product_name: stockEntry.sub_category || stockEntry.product_Name || '',
-          metal_type: stockEntry.metal_type || '',
-          design_name: stockEntry.design_master || '',
-          purity: stockEntry.Purity || '',
-          category: stockEntry.category || '',
-          sub_category: stockEntry.sub_category || '',
-          gross_weight: stockEntry.Gross_Weight || '0',
-          stone_weight: stockEntry.Stones_Weight || '0',
-          stone_price: stockEntry.Stones_Price || '0',
-          weight_bw: stockEntry.Weight_BW || '0',
-          va_on: stockEntry.Wastage_On || "Gross Weight",
-          va_percent: stockEntry.Wastage_Percentage || '0',
-          wastage_weight: stockEntry.WastageWeight || '0',
-          total_weight_av: stockEntry.TotalWeight_AW || '0',
-          mc_on: stockEntry.Making_Charges_On || "MC %",
-          mc_per_gram: stockEntry.MC_Per_Gram || '0',
-          making_charges: stockEntry.Making_Charges || '0',
-          rate: stockEntry.rate || '0',
-          rate_amt: '0',
-          tax_percent: stockEntry.tax || '03% GST',
-          tax_amt: stockEntry.tax_amt || '0',
-          total_price: stockEntry.total_price || '0',
-          pricing: stockEntry.Pricing || 'By Weight',
-          qty: stockEntry.pcs || 1,
-          hm_charges: '60.00',
-          opentag_id: stockEntry.opentag_id,
-          imagePreview: stockEntry.image || null,
-          Status: stockEntry.Status,
-          Stock_Point: stockEntry.Stock_Point
-        };
-        
-        matchedProducts.push(product);
-      } else {
-        console.log(`❌ No stock found with Status 'Selected' for code: ${code}`);
-        codesNotFound.push(code);
-      }
-    });
-    
-    console.log(`✅ Total products matched: ${matchedProducts.length}`);
-    console.log(`❌ Codes not found: ${codesNotFound.length}`, codesNotFound);
-    
-    // Step 4: Close packet modal
-    setShowPacketModal(false);
-    setSelectedPacketBarcode(null);
-    
-    if (matchedProducts.length === 0) {
-      Swal.fire({
-        icon: 'error',
-        title: 'No Products Available',
-        text: `No products found with Status 'Selected' for this packet.\n\nCodes not found: ${codesNotFound.join(', ')}`,
-        confirmButtonText: 'OK'
-      });
-    } else {
-      // Step 5: Pass products to parent component
-      if (onProductsFetched) {
-        onProductsFetched(matchedProducts);
+      console.log(`✅ Found ${matchedEstimates.length} estimates with packet: ${packetBarcode}`);
+      
+      if (matchedEstimates.length === 0) {
+        Swal.fire({
+          icon: 'warning',
+          title: 'No Products',
+          text: 'No products found for this packet'
+        });
+        setLoadingProducts(false);
+        return;
       }
       
-      Swal.fire({
-        icon: 'success',
-        title: 'Products Added!',
-        html: `
-          <div style="text-align: left;">
-            <p><strong>Added Products:</strong> ${matchedProducts.length}</p>
-            ${codesNotFound.length > 0 ? `<p class="text-warning"><strong>Products not found with Status 'Selected':</strong> ${codesNotFound.join(', ')}</p>` : ''}
-          </div>
-        `,
-        confirmButtonText: 'OK'
+      // Step 2: Get all opening tags (stock entries)
+      const stockResponse = await axios.get(`${baseURL}/get/opening-tags-entry`);
+      const stockData = stockResponse.data.result || [];
+      
+      console.log(`✅ Total stock entries fetched: ${stockData.length}`);
+      
+      // Step 3: Get codes from matched estimates and find matching stock entries
+      const matchedProducts = [];
+      const codesNotFound = [];
+      
+      matchedEstimates.forEach(estimate => {
+        const code = estimate.code;
+        console.log(`🔍 Searching for code: ${code}`);
+        
+        // Find matching stock entry with Status 'Selected'
+        const stockEntry = stockData.find(
+          item => item.PCode_BarCode === code && item.Status === 'Selected'
+        );
+        
+        if (stockEntry) {
+          console.log(`✅ Found stock entry for code ${code}:`, stockEntry);
+          console.log(`   Status: ${stockEntry.Status}`);
+          
+          // Map stock entry to product format
+          const product = {
+            code: stockEntry.PCode_BarCode,
+            product_id: stockEntry.product_id,
+            product_name: stockEntry.sub_category || stockEntry.product_Name || '',
+            metal_type: stockEntry.metal_type || '',
+            design_name: stockEntry.design_master || '',
+            purity: stockEntry.Purity || '',
+            category: stockEntry.category || '',
+            sub_category: stockEntry.sub_category || '',
+            gross_weight: stockEntry.Gross_Weight || '0',
+            stone_weight: stockEntry.Stones_Weight || '0',
+            stone_price: stockEntry.Stones_Price || '0',
+            weight_bw: stockEntry.Weight_BW || '0',
+            va_on: stockEntry.Wastage_On || "Gross Weight",
+            va_percent: stockEntry.Wastage_Percentage || '0',
+            wastage_weight: stockEntry.WastageWeight || '0',
+            total_weight_av: stockEntry.TotalWeight_AW || '0',
+            mc_on: stockEntry.Making_Charges_On || "MC %",
+            mc_per_gram: stockEntry.MC_Per_Gram || '0',
+            making_charges: stockEntry.Making_Charges || '0',
+            rate: stockEntry.rate || '0',
+            rate_amt: '0',
+            tax_percent: stockEntry.tax || '03% GST',
+            tax_amt: stockEntry.tax_amt || '0',
+            total_price: stockEntry.total_price || '0',
+            pricing: stockEntry.Pricing || 'By Weight',
+            qty: stockEntry.pcs || 1,
+            hm_charges: '60.00',
+            opentag_id: stockEntry.opentag_id,
+            imagePreview: stockEntry.image || null,
+            Status: stockEntry.Status,
+            Stock_Point: stockEntry.Stock_Point
+          };
+          
+          matchedProducts.push(product);
+        } else {
+          console.log(`❌ No stock found with Status 'Selected' for code: ${code}`);
+          codesNotFound.push(code);
+        }
       });
+      
+      console.log(`✅ Total products matched: ${matchedProducts.length}`);
+      console.log(`❌ Codes not found: ${codesNotFound.length}`, codesNotFound);
+      
+      // Step 4: Close packet modal
+      setShowPacketModal(false);
+      setSelectedPacketBarcode(null);
+      
+      if (matchedProducts.length === 0) {
+        Swal.fire({
+          icon: 'error',
+          title: 'No Products Available',
+          text: `No products found with Status 'Selected' for this packet.\n\nCodes not found: ${codesNotFound.join(', ')}`,
+          confirmButtonText: 'OK'
+        });
+      } else {
+        // Step 5: Pass products to parent component
+        if (onProductsFetched) {
+          onProductsFetched(matchedProducts);
+        }
+        
+        Swal.fire({
+          icon: 'success',
+          title: 'Products Added!',
+          html: `
+            <div style="text-align: left;">
+              <p><strong>Added Products:</strong> ${matchedProducts.length}</p>
+              ${codesNotFound.length > 0 ? `<p class="text-warning"><strong>Products not found with Status 'Selected':</strong> ${codesNotFound.join(', ')}</p>` : ''}
+            </div>
+          `,
+          confirmButtonText: 'OK'
+        });
+      }
+      
+    } catch (error) {
+      console.error("❌ Error fetching products:", error);
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: 'Failed to fetch products for this packet'
+      });
+    } finally {
+      setLoadingProducts(false);
     }
-    
-  } catch (error) {
-    console.error("❌ Error fetching products:", error);
-    Swal.fire({
-      icon: 'error',
-      title: 'Error',
-      text: 'Failed to fetch products for this packet'
-    });
-  } finally {
-    setLoadingProducts(false);
-  }
-};
+  };
+
   const handlePacketSelect = (packetBarcode) => {
     console.log("🎯 Packet selected:", packetBarcode);
     setSelectedPacketBarcode(packetBarcode);
@@ -472,9 +486,10 @@ const fetchProductsForPacket = async (packetBarcode) => {
                 const existing = customers.find((c) => c.mobile === inputMobile);
                 if (existing) {
                   console.log("✅ Customer found with mobile:", inputMobile);
-                  console.log("   Customer ID:", existing.customer_id);
+                  console.log("   Customer ID (account_id):", existing.account_id);
                   console.log("   Customer Name:", existing.account_name);
-                  handleCustomerChangeWrapper(existing.customer_id);
+                  // 🆕 FIX: pass account_id (existing.customer_id doesn't exist)
+                  handleCustomerChangeWrapper(existing.account_id);
                   fetchBalance(existing.mobile);
                 } else {
                   console.log("❌ No customer found with mobile:", inputMobile);
@@ -565,9 +580,10 @@ const fetchProductsForPacket = async (packetBarcode) => {
               const existing = customers.find((c) => c.account_name === inputName);
               if (existing) {
                 console.log("✅ Customer found with name:", inputName);
-                console.log("   Customer ID:", existing.customer_id);
+                console.log("   Customer ID (account_id):", existing.account_id);
                 console.log("   Mobile:", existing.mobile);
-                handleCustomerChangeWrapper(existing.customer_id);
+                // 🆕 FIX: pass account_id (existing.customer_id doesn't exist)
+                handleCustomerChangeWrapper(existing.account_id);
                 fetchBalance(existing.mobile);
               } else {
                 console.log("❌ No customer found with name:", inputName);
