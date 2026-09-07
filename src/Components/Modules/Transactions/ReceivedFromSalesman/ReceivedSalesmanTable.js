@@ -60,6 +60,18 @@ const ReceivedSalesmanTable = () => {
     ).padStart(2, '0')}-${date.getFullYear()}`;
   };
 
+  // Check if a date is today
+  const isToday = (dateString) => {
+    if (!dateString) return false;
+    const today = new Date();
+    const date = new Date(dateString);
+    
+    // Compare year, month, and day
+    return date.getFullYear() === today.getFullYear() &&
+           date.getMonth() === today.getMonth() &&
+           date.getDate() === today.getDate();
+  };
+
   const getStatusBadge = (status) => {
     const statusColors = {
       'pending': { color: '#ffc107', text: 'Pending' },
@@ -115,27 +127,14 @@ const ReceivedSalesmanTable = () => {
         accessor: 'salesman_mobile',
         Cell: ({ value }) => value || 'N/A',
       },
-      // {
-      //   Header: 'To Stock Point',
-      //   accessor: 'to_stock_point_name',
-      //   Cell: ({ value }) => value || 'N/A',
-      // },
       {
         Header: 'Total Items',
         accessor: 'total_items',
       },
-      // {
-      //   Header: 'Total Qty',
-      //   accessor: 'total_quantity',
-      // },
       {
         Header: 'Total Gross Wt',
         accessor: 'total_gross_weight',
       },
-      // {
-      //   Header: 'Total Net Wt',
-      //   accessor: 'total_net_weight',
-      // },
       {
         Header: 'Status',
         accessor: 'status',
@@ -271,8 +270,14 @@ const ReceivedSalesmanTable = () => {
         console.log("Filtered Transfers (to_stock_point_id and to_user_id match):", filteredTransfers);
       }
       
-      setData(filteredTransfers);
-      setFilteredData(filteredTransfers);
+      // Filter to show only today's received dates
+      const todayTransfers = filteredTransfers.filter(transfer => 
+        isToday(transfer.transfer_date)
+      );
+      console.log("Today's Received Transfers:", todayTransfers);
+      
+      setData(todayTransfers);
+      setFilteredData(todayTransfers);
       setLoading(false);
     } catch (error) {
       console.error('Error fetching received transfers:', error);
@@ -316,7 +321,7 @@ const ReceivedSalesmanTable = () => {
       <div className="sales-table-container">
         <Row className="mb-3">
           <Col className="d-flex justify-content-between align-items-center">
-            <h3>Received From Salesman</h3>
+            <h3>Received From Salesman (Today's Receipts)</h3>
             <Button
               className="create_but"
               onClick={handleCreate}
@@ -423,12 +428,6 @@ const ReceivedSalesmanTable = () => {
                       <th>Qty</th>
                       <th>Gross Wt</th> 
                       <th>Packing Wt</th>
-                      {/* <th>Stone Wt</th>
-                      <th>Net Wt</th>
-                      <th>Rate</th>
-                      <th>MC</th>
-                      <th>Stone Price</th>
-                      <th>Total Price</th> */}
                     </tr>
                   </thead>
                   <tbody style={{ whiteSpace: 'nowrap', fontSize: '13px' }}>
@@ -468,17 +467,11 @@ const ReceivedSalesmanTable = () => {
                           <td>{item.qty}</td>
                           <td>{item.gross_weight}</td> 
                           <td>{parseFloat(item.packing_wt || 0) + parseFloat(item.gross_weight || 0)}</td>
-                          {/* <td>{item.stone_weight}</td>
-                          <td>{item.net_weight}</td>
-                          <td>{item.rate}</td>
-                          <td>{item.making_charges}</td>
-                          <td>{item.stone_price}</td>
-                          <td><strong>{item.total_price}</strong></td> */}
                         </tr>
                       ))
                     ) : (
                       <tr>
-                        <td colSpan="17" className="text-center">No items found</td>
+                        <td colSpan="12" className="text-center">No items found</td>
                       </tr>
                     )}
                     {transferDetails.transfer_items && transferDetails.transfer_items.length > 0 && (
@@ -494,11 +487,6 @@ const ReceivedSalesmanTable = () => {
                             }, 0).toFixed(3)}
                           </strong>
                         </td>
-                        {/* <td><strong>{transferDetails.transfer_items.reduce((sum, item) => sum + parseFloat(item.stone_weight || 0), 0).toFixed(3)}</strong></td>
-                        <td><strong>{transferDetails.transfer_items.reduce((sum, item) => sum + parseFloat(item.net_weight || 0), 0).toFixed(3)}</strong></td>
-                        <td colSpan="2"></td>
-                        <td></td>
-                        <td><strong>{transferDetails.transfer_items.reduce((sum, item) => sum + parseFloat(item.total_price || 0), 0).toFixed(2)}</strong></td> */}
                       </tr>
                     )}
                   </tbody>

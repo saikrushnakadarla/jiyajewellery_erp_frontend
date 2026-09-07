@@ -7,7 +7,7 @@
     background: #f9f9f9;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
     position: fixed;
- z-index: 1001;
+    z-index: 1001;
     width: 100%;
     margin-top: -10px;
     height: 82px;
@@ -38,8 +38,6 @@
   background-color: #864c1a;
 }
 
-
-
 .navbar-brand {
     font-size: 1.5rem;
     font-weight: bold;
@@ -62,6 +60,7 @@
     display: flex;
     align-items: center;
     cursor: pointer;
+    white-space: nowrap; /* FIX: prevent "STOCK MANAGEMENT" wrapping to 2 lines */
   }
   
 /* Logo styles */
@@ -82,9 +81,10 @@
     display: flex;
     justify-content: start;
     align-items: center;
-    gap: 2rem;
+    gap: 1.2rem; /* FIX: slightly reduced from 1.5rem to free up horizontal space */
     list-style-type: none;
     flex-grow: 1;
+    flex-wrap: nowrap; /* FIX: keep items on a single row */
 }
   
 .navbar-links a, .navbar-links span {
@@ -108,15 +108,16 @@
   
 .navbar-dropdown-content {
   display: none;
-  position: absolute; /* Ensures it is positioned relative to the dropdown container */
+  position: absolute;
   background-color: #fff;
   color: #333;
-  padding: 0.5rem 1rem; /* Reduce padding for better appearance */
+  padding: 0.5rem 1rem;
   box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
-  z-index: 1000; /* High z-index to ensure dropdown appears on top */
+  z-index: 1000;
   top: 100%;
   left: 0;
-  min-width: 200px; /* Ensures dropdown has a minimum width */
+  min-width: 200px;
+  overflow: visible;
 }
   
 .navbar-dropdown-content a {
@@ -132,10 +133,8 @@
     color: #fff;
 }
   
-/* Show the dropdown when hovering over the Services link */
 .navbar-dropdown:hover .navbar-dropdown-content {
     display: block;
-    
 }
   
 /* Buttons */
@@ -179,7 +178,6 @@
     transition: all 0.3s ease;
 }
   
-/* Close button (X) effect */
 .navbar-hamburger.open .navbar-bar:nth-child(2) {
     opacity: 0;
 }
@@ -202,14 +200,16 @@
   color: #a36e29;
   margin-top: 15px;
   margin-left: 0px;
+  white-space: nowrap; /* FIX: prevent "RECEIVED FROM SALESMAN" wrapping to 2 lines */
 }
 
 .username{
-  margin-right: 115px;
+  margin-right: 130px;
   margin-top: 5px;
-  font-size: 23px;
+  font-size: 20px;
   font-weight: bold;
   color: rgb(163, 110, 41);
+  white-space: nowrap;
 }
 
   
@@ -224,7 +224,7 @@
     background: #fff;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
     position: fixed;
-    height: 80px; /* Fixed height */
+    height: 80px;
     z-index: 1;
     width: 100%;
 }
@@ -233,7 +233,7 @@
     font-size: 1.5rem;
     font-weight: bold;
     color: #a36e29;
-    z-index: 1001; /* Ensures visibility */
+    z-index: 1001;
     position: relative;
     display: block;
   }
@@ -259,6 +259,7 @@
       transition: transform 0.3s ease-in-out;
       z-index: 999;
       margin-top: 3rem;
+      flex-wrap: wrap; /* allow wrapping again on mobile stacked menu */
     }
   
     .navbar-links.open {
@@ -329,9 +330,9 @@
         font-size: 1.5rem;
         font-weight: bold;
         color: #a36e29;
-        z-index: 1001; /* Ensures it stays above other elements */
-        position: relative; /* Keeps its layout intact */
-        display: block; /* Ensure visibility */
+        z-index: 1001;
+        position: relative;
+        display: block;
       }
 
       .navbar-links {
@@ -367,3 +368,133 @@
       margin-left: -35px;
     }
   }
+
+
+/* ===== NESTED DROPDOWN - OPENS TO THE RIGHT ===== */
+.navbar-dropdown.nested-dropdown {
+  position: relative;
+  width: 100%;
+}
+
+.navbar-dropdown.nested-dropdown .navbar-dropdown-title.nested-trigger {
+  padding: 8px 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: #333;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+  white-space: nowrap;
+}
+
+.navbar-dropdown.nested-dropdown .navbar-dropdown-title.nested-trigger:hover {
+  background-color: #f5f5f5;
+  color: #a36e29;
+}
+
+/* FIX: align flyout exactly with its trigger row, remove horizontal jump */
+.navbar-dropdown-content.nested-dropdown-content {
+  position: absolute;
+  left: 100%;
+  top: 0;              /* was -5px, caused vertical misalignment */
+  margin-left: 2px;    /* small gap instead of overlapping the parent edge */
+  background-color: #ffffff;
+  min-width: 220px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+  border: 1px solid #e8e8e8;
+  border-radius: 6px;
+  padding: 6px 0;
+  z-index: 1001;
+  animation: slideInRight 0.15s ease-out;
+}
+
+/* FIX: fade only, no horizontal translate (that caused the "space on left" look) */
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.navbar-dropdown-content.nested-dropdown-content a {
+  padding: 10px 20px;
+  font-size: 13px;
+  color: #444;
+  display: block;
+  text-decoration: none;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+  border-left: 3px solid transparent;
+}
+
+.navbar-dropdown-content.nested-dropdown-content a:hover {
+  background-color: #f7f7f7;
+  color: #a36e29;
+  border-left-color: #a36e29;
+}
+
+.navbar-dropdown-content.nested-dropdown-content a.active {
+  background-color: #a36e29;
+  color: #ffffff;
+  border-left-color: #6d4c1a;
+}
+
+/* Chevron icon in nested dropdown */
+.navbar-dropdown.nested-dropdown .dropdown-arrow-icon {
+  font-size: 12px;
+  margin-left: 10px;
+  transition: transform 0.2s ease;
+  color: #aaa;
+}
+
+.navbar-dropdown.nested-dropdown:hover .dropdown-arrow-icon {
+  color: #a36e29;
+}
+
+/* Responsive adjustments for nested dropdown */
+@media (max-width: 768px) {
+  .navbar-dropdown-content.nested-dropdown-content {
+    position: relative;
+    left: 0;
+    top: 0;
+    margin-left: 0;
+    box-shadow: none;
+    border: none;
+    border-left: 3px solid #a36e29;
+    margin-left: 15px;
+    border-radius: 0;
+    background-color: #f8f9fa;
+    animation: none;
+  }
+  
+  .navbar-dropdown-content.nested-dropdown-content a {
+    padding: 10px 16px 10px 35px;
+    font-size: 13px;
+  }
+
+  .navbar-dropdown-content.nested-dropdown-content a:hover {
+    border-left-color: #a36e29;
+  }
+}
+
+/* Fix for navbar links to prevent overlap */
+.navbar-links > div {
+  display: flex;
+  align-items: center;
+}
+
+/* Fix for the nested dropdown trigger text */
+.navbar-dropdown.nested-dropdown .navbar-dropdown-title {
+  font-size: 0.9rem;
+  padding: 6px 16px;
+}
+
+/* Better hover effect for nested dropdown parent */
+.navbar-dropdown.nested-dropdown:hover > .nested-trigger {
+  background-color: #f5f5f5;
+  color: #a36e29;
+  border-radius: 4px;
+}

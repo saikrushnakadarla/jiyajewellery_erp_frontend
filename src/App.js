@@ -110,6 +110,10 @@ import SalesmanTable from './Components/Modules/Masters/SalesManMaster/SalesmanT
 import SalesmanMaster from './Components/Modules/Masters/SalesManMaster/SalesmanForm';
 import ProtectedRoute from './Components/ProtectedRoute';
 
+import AdminAssignedSalesmanTable from "./Components/Modules/Transactions/AdminAssignedSalesman/AdminAssignedSalesmanTable";
+import AdminReceivedSalesmanTable from "./Components/Modules/Transactions/AdminReceivedSalesman/AdminReceivedSalesmanTable";
+import AdminReturnToMainStockTable from "./Components/Modules/Transactions/AdminReturnToMainStock/AdminReturnToMainStockTable";
+
 
 
 function App() {
@@ -675,13 +679,28 @@ function App() {
             </ProtectedRoute>
           } />
           
+
+           <Route path="/assign-salesman-items" element={
+            <ProtectedRoute>
+              <AdminAssignedSalesmanTable />
+            </ProtectedRoute>
+          } />
+
+
           <Route path="/add-assign-salesmantransfer" element={
             <ProtectedRoute>
               <AssignSalesmanForm />
             </ProtectedRoute>
           } />
 
-          <Route path="/receive-from-salesman" element={
+          <Route path="/received-salesman-items" element={
+            <ProtectedRoute>
+              <AdminReceivedSalesmanTable />
+            </ProtectedRoute>
+          } />
+
+
+           <Route path="/receive-from-salesman" element={
             <ProtectedRoute>
               <ReceivedSalesmanTable />
             </ProtectedRoute>
@@ -693,7 +712,13 @@ function App() {
             </ProtectedRoute>
           } />
 
-          <Route path="/return-to-main-stock" element={
+          <Route path="/return-to-main-stock-items" element={
+            <ProtectedRoute>
+              <AdminReturnToMainStockTable />
+            </ProtectedRoute>
+          } />
+
+             <Route path="/return-to-main-stock" element={
             <ProtectedRoute>
               <ReturnMainStockTable />
             </ProtectedRoute>

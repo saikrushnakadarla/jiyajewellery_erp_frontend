@@ -8,7 +8,7 @@ import baseURL from '../../../../Url/NodeBaseURL';
 import { AuthContext } from "../../../Pages/Login/Context";
 import Swal from 'sweetalert2';
 
-const ReceivedSalesmanTable = () => {
+const AdminReceivedSalesmanTable = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [data, setData] = useState([]);
@@ -213,11 +213,10 @@ const ReceivedSalesmanTable = () => {
     [userName]
   );
 
+  // Fixed handleEdit function - simplified navigation
   const handleEdit = (transfer) => {
-    const tabId = crypto.randomUUID();
     navigate("/add-receive-from-salesman", { 
       state: { 
-        tabId,
         editData: transfer,
         isEdit: true 
       } 
@@ -249,9 +248,9 @@ const ReceivedSalesmanTable = () => {
     });
   };
 
+  // Fixed handleCreate function - simplified navigation like reference code
   const handleCreate = () => {
-    const tabId = crypto.randomUUID();
-    navigate("/add-receive-from-salesman", { state: { tabId } });
+    navigate('/add-receive-from-salesman');
   };
 
   const fetchReceivedTransfers = async () => {
@@ -260,20 +259,13 @@ const ReceivedSalesmanTable = () => {
       const response = await axios.get(`${baseURL}/api/received-salesman/get-received-transfers`);
       console.log("Received Transfers Response: ", response.data);
       
-      const loggedInUserId = getLoggedInUserId();
-      console.log("Logged in User ID from localStorage:", loggedInUserId);
+      // REMOVED FILTER CONDITION - Get all received items
+      // Now showing all transfers without any filtering
+      const allTransfers = response.data;
+      console.log("All Transfers (no filter applied):", allTransfers);
       
-      let filteredTransfers = response.data;
-      if (loggedInUserId) {
-        filteredTransfers = response.data.filter(
-          transfer => transfer.to_stock_point_id === loggedInUserId && 
-                     transfer.to_user_id === loggedInUserId
-        );
-        console.log("Filtered Transfers (to_stock_point_id and to_user_id match):", filteredTransfers);
-      }
-      
-      setData(filteredTransfers);
-      setFilteredData(filteredTransfers);
+      setData(allTransfers);
+      setFilteredData(allTransfers);
       setLoading(false);
     } catch (error) {
       console.error('Error fetching received transfers:', error);
@@ -286,14 +278,8 @@ const ReceivedSalesmanTable = () => {
       const response = await axios.get(`${baseURL}/api/received-salesman/get-received-transfer/${receivedId}`);
       console.log("Fetched received details: ", response.data);
       
-      const loggedInUserId = getLoggedInUserId();
-      if (loggedInUserId) {
-        const transfer = response.data.transfer_details;
-        if (transfer.to_stock_point_id !== loggedInUserId || transfer.to_user_id !== loggedInUserId) {
-          Swal.fire('Access Denied', 'You do not have permission to view this transfer', 'error');
-          return;
-        }
-      }
+      // REMOVED ACCESS VERIFICATION - Allow viewing all transfers
+      // Removed the check that restricted viewing based on user ID
       
       setTransferDetails(response.data);
       setShowModal(true);
@@ -318,13 +304,13 @@ const ReceivedSalesmanTable = () => {
         <Row className="mb-3">
           <Col className="d-flex justify-content-between align-items-center">
             <h3>Received From Salesman</h3>
-            <Button
+            {/* <Button
               className="create_but"
               onClick={handleCreate}
               style={{ backgroundColor: '#a36e29', borderColor: '#a36e29' }}
             >
               + Create
-            </Button>
+            </Button> */}
           </Col>
         </Row>
         {loading ? (
@@ -488,13 +474,13 @@ const ReceivedSalesmanTable = () => {
                         <td><strong>{transferDetails.transfer_items.reduce((sum, item) => sum + parseFloat(item.qty || 0), 0).toFixed(3)}</strong></td>
                         <td><strong>{transferDetails.transfer_items.reduce((sum, item) => sum + parseFloat(item.gross_weight || 0), 0).toFixed(3)}</strong></td> 
                         <td>
-  <strong>
-    {(transferDetails.transfer_items || []).reduce((sum, item) => {
-      const total = parseFloat(item.packing_wt || 0) + parseFloat(item.gross_weight || 0);
-      return sum + total;
-    }, 0).toFixed(3)}
-  </strong>
-</td>
+                          <strong>
+                            {(transferDetails.transfer_items || []).reduce((sum, item) => {
+                              const total = parseFloat(item.packing_wt || 0) + parseFloat(item.gross_weight || 0);
+                              return sum + total;
+                            }, 0).toFixed(3)}
+                          </strong>
+                        </td>
                         {/* <td><strong>{transferDetails.transfer_items.reduce((sum, item) => sum + parseFloat(item.stone_weight || 0), 0).toFixed(3)}</strong></td>
                         <td><strong>{transferDetails.transfer_items.reduce((sum, item) => sum + parseFloat(item.net_weight || 0), 0).toFixed(3)}</strong></td>
                         <td colSpan="2"></td>
@@ -518,4 +504,4 @@ const ReceivedSalesmanTable = () => {
   );
 };
 
-export default ReceivedSalesmanTable;
+export default AdminReceivedSalesmanTable;

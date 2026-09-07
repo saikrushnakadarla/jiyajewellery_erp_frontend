@@ -1,7 +1,7 @@
 import React, { useState, useContext, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faChevronDown, faChevronUp } from "@fortawesome/free-solid-svg-icons";
+import { faChevronDown, faChevronUp, faChevronRight } from "@fortawesome/free-solid-svg-icons";
 import { FaSignOutAlt } from "react-icons/fa";
 // import logo from './sadashri.png';
 import logo from "./jiya_logo.png";
@@ -18,6 +18,9 @@ function Navbar() {
   const [reportsDropdownOpen, setReportsDropdownOpen] = useState(false);
   const [stockManagementDropdownOpen, setStockManagementDropdownOpen] = useState(false);
   const [utilityDropdownOpen, setUtilityDropdownOpen] = useState(false);
+  // ===== NEW: Warehouse Report Items dropdown state =====
+  const [warehouseReportDropdownOpen, setWarehouseReportDropdownOpen] = useState(false);
+  
   const { authToken, userId, userName } = useContext(AuthContext);
   // console.log(userId, userName)
   const location = useLocation();
@@ -123,6 +126,7 @@ function Navbar() {
     if (type === "reports") setReportsDropdownOpen(true);
     if (type === "stockManagement") setStockManagementDropdownOpen(true);
     if (type === "utility") setUtilityDropdownOpen(true);
+    if (type === "warehouseReport") setWarehouseReportDropdownOpen(true);
   };
 
   const closeDropdown = (type) => {
@@ -131,6 +135,7 @@ function Navbar() {
     if (type === "reports") setReportsDropdownOpen(false);
     if (type === "stockManagement") setStockManagementDropdownOpen(false);
     if (type === "utility") setUtilityDropdownOpen(false);
+    if (type === "warehouseReport") setWarehouseReportDropdownOpen(false);
   };
 
   const handleItemClick = () => {
@@ -140,6 +145,7 @@ function Navbar() {
     setReportsDropdownOpen(false);
     setStockManagementDropdownOpen(false);
     setUtilityDropdownOpen(false);
+    setWarehouseReportDropdownOpen(false);
     setIsOpen(false);
   };
 
@@ -566,6 +572,46 @@ function Navbar() {
               >
                 Item Sale Report
               </Link>
+
+              {/* ===== FIXED: Warehouse Report Items with SIDE-OPENING dropdown ===== */}
+              <div
+                className="navbar-dropdown nested-dropdown"
+                onMouseEnter={() => openDropdown("warehouseReport")}
+                onMouseLeave={() => closeDropdown("warehouseReport")}
+              >
+                <span className="navbar-dropdown-title nested-trigger">
+                  Warehouse Report
+                  <FontAwesomeIcon
+                    icon={faChevronRight}
+                    className="dropdown-arrow-icon"
+                  />
+                </span>
+                {warehouseReportDropdownOpen && (
+                  <div className="navbar-dropdown-content nested-dropdown-content">
+                    <Link
+                      to="/assign-salesman-items"
+                      onClick={handleItemClick}
+                      className={isActive("/assign-salesman-items")}
+                    >
+                      Assign Salesman Items
+                    </Link>
+                    <Link
+                      to="/received-salesman-items"
+                      onClick={handleItemClick}
+                      className={isActive("/received-salesman-items")}
+                    >
+                      Received Salesman Items
+                    </Link>
+                    <Link
+                      to="/return-to-main-stock-items"
+                      onClick={handleItemClick}
+                      className={isActive("/return-to-main-stock-items")}
+                    >
+                      Return To Main Stock Items
+                    </Link>
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>
@@ -728,6 +774,15 @@ function Navbar() {
             )}
             {location.pathname === "/warehouse-stock-items" && (
               <h1 className="path-heading">WAREHOUSE STOCK ITEMS</h1>
+            )}
+            {location.pathname === "/assign-salesman-items" && (
+              <h1 className="path-heading">ASSIGN TO SALESMAN</h1>
+            )}
+            {location.pathname === "/received-salesman-items" && (
+              <h1 className="path-heading">RECEIVED  SALESMAN</h1>
+            )}
+            {location.pathname === "/return-to-main-stock-items" && (
+              <h1 className="path-heading">RETURN MAIN STOCK</h1>
             )}
           </span>
         </div>

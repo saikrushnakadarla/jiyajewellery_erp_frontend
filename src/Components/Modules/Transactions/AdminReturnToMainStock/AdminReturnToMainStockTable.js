@@ -8,7 +8,7 @@ import baseURL from '../../../../Url/NodeBaseURL';
 import { AuthContext } from "../../../Pages/Login/Context";
 import Swal from 'sweetalert2';
 
-const ReturnMainStockTable = () => {
+const AdminReturnMainStockTable = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [data, setData] = useState([]);
@@ -226,11 +226,10 @@ const ReturnMainStockTable = () => {
     [userName, stockPoints]
   );
 
+  // Fixed handleEdit function - simplified navigation
   const handleEdit = (transfer) => {
-    const tabId = crypto.randomUUID();
     navigate("/add-return-to-main-stock", { 
       state: { 
-        tabId,
         editData: transfer,
         isEdit: true 
       } 
@@ -262,9 +261,9 @@ const ReturnMainStockTable = () => {
     });
   };
 
+  // Fixed handleCreate function - simplified navigation like reference code
   const handleCreate = () => {
-    const tabId = crypto.randomUUID();
-    navigate("/add-return-to-main-stock", { state: { tabId } });
+    navigate('/add-return-to-main-stock');
   };
 
   // Fetch stock points data
@@ -288,22 +287,14 @@ const ReturnMainStockTable = () => {
       const response = await axios.get(`${baseURL}/api/return-to-main-stock/get-return-transfers`);
       console.log("Return Transfers Response: ", response.data);
       
-      // Get logged-in user ID from localStorage
-      const loggedInUserId = getLoggedInUserId();
-      console.log("Logged in User ID from localStorage:", loggedInUserId);
-      
-      // Filter data where from_user_id matches the logged-in user
-      let filteredTransfers = response.data;
-      if (loggedInUserId) {
-        filteredTransfers = response.data.filter(
-          transfer => transfer.from_user_id === loggedInUserId
-        );
-        console.log("Filtered Transfers (from_user_id match):", filteredTransfers);
-      }
+      // REMOVED FILTER CONDITION - Get all return transfers
+      // Now showing all transfers without any filtering
+      const allTransfers = response.data;
+      console.log("All Transfers (no filter applied):", allTransfers);
       
       // Fetch details for each transfer to get packet_barcode
       const transfersWithItems = await Promise.all(
-        filteredTransfers.map(async (transfer) => {
+        allTransfers.map(async (transfer) => {
           try {
             const detailResponse = await axios.get(`${baseURL}/api/return-to-main-stock/get-return-transfer/${transfer.return_id}`);
             return {
@@ -335,15 +326,8 @@ const ReturnMainStockTable = () => {
       const response = await axios.get(`${baseURL}/api/return-to-main-stock/get-return-transfer/${returnId}`);
       console.log("Fetched return details: ", response.data);
       
-      // Verify that the user has access to view this transfer
-      const loggedInUserId = getLoggedInUserId();
-      if (loggedInUserId) {
-        const transfer = response.data.return_details;
-        if (transfer.from_user_id !== loggedInUserId) {
-          Swal.fire('Access Denied', 'You do not have permission to view this transfer', 'error');
-          return;
-        }
-      }
+      // REMOVED ACCESS VERIFICATION - Allow viewing all transfers
+      // Removed the check that restricted viewing based on user ID
       
       setTransferDetails(response.data);
       setShowModal(true);
@@ -368,13 +352,13 @@ const ReturnMainStockTable = () => {
         <Row className="mb-3">
           <Col className="d-flex justify-content-between align-items-center">
             <h3>Return to Main Stock</h3>
-            <Button
+            {/* <Button
               className="create_but"
               onClick={handleCreate}
               style={{ backgroundColor: '#a36e29', borderColor: '#a36e29' }}
             >
               + Create
-            </Button>
+            </Button> */}
           </Col>
         </Row>
         {loading ? (
@@ -475,7 +459,7 @@ const ReturnMainStockTable = () => {
                       <th>Design Name</th>
                       <th>Qty</th>
                       <th>Gross Wt</th> 
-                       <th>Packing Wt</th>
+                      <th>Packing Wt</th>
                       {/* <th>Stone Wt</th>
                       <th>Net Wt</th>
                       <th>Rate</th>
@@ -541,13 +525,13 @@ const ReturnMainStockTable = () => {
                         <td><strong>{transferDetails.return_items.reduce((sum, item) => sum + parseFloat(item.qty || 0), 0).toFixed(3)}</strong></td>
                         <td><strong>{transferDetails.return_items.reduce((sum, item) => sum + parseFloat(item.gross_weight || 0), 0).toFixed(3)}</strong></td> 
                         <td>
-  <strong>
-    {transferDetails.return_items.reduce((sum, item) => {
-      const total = parseFloat(item.packing_wt || 0) + parseFloat(item.gross_weight || 0);
-      return sum + total;
-    }, 0).toFixed(3)}
-  </strong>
-</td>
+                          <strong>
+                            {transferDetails.return_items.reduce((sum, item) => {
+                              const total = parseFloat(item.packing_wt || 0) + parseFloat(item.gross_weight || 0);
+                              return sum + total;
+                            }, 0).toFixed(3)}
+                          </strong>
+                        </td>
                         {/* <td><strong>{transferDetails.return_items.reduce((sum, item) => sum + parseFloat(item.stone_weight || 0), 0).toFixed(3)}</strong></td> */}
                         {/* <td><strong>{transferDetails.return_items.reduce((sum, item) => sum + parseFloat(item.net_weight || 0), 0).toFixed(3)}</strong></td> */}
                         {/* <td colSpan="2"></td>
@@ -571,4 +555,4 @@ const ReturnMainStockTable = () => {
   );
 };
 
-export default ReturnMainStockTable;
+export default AdminReturnMainStockTable;

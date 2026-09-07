@@ -55,6 +55,18 @@ const ReturnMainStockTable = () => {
     ).padStart(2, '0')}-${date.getFullYear()}`;
   };
 
+  // Check if a date is today
+  const isToday = (dateString) => {
+    if (!dateString) return false;
+    const today = new Date();
+    const date = new Date(dateString);
+    
+    // Compare year, month, and day
+    return date.getFullYear() === today.getFullYear() &&
+           date.getMonth() === today.getMonth() &&
+           date.getDate() === today.getDate();
+  };
+
   const getStatusBadge = (status) => {
     const statusColors = {
       'pending': { color: '#ffc107', text: 'Pending' },
@@ -300,9 +312,15 @@ const ReturnMainStockTable = () => {
         console.log("Filtered Transfers (from_user_id match):", filteredTransfers);
       }
       
+      // Filter to show only today's return dates
+      const todayTransfers = filteredTransfers.filter(transfer => 
+        isToday(transfer.return_date)
+      );
+      console.log("Today's Return Transfers:", todayTransfers);
+      
       // Fetch details for each transfer to get packet_barcode
       const transfersWithItems = await Promise.all(
-        filteredTransfers.map(async (transfer) => {
+        todayTransfers.map(async (transfer) => {
           try {
             const detailResponse = await axios.get(`${baseURL}/api/return-to-main-stock/get-return-transfer/${transfer.return_id}`);
             return {
@@ -366,7 +384,7 @@ const ReturnMainStockTable = () => {
       <div className="sales-table-container">
         <Row className="mb-3">
           <Col className="d-flex justify-content-between align-items-center">
-            <h3>Return to Main Stock</h3>
+            <h3>Return to Main Stock (Today's Returns)</h3>
             <Button
               className="create_but"
               onClick={handleCreate}
@@ -475,12 +493,6 @@ const ReturnMainStockTable = () => {
                       <th>Qty</th>
                       <th>Gross Wt</th> 
                       <th>Packing Wt</th>
-                      {/* <th>Stone Wt</th>
-                      <th>Net Wt</th>
-                      <th>Rate</th>
-                      <th>MC</th>
-                      <th>Stone Price</th>
-                      <th>Total Price</th> */}
                     </tr>
                   </thead>
                   <tbody style={{ whiteSpace: 'nowrap', fontSize: '13px' }}>
@@ -521,17 +533,11 @@ const ReturnMainStockTable = () => {
                           <td>{item.qty}</td>
                           <td>{item.gross_weight}</td> 
                           <td>{parseFloat(item.packing_wt || 0) + parseFloat(item.gross_weight || 0)}</td>
-                          {/* <td>{item.stone_weight}</td>
-                          <td>{item.net_weight}</td>
-                          <td>{item.rate}</td>
-                          <td>{item.making_charges}</td>
-                          <td>{item.stone_price}</td>
-                          <td><strong>{item.total_price}</strong></td> */}
                         </tr>
                       ))
                     ) : (
                       <tr>
-                        <td colSpan="18" className="text-center">No items found</td>
+                        <td colSpan="13" className="text-center">No items found</td>
                       </tr>
                     )}
                     {transferDetails.return_items && transferDetails.return_items.length > 0 && (
@@ -547,11 +553,6 @@ const ReturnMainStockTable = () => {
                             }, 0).toFixed(3)}
                           </strong>
                         </td>
-                        {/* <td><strong>{transferDetails.return_items.reduce((sum, item) => sum + parseFloat(item.stone_weight || 0), 0).toFixed(3)}</strong></td> */}
-                        {/* <td><strong>{transferDetails.return_items.reduce((sum, item) => sum + parseFloat(item.net_weight || 0), 0).toFixed(3)}</strong></td> */}
-                        {/* <td colSpan="2"></td>
-                        <td></td> */}
-                        {/* <td><strong>{transferDetails.return_items.reduce((sum, item) => sum + parseFloat(item.total_price || 0), 0).toFixed(2)}</strong></td> */}
                       </tr>
                     )}
                   </tbody>

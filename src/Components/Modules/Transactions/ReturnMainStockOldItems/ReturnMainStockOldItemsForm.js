@@ -47,6 +47,11 @@ const ReturnMainStockForm = () => {
   const [estimatesData, setEstimatesData] = useState([]);
   const [estimatedProducts, setEstimatedProducts] = useState({});
 
+
+  // ============= PACKET SCANNED ID REF (for marking used) =============
+const scannedPacketIdRef = useRef(null);
+const [isPacketMarkedUsed, setIsPacketMarkedUsed] = useState(false);
+
   const [oldSalesData, setOldSalesData] = useState(
     JSON.parse(localStorage.getItem("oldSalesData")) || [],
   );
@@ -676,6 +681,14 @@ const ReturnMainStockForm = () => {
       });
     }
   };
+
+
+  // ============= HANDLE PACKET SCANNED =============
+const handlePacketScanned = (packetId) => {
+  scannedPacketIdRef.current = packetId;
+  setIsPacketMarkedUsed(false); // reset if a new packet gets scanned
+  console.log(`📦 Packet ID captured: ${packetId}`);
+};
 
   useEffect(() => {
     const fetchSales = async () => {
@@ -1980,6 +1993,8 @@ const ReturnMainStockForm = () => {
     });
     setRepairDetails([]);
     setCapturedWeights({});
+     scannedPacketIdRef.current = null;
+      setIsPacketMarkedUsed(false);
   };
 
   const resetSaleReturnForm = () => {
@@ -3088,6 +3103,21 @@ const ReturnMainStockForm = () => {
         const response = await axios.post(`${baseURL}/api/return-to-main-stock/save-return-to-main-stock`, payload);
        
         if (response.status === 200 || response.status === 201) {
+
+            // ===== MARK PACKET AS USED (same as EstimateForm) =====
+              if (scannedPacketIdRef.current && !isPacketMarkedUsed) {
+                try {
+                  await axios.put(`${baseURL2}/api/qr-packets/update-status/${scannedPacketIdRef.current}`, {
+                    status: 'Used'
+                  });
+                  setIsPacketMarkedUsed(true);
+                  console.log(`✅ Packet ${scannedPacketIdRef.current} marked as USED`);
+                } catch (packetError) {
+                  console.error('Error marking packet as used:', packetError);
+                }
+              }
+
+
           alert(`Return to Main Stock completed successfully! Return Number: ${nextReturnNumber}`);
           
           // Clear data
@@ -3172,6 +3202,8 @@ const ReturnMainStockForm = () => {
     localStorage.removeItem(`schemeTableData_${tabId}`);
     localStorage.removeItem(`discount_${tabId}`);
     console.log("Data cleared successfully");
+    scannedPacketIdRef.current = null;
+    setIsPacketMarkedUsed(false);
     window.location.reload();
   };
 
@@ -3340,6 +3372,7 @@ const ReturnMainStockForm = () => {
               triggerWeightCamera={triggerWeightCamera}
               setTriggerWeightCamera={setTriggerWeightCamera}
               // ============= NEW: Loading state =============
+               onPacketScanned={handlePacketScanned}
               isStockLoading={isStockLoading}
             />
           </div>
@@ -3461,7 +3494,7 @@ const ReturnMainStockForm = () => {
                 // ===== NEW: Weight validation props =====
                 capturedWeights={capturedWeights}
                 requireWeightForAll={true}  // Set to true to enforce weight capture, false to make it optional
-                repairDetails={repairDetails}
+                // repairDetails={repairDetails}
               />
             </div>
           </div>

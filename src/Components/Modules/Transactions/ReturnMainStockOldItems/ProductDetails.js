@@ -68,6 +68,9 @@ const ProductDetails = ({
   currentItemId,
   triggerWeightCamera,
   setTriggerWeightCamera,
+  // ============= NEW: Packet scanned callback =============
+  onPacketScanned,
+  isStockLoading = false,
 }) => {
 
   const [showModal, setShowModal] = useState(false);
@@ -405,217 +408,220 @@ const ProductDetails = ({
   // ============================================
   // ============= HANDLE PACKET SCAN SUCCESS =============
   // ============================================
- // ============================================
-// ============= HANDLE PACKET SCAN SUCCESS =============
-// ============================================
-// ============================================
-// ============= HANDLE PACKET SCAN SUCCESS =============
-// ============================================
-const handlePacketBarcodeScanSuccess = async (decodedText) => {
-  try {
-    stopPacketScanner();
-
-    Swal.fire({
-      title: 'Scanning Packet...',
-      text: 'Please wait while we process the packet barcode',
-      allowOutsideClick: false,
-      didOpen: () => Swal.showLoading()
-    });
-
-    let packetBarcode = decodedText;
-
-    // Try to parse as JSON first
+  const handlePacketBarcodeScanSuccess = async (decodedText) => {
     try {
-      const parsedData = JSON.parse(decodedText);
-      packetBarcode = parsedData.qr_code || parsedData.barcode || parsedData.PCode_BarCode || parsedData.code || parsedData.BarCode || decodedText;
-      console.log("Parsed JSON packet data:", parsedData);
-      console.log("Extracted packet barcode:", packetBarcode);
-    } catch {
-      const barcodeMatch = decodedText.match(/PACKET:\s*([A-Z0-9]+)/i);
-      if (barcodeMatch) {
-        packetBarcode = barcodeMatch[1];
-      } else {
-        const altMatch = decodedText.match(/(barcode|Barcode|PCode|code|packet|qr_code)[:\s]*([^\s,}]+)/i);
-        if (altMatch) {
-          packetBarcode = altMatch[2];
+      stopPacketScanner();
+
+      Swal.fire({
+        title: 'Scanning Packet...',
+        text: 'Please wait while we process the packet barcode',
+        allowOutsideClick: false,
+        didOpen: () => Swal.showLoading()
+      });
+
+      let packetBarcode = decodedText;
+
+      // Try to parse as JSON first
+      try {
+        const parsedData = JSON.parse(decodedText);
+        packetBarcode = parsedData.qr_code || parsedData.barcode || parsedData.PCode_BarCode || parsedData.code || parsedData.BarCode || decodedText;
+        console.log("Parsed JSON packet data:", parsedData);
+        console.log("Extracted packet barcode:", packetBarcode);
+      } catch {
+        const barcodeMatch = decodedText.match(/PACKET:\s*([A-Z0-9]+)/i);
+        if (barcodeMatch) {
+          packetBarcode = barcodeMatch[1];
+        } else {
+          const altMatch = decodedText.match(/(barcode|Barcode|PCode|code|packet|qr_code)[:\s]*([^\s,}]+)/i);
+          if (altMatch) {
+            packetBarcode = altMatch[2];
+          }
         }
       }
-    }
 
-    console.log("Final packet barcode extracted:", packetBarcode);
+      console.log("Final packet barcode extracted:", packetBarcode);
 
-    if (packetBarcode) {
-      // Search for existing packet
-      const response = await axios.get(`${baseURL2}/api/qr-packets/search/${encodeURIComponent(packetBarcode)}`);
+      if (packetBarcode) {
+        // Search for existing packet
+        const response = await axios.get(`${baseURL2}/api/qr-packets/search/${encodeURIComponent(packetBarcode)}`);
 
-      Swal.close();
+        Swal.close();
 
-      if (response.data.success && response.data.data) {
-        const packet = response.data.data;
+        if (response.data.success && response.data.data) {
+          const packet = response.data.data;
 
-        if (packet.status === 'Used') {
-          Swal.fire({
-            icon: 'warning',
-            title: 'Packet Already Used!',
-            text: `This packet ${packet.qr_code} has already been used and cannot be used again.`,
-            confirmButtonText: 'OK'
-          });
-          return;
-        }
+          if (packet.status === 'Used') {
+            Swal.fire({
+              icon: 'warning',
+              title: 'Packet Already Used!',
+              text: `This packet ${packet.qr_code} has already been used and cannot be used again.`,
+              confirmButtonText: 'OK'
+            });
+            return;
+          }
 
-        // Store packet data
-        setScannedPacketData(packet);
-        setIsPacketScanned(true);
-        setPacketSuccessMessage(`✓ Packet Scanned Successfully! - Barcode: ${packet.qr_code}`);
+          // Store packet data
+          setScannedPacketData(packet);
+          setIsPacketScanned(true);
+          setPacketSuccessMessage(`✓ Packet Scanned Successfully! - Barcode: ${packet.qr_code}`);
 
-        // ===== CRITICAL FIX: Update formData with packet_barcode =====
-        setFormData(prev => ({
-          ...prev,
-          packet_barcode: packet.qr_code,
-          packet_wt: packet.packet_wt || 0,
-          is_packet_selection: true
-        }));
+          // ===== FIX: Call onPacketScanned callback with packet ID =====
+          if (onPacketScanned) {
+            onPacketScanned(packet.id);
+          }
 
-        // ===== CRITICAL FIX: Update ALL existing products in repairDetails =====
-        // This ensures all products in the table get the packet barcode
-        const storedRepairDetails = JSON.parse(localStorage.getItem(`repairDetails_${tabId}`)) || [];
-        if (storedRepairDetails.length > 0) {
-          const updatedRepairDetails = storedRepairDetails.map(item => ({
-            ...item,
+          // ===== CRITICAL FIX: Update formData with packet_barcode =====
+          setFormData(prev => ({
+            ...prev,
             packet_barcode: packet.qr_code,
+            packet_wt: packet.packet_wt || 0,
             is_packet_selection: true
           }));
-          setRepairDetails(updatedRepairDetails);
-          localStorage.setItem(`repairDetails_${tabId}`, JSON.stringify(updatedRepairDetails));
-          console.log(`✅ Updated ${updatedRepairDetails.length} existing products with packet barcode: ${packet.qr_code}`);
-        }
 
-        Swal.fire({
-          icon: 'success',
-          title: 'Packet Found!',
-          text: `Packet barcode ${packet.qr_code} has been scanned and attached to ALL products. Weight: ${packet.packet_wt}g`,
-          timer: 2000,
-          showConfirmButton: false
-        });
+          // ===== CRITICAL FIX: Update ALL existing products in repairDetails =====
+          const storedRepairDetails = JSON.parse(localStorage.getItem(`repairDetails_${tabId}`)) || [];
+          if (storedRepairDetails.length > 0) {
+            const updatedRepairDetails = storedRepairDetails.map(item => ({
+              ...item,
+              packet_barcode: packet.qr_code,
+              is_packet_selection: true
+            }));
+            setRepairDetails(updatedRepairDetails);
+            localStorage.setItem(`repairDetails_${tabId}`, JSON.stringify(updatedRepairDetails));
+            console.log(`✅ Updated ${updatedRepairDetails.length} existing products with packet barcode: ${packet.qr_code}`);
+          }
 
-      } else {
-        // ===== PACKET NOT FOUND - CREATE NEW PACKET =====
-        Swal.fire({
-          title: 'Packet Not Found',
-          text: `No existing packet found for barcode: ${packetBarcode}. Would you like to create a new packet?`,
-          icon: 'question',
-          showCancelButton: true,
-          confirmButtonText: 'Yes, Create New Packet',
-          cancelButtonText: 'Cancel'
-        }).then(async (result) => {
-          if (result.isConfirmed) {
-            try {
-              const { value: packetWeight } = await Swal.fire({
-                title: 'Enter Packet Weight',
-                text: 'Please enter the weight of the packet in grams',
-                input: 'number',
-                inputLabel: 'Packet Weight (g)',
-                inputPlaceholder: 'Enter weight in grams',
-                showCancelButton: true,
-                inputValidator: (value) => {
-                  if (!value || isNaN(value) || parseFloat(value) <= 0) {
-                    return 'Please enter a valid weight';
+          Swal.fire({
+            icon: 'success',
+            title: 'Packet Found!',
+            text: `Packet barcode ${packet.qr_code} has been scanned and attached to ALL products. Weight: ${packet.packet_wt}g`,
+            timer: 2000,
+            showConfirmButton: false
+          });
+
+        } else {
+          // ===== PACKET NOT FOUND - CREATE NEW PACKET =====
+          Swal.fire({
+            title: 'Packet Not Found',
+            text: `No existing packet found for barcode: ${packetBarcode}. Would you like to create a new packet?`,
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: 'Yes, Create New Packet',
+            cancelButtonText: 'Cancel'
+          }).then(async (result) => {
+            if (result.isConfirmed) {
+              try {
+                const { value: packetWeight } = await Swal.fire({
+                  title: 'Enter Packet Weight',
+                  text: 'Please enter the weight of the packet in grams',
+                  input: 'number',
+                  inputLabel: 'Packet Weight (g)',
+                  inputPlaceholder: 'Enter weight in grams',
+                  showCancelButton: true,
+                  inputValidator: (value) => {
+                    if (!value || isNaN(value) || parseFloat(value) <= 0) {
+                      return 'Please enter a valid weight';
+                    }
                   }
-                }
-              });
-
-              if (packetWeight) {
-                const prefixMatch = packetBarcode.match(/^([A-Z]+)/);
-                const prefix = prefixMatch ? prefixMatch[1] : 'PKT';
-                const numberMatch = packetBarcode.match(/(\d+)$/);
-                const qrNumber = numberMatch ? numberMatch[1] : '0001';
-
-                const createResponse = await axios.post(`${baseURL2}/api/qr-packets`, {
-                  prefix: prefix,
-                  qr_number: qrNumber,
-                  packet_wt: parseFloat(packetWeight),
-                  packet_date: new Date().toISOString().split('T')[0],
-                  status: 'Active',
-                  source: 'ERP',
-                  quantity: 1
                 });
 
-                if (createResponse.data.success) {
-                  const newPacket = createResponse.data.data;
+                if (packetWeight) {
+                  const prefixMatch = packetBarcode.match(/^([A-Z]+)/);
+                  const prefix = prefixMatch ? prefixMatch[1] : 'PKT';
+                  const numberMatch = packetBarcode.match(/(\d+)$/);
+                  const qrNumber = numberMatch ? numberMatch[1] : '0001';
 
-                  setScannedPacketData(newPacket);
-                  setIsPacketScanned(true);
-                  setPacketSuccessMessage(`✓ New Packet Created! - Barcode: ${newPacket.qr_code}`);
+                  const createResponse = await axios.post(`${baseURL2}/api/qr-packets/create`, {
+                    prefix: prefix,
+                    qr_number: qrNumber,
+                    packet_wt: parseFloat(packetWeight),
+                    packet_date: new Date().toISOString().split('T')[0],
+                    status: 'Active',
+                    source: 'ERP',
+                    quantity: 1
+                  });
 
-                  // ===== CRITICAL FIX: Update formData with new packet =====
-                  setFormData(prev => ({
-                    ...prev,
-                    packet_barcode: newPacket.qr_code,
-                    packet_wt: newPacket.packet_wt || 0,
-                    is_packet_selection: true
-                  }));
+                  if (createResponse.data.success) {
+                    const newPacket = createResponse.data.data;
 
-                  // ===== CRITICAL FIX: Update ALL existing products in repairDetails =====
-                  const storedRepairDetails = JSON.parse(localStorage.getItem(`repairDetails_${tabId}`)) || [];
-                  if (storedRepairDetails.length > 0) {
-                    const updatedRepairDetails = storedRepairDetails.map(item => ({
-                      ...item,
+                    setScannedPacketData(newPacket);
+                    setIsPacketScanned(true);
+                    setPacketSuccessMessage(`✓ New Packet Created! - Barcode: ${newPacket.qr_code}`);
+
+                    // ===== FIX: Call onPacketScanned callback with new packet ID =====
+                    if (onPacketScanned) {
+                      onPacketScanned(newPacket.id);
+                    }
+
+                    // ===== CRITICAL FIX: Update formData with new packet =====
+                    setFormData(prev => ({
+                      ...prev,
                       packet_barcode: newPacket.qr_code,
+                      packet_wt: newPacket.packet_wt || 0,
                       is_packet_selection: true
                     }));
-                    setRepairDetails(updatedRepairDetails);
-                    localStorage.setItem(`repairDetails_${tabId}`, JSON.stringify(updatedRepairDetails));
-                    console.log(`✅ Updated ${updatedRepairDetails.length} existing products with new packet barcode: ${newPacket.qr_code}`);
-                  }
 
-                  Swal.fire({
-                    icon: 'success',
-                    title: 'New Packet Created!',
-                    text: `Packet ${newPacket.qr_code} created with weight ${newPacket.packet_wt}g and attached to ALL products`,
-                    timer: 2000,
-                    showConfirmButton: false
-                  });
-                } else {
-                  Swal.fire({
-                    icon: 'error',
-                    title: 'Failed to Create Packet',
-                    text: createResponse.data.message || 'Could not create new packet. Please try again.',
-                    confirmButtonText: 'OK'
-                  });
+                    // ===== CRITICAL FIX: Update ALL existing products in repairDetails =====
+                    const storedRepairDetails = JSON.parse(localStorage.getItem(`repairDetails_${tabId}`)) || [];
+                    if (storedRepairDetails.length > 0) {
+                      const updatedRepairDetails = storedRepairDetails.map(item => ({
+                        ...item,
+                        packet_barcode: newPacket.qr_code,
+                        is_packet_selection: true
+                      }));
+                      setRepairDetails(updatedRepairDetails);
+                      localStorage.setItem(`repairDetails_${tabId}`, JSON.stringify(updatedRepairDetails));
+                      console.log(`✅ Updated ${updatedRepairDetails.length} existing products with new packet barcode: ${newPacket.qr_code}`);
+                    }
+
+                    Swal.fire({
+                      icon: 'success',
+                      title: 'New Packet Created!',
+                      text: `Packet ${newPacket.qr_code} created with weight ${newPacket.packet_wt}g and attached to ALL products`,
+                      timer: 2000,
+                      showConfirmButton: false
+                    });
+                  } else {
+                    Swal.fire({
+                      icon: 'error',
+                      title: 'Failed to Create Packet',
+                      text: createResponse.data.message || 'Could not create new packet. Please try again.',
+                      confirmButtonText: 'OK'
+                    });
+                  }
                 }
+              } catch (createError) {
+                console.error('Error creating packet:', createError);
+                Swal.fire({
+                  icon: 'error',
+                  title: 'Error',
+                  text: createError.response?.data?.message || 'Failed to create new packet. Please try again.',
+                  confirmButtonText: 'OK'
+                });
               }
-            } catch (createError) {
-              console.error('Error creating packet:', createError);
-              Swal.fire({
-                icon: 'error',
-                title: 'Error',
-                text: createError.response?.data?.message || 'Failed to create new packet. Please try again.',
-                confirmButtonText: 'OK'
-              });
             }
-          }
+          });
+        }
+      } else {
+        Swal.close();
+        Swal.fire({
+          icon: 'warning',
+          title: 'Invalid Packet Barcode',
+          text: 'Could not extract barcode. Please try a different barcode.',
+          confirmButtonText: 'OK'
         });
       }
-    } else {
+    } catch (error) {
       Swal.close();
+      console.error('Error processing packet barcode scan:', error);
       Swal.fire({
-        icon: 'warning',
-        title: 'Invalid Packet Barcode',
-        text: 'Could not extract barcode. Please try a different barcode.',
+        icon: 'error',
+        title: 'Error',
+        text: error.response?.data?.message || 'Error processing packet barcode. Please try again.',
         confirmButtonText: 'OK'
       });
     }
-  } catch (error) {
-    Swal.close();
-    console.error('Error processing packet barcode scan:', error);
-    Swal.fire({
-      icon: 'error',
-      title: 'Error',
-      text: error.response?.data?.message || 'Error processing packet barcode. Please try again.',
-      confirmButtonText: 'OK'
-    });
-  }
-};
+  };
 
   // ============================================
   // ============= HANDLE BARCODE SCAN SUCCESS =============
@@ -851,7 +857,6 @@ const handlePacketBarcodeScanSuccess = async (decodedText) => {
     console.log("selectedSalesmanProducts length:", selectedSalesmanProducts?.length);
 
     // Only add individual assigned products that DO NOT have a packet barcode
-    // These are the "Unselected" products
     if (selectedSalesmanProducts && selectedSalesmanProducts.length > 0) {
       selectedSalesmanProducts.forEach((product) => {
         if (!product || !product.PCode_BarCode) return;
@@ -859,8 +864,7 @@ const handlePacketBarcodeScanSuccess = async (decodedText) => {
         const packetBarcode = getPacketBarcode(product.PCode_BarCode);
         const isEstimated = hasEstimate(product.PCode_BarCode);
 
-        // ===== CRITICAL: Only add products WITHOUT packet barcode (Unselected) =====
-        // Skip products that already have a packet barcode (Selected)
+        // Only add products WITHOUT packet barcode (Unselected)
         if (!isEstimated || !packetBarcode) {
           const existingOption = options.find(opt => opt.value === product.PCode_BarCode);
           if (!existingOption) {
@@ -931,7 +935,6 @@ const handlePacketBarcodeScanSuccess = async (decodedText) => {
     }
 
     // Handle packet selection - REMOVED: We no longer show packet options in dropdown
-    // This code is kept for reference but will not be executed since we don't add packet options
     if (selectedOption.type === "packet" && selectedOption.products && selectedOption.products.length > 0) {
       let packetImageUrl = null;
       let totalGrossWeight = 0;
@@ -1272,6 +1275,20 @@ const handlePacketBarcodeScanSuccess = async (decodedText) => {
   console.log("formData.code:", formData.code);
   console.log("============================================");
 
+  // Show loading state
+  if (isStockLoading) {
+    return (
+      <Col>
+        <div style={{ textAlign: 'center', padding: '20px' }}>
+          <div className="spinner-border text-primary" role="status">
+            <span className="visually-hidden">Loading products...</span>
+          </div>
+          <p>Loading your assigned products...</p>
+        </div>
+      </Col>
+    );
+  }
+
   return (
     <Col>
       <Row>
@@ -1440,6 +1457,10 @@ const handlePacketBarcodeScanSuccess = async (decodedText) => {
                     packet_wt: 0,
                     is_packet_selection: false
                   }));
+                  // Also reset the packet ID in parent via callback
+                  if (onPacketScanned) {
+                    onPacketScanned(null);
+                  }
                 }}
                 style={{
                   background: 'transparent',

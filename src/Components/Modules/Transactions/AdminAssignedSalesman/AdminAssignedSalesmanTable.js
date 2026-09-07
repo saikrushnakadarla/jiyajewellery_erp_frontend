@@ -8,7 +8,7 @@ import baseURL from '../../../../Url/NodeBaseURL';
 import { AuthContext } from "../../../Pages/Login/Context";
 import Swal from 'sweetalert2';
 
-const AssignedSalesmanTable = () => {
+const AdminAssignedSalesmanTable = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [data, setData] = useState([]);
@@ -58,18 +58,6 @@ const AssignedSalesmanTable = () => {
     return `${String(date.getDate()).padStart(2, '0')}-${String(
       date.getMonth() + 1
     ).padStart(2, '0')}-${date.getFullYear()}`;
-  };
-
-  // Check if a date is today
-  const isToday = (dateString) => {
-    if (!dateString) return false;
-    const today = new Date();
-    const date = new Date(dateString);
-    
-    // Compare year, month, and day
-    return date.getFullYear() === today.getFullYear() &&
-           date.getMonth() === today.getMonth() &&
-           date.getDate() === today.getDate();
   };
 
   // Updated to show Salesman Status badge instead of regular status
@@ -256,28 +244,13 @@ const AssignedSalesmanTable = () => {
       const response = await axios.get(`${baseURL}/api/assigned-salesman/get-assigned-transfers`);
       console.log("Assigned Transfers Response: ", response.data);
 
-      // Get logged-in user ID from localStorage
-      const loggedInUserId = getLoggedInUserId();
-      console.log("Logged in User ID from localStorage:", loggedInUserId);
+      // REMOVED FILTER CONDITION - Get all assigned items
+      // Now showing all transfers without any filtering
+      const allTransfers = response.data;
+      console.log("All Transfers (no filter applied):", allTransfers);
 
-      // Filter data where BOTH from_user_id AND from_stock_point_id match the logged-in user
-      let filteredTransfers = response.data;
-      if (loggedInUserId) {
-        filteredTransfers = response.data.filter(
-          transfer => transfer.from_user_id === loggedInUserId &&
-            transfer.from_stock_point_id === loggedInUserId
-        );
-        console.log("Filtered Transfers (from_user_id and from_stock_point_id match):", filteredTransfers);
-      }
-
-      // Filter to show only today's assigned dates
-      const todayTransfers = filteredTransfers.filter(transfer => 
-        isToday(transfer.transfer_date)
-      );
-      console.log("Today's Transfers:", todayTransfers);
-
-      setData(todayTransfers);
-      setFilteredData(todayTransfers);
+      setData(allTransfers);
+      setFilteredData(allTransfers);
       setLoading(false);
     } catch (error) {
       console.error('Error fetching assigned transfers:', error);
@@ -290,15 +263,8 @@ const AssignedSalesmanTable = () => {
       const response = await axios.get(`${baseURL}/api/assigned-salesman/get-assigned-transfer/${assigned_id}`);
       console.log("Fetched assigned details: ", response.data);
 
-      // Verify that the user has access to view this transfer
-      const loggedInUserId = getLoggedInUserId();
-      if (loggedInUserId) {
-        const transfer = response.data.transfer_details;
-        if (transfer.from_user_id !== loggedInUserId || transfer.from_stock_point_id !== loggedInUserId) {
-          Swal.fire('Access Denied', 'You do not have permission to view this transfer', 'error');
-          return;
-        }
-      }
+      // REMOVED ACCESS VERIFICATION - Allow viewing all transfers
+      // Removed the check that restricted viewing based on user ID
 
       setTransferDetails(response.data);
       setShowModal(true);
@@ -322,14 +288,14 @@ const AssignedSalesmanTable = () => {
       <div className="sales-table-container">
         <Row className="mb-3">
           <Col className="d-flex justify-content-between align-items-center">
-            <h3>Assigned to Salesman (Today's Transfers)</h3>
-            <Button
+            <h3>Assigned to Salesman</h3>
+            {/* <Button
               className="create_but"
               onClick={handleCreate}
               style={{ backgroundColor: '#a36e29', borderColor: '#a36e29' }}
             >
               + Create
-            </Button>
+            </Button> */}
           </Col>
         </Row>
         {loading ? (
@@ -471,4 +437,4 @@ const AssignedSalesmanTable = () => {
   );
 };
 
-export default AssignedSalesmanTable;
+export default AdminAssignedSalesmanTable;
