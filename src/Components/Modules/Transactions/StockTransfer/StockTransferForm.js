@@ -99,6 +99,11 @@ const StockTransferForm = () => {
     manualTotalPriceRef,
   } = useProductHandlers();
 
+
+   // 🆕 ADDED: refs for barcode-select auto-add
+  const autoAddPendingRef = useRef(false);
+  const autoAddCodeRef = useRef(null);
+
   const [repairDetails, setRepairDetails] = useState(() => {
     const savedData = localStorage.getItem(`repairDetails_${tabId}`);
     return savedData ? JSON.parse(savedData) : [];
@@ -1262,6 +1267,16 @@ const StockTransferForm = () => {
   const storedRepairDetails =
     JSON.parse(localStorage.getItem(`repairDetails_${tabId}`)) || [];
 
+    // 🆕 ADDED: prevent duplicate barcode being added twice (important with auto-add)
+  const isDuplicate = storedRepairDetails.some(
+    (item) => item.code === formData.code
+  );
+  if (isDuplicate) {
+    alert("This product has already been added");
+    resetProductFields();
+    return;
+  }
+
   // Add new repair detail with all fields including cover_wt, card_wt, packing_wt
   const updatedRepairDetails = [
     ...repairDetails,
@@ -1304,6 +1319,36 @@ const StockTransferForm = () => {
 
   resetProductFields();
 };
+
+
+// 🆕 ADDED: wraps handleBarcodeChange so selecting a barcode automatically
+// adds the item to the table once its calculated fields (total_price)
+// have finished populating — same pattern as AssignedSalesmanForm.
+const handleBarcodeSelectAndAutoAdd = async (code) => {
+  if (code) {
+    autoAddPendingRef.current = true;
+    autoAddCodeRef.current = code;
+  } else {
+    autoAddPendingRef.current = false;
+    autoAddCodeRef.current = null;
+  }
+  await handleBarcodeChange(code);
+};
+
+useEffect(() => {
+  if (
+    autoAddPendingRef.current &&
+    formData.code &&
+    formData.code === autoAddCodeRef.current &&
+    isQtyEditable === false &&
+    formData.total_price &&
+    parseFloat(formData.total_price) > 0
+  ) {
+    autoAddPendingRef.current = false;
+    autoAddCodeRef.current = null;
+    handleAdd();
+  }
+}, [formData.total_price, formData.code, isQtyEditable]);
 
 
 
@@ -1448,7 +1493,7 @@ const StockTransferForm = () => {
   };
 
   const handleBack = () => {
-    navigate("/stock-transfers"); // Change from "/salestable" to "/stock-transfers"
+    navigate("/stock-transfer"); // Change from "/salestable" to "/stock-transfers"
   };
 
   // const handleAddCustomer = () => {
@@ -2594,7 +2639,7 @@ const handleSave = async () => {
               formData={formData}
               setFormData={setFormData}
               handleChange={handleChange}
-              handleBarcodeChange={handleBarcodeChange}
+               handleBarcodeChange={handleBarcodeSelectAndAutoAdd} 
               // handleProductChange={handleProductChange}
               handleProductNameChange={handleProductNameChange}
               handleMetalTypeChange={handleMetalTypeChange}

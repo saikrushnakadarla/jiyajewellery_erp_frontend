@@ -18,10 +18,10 @@
 }
 
 .erp-qr-header-card {
-  background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%);
+  background: linear-gradient(135deg, #a36e29 0%, #7a521e 100%);
   border-radius: 20px;
   padding: 30px 35px;
-  box-shadow: 0 10px 40px rgba(37, 99, 235, 0.3);
+  box-shadow: 0 10px 40px rgba(163, 110, 41, 0.3);
   color: white;
   display: flex;
   justify-content: space-between;
@@ -93,7 +93,7 @@
 
 .erp-qr-add-btn {
   background: white !important;
-  color: #2563eb !important;
+  color: #a36e29 !important;
   border: none !important;
   padding: 12px 24px !important;
   border-radius: 12px !important;

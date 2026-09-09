@@ -15,6 +15,7 @@ function QRCodeNavbar() {
   const [transactionsDropdownOpen, setTransactionsDropdownOpen] =
     useState(false);
   const [reportsDropdownOpen, setReportsDropdownOpen] = useState(false);
+  const [stockManagementDropdownOpen, setStockManagementDropdownOpen] = useState(false);
   const [utilityDropdownOpen, setUtilityDropdownOpen] = useState(false);
   const { authToken, userId, userName } = useContext(AuthContext);
   // console.log(userId, userName)
@@ -118,6 +119,7 @@ function QRCodeNavbar() {
     if (type === "masters") setMastersDropdownOpen(true);
     if (type === "transactions") setTransactionsDropdownOpen(true);
     if (type === "reports") setReportsDropdownOpen(true);
+    if (type === "stockManagement") setStockManagementDropdownOpen(true);
     if (type === "utility") setUtilityDropdownOpen(true);
   };
 
@@ -125,6 +127,7 @@ function QRCodeNavbar() {
     if (type === "masters") setMastersDropdownOpen(false);
     if (type === "transactions") setTransactionsDropdownOpen(false);
     if (type === "reports") setReportsDropdownOpen(false);
+    if (type === "stockManagement") setStockManagementDropdownOpen(false);
     if (type === "utility") setUtilityDropdownOpen(false);
   };
 
@@ -133,6 +136,7 @@ function QRCodeNavbar() {
     setMastersDropdownOpen(false);
     setTransactionsDropdownOpen(false);
     setReportsDropdownOpen(false);
+    setStockManagementDropdownOpen(false);
     setUtilityDropdownOpen(false);
     setIsOpen(false);
   };
@@ -233,6 +237,15 @@ function QRCodeNavbar() {
                 }
               >
                 Customer Master
+              </Link>
+              <Link
+                to="/salesmantable"
+                onClick={handleItemClick}
+                className={
+                  isActive("/salesmantable") || isActive("/salesmanmaster")
+                }
+              >
+                Salesman Master
               </Link>
               <Link
                 to="/suppliertable"
@@ -339,6 +352,13 @@ function QRCodeNavbar() {
               >
                 Company Info
               </Link>
+              <Link
+                to="/visit-logs-warehouse-schedule"
+                onClick={handleItemClick}
+                className={isActive("/visit-logs-warehouse-schedule")}
+              >
+                Visit Logs Warehouse
+              </Link>
             </div>
           )}
         </div>
@@ -385,13 +405,6 @@ function QRCodeNavbar() {
                 className={isActive("/stockEntryTable")}
               >
                 Stock
-              </Link>
-                <Link
-                to="/stock-transfer"
-                onClick={handleItemClick}
-                className={isActive("/stocktransfer")}
-              >
-                Stock Transfer
               </Link>
               <Link
                 to="/paymentstable"
@@ -541,6 +554,46 @@ function QRCodeNavbar() {
           )}
         </div>
 
+        {/* Stock Management Dropdown */}
+        <div
+          className="navbar-dropdown"
+          onMouseEnter={() => openDropdown("stockManagement")}
+          onMouseLeave={() => closeDropdown("stockManagement")}
+        >
+          <span className="navbar-dropdown-title">
+            STOCK MANAGEMENT{" "}
+            <FontAwesomeIcon
+              icon={stockManagementDropdownOpen ? faChevronUp : faChevronDown}
+              className="dropdown-arrow-icon"
+            />
+          </span>
+          {stockManagementDropdownOpen && (
+            <div className="navbar-dropdown-content">
+              <Link
+                to="/stock-transfer"
+                onClick={handleItemClick}
+                className={isActive("/stock-transfer")}
+              >
+                Stock Transfer
+              </Link>
+              <Link
+                to="/received-stock"
+                onClick={handleItemClick}
+                className={isActive("/received-stock")}
+              >
+                Received Stock
+              </Link>
+              <Link
+                to="/warehouse-stock-items"
+                onClick={handleItemClick}
+                className={isActive("/warehouse-stock-items")}
+              >
+                Warehouse Available Stock
+              </Link>
+            </div>
+          )}
+        </div>
+
         {/* Utility/Settings Dropdown */}
         {/* <div
           className="navbar-dropdown"
@@ -651,6 +704,15 @@ function QRCodeNavbar() {
               location.pathname === "/usermaster") && (
                 <h1 className="path-heading">USER</h1>
               )}
+            {location.pathname === "/stock-transfer" && (
+              <h1 className="path-heading">STOCK TRANSFER</h1>
+            )}
+            {location.pathname === "/received-stock" && (
+              <h1 className="path-heading">RECEIVED STOCK</h1>
+            )}
+            {location.pathname === "/warehouse-stock-items" && (
+              <h1 className="path-heading">WAREHOUSE STOCK ITEMS</h1>
+            )}
           </span>
         </div>
       </nav>

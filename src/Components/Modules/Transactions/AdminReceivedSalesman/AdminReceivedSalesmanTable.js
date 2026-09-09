@@ -111,15 +111,15 @@ const AdminReceivedSalesmanTable = () => {
         Cell: ({ value }) => value || 'N/A',
       },
       {
+        Header: 'Received Warehouse',
+        accessor: 'to_stock_point_name',
+        Cell: ({ value }) => value || 'N/A',
+      },
+      {
         Header: 'Salesman Mobile',
         accessor: 'salesman_mobile',
         Cell: ({ value }) => value || 'N/A',
       },
-      // {
-      //   Header: 'To Stock Point',
-      //   accessor: 'to_stock_point_name',
-      //   Cell: ({ value }) => value || 'N/A',
-      // },
       {
         Header: 'Total Items',
         accessor: 'total_items',
@@ -264,8 +264,11 @@ const AdminReceivedSalesmanTable = () => {
       const allTransfers = response.data;
       console.log("All Transfers (no filter applied):", allTransfers);
       
-      setData(allTransfers);
-      setFilteredData(allTransfers);
+      // Sort the data by received_id in descending order (newest first)
+      const sortedTransfers = allTransfers.sort((a, b) => b.received_id - a.received_id);
+      
+      setData(sortedTransfers);
+      setFilteredData(sortedTransfers);
       setLoading(false);
     } catch (error) {
       console.error('Error fetching received transfers:', error);
@@ -316,7 +319,11 @@ const AdminReceivedSalesmanTable = () => {
         {loading ? (
           <p>Loading...</p>
         ) : (
-          <DataTable columns={columns} data={[...data].reverse()} initialSearchValue={initialSearchValue} />
+          <DataTable 
+            columns={columns} 
+            data={[...data]}  // Remove .reverse() since data is already sorted
+            initialSearchValue={initialSearchValue} 
+          />
         )}
       </div>
 
