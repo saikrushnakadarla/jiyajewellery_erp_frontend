@@ -47,24 +47,21 @@ const InvoiceDetails = ({ formData, setFormData }) => {
   };
 
   useEffect(() => {
-    setFormData((prev) => {
-      const updatedData = { ...prev };
+  setFormData((prev) => {
+    const updatedData = { ...prev };
+    const isValidDateTime = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(prev.date || "");
 
-      if (!prev.date) {
-        // Default to current LOCAL date & time (not UTC-sliced date-only
-        // string) so the calendar event downstream gets a real scheduled
-        // time instead of falling back to a hardcoded 9:00 AM.
-        updatedData.date = getLocalDateTimeString();
-      }
+    if (!isValidDateTime) {
+      updatedData.date = getLocalDateTimeString();
+    }
 
-      if (!prev.assigned_number) {
-        updatedData.assigned_number =
-          generateAssignedNumber();
-      }
+    if (!prev.assigned_number) {
+      updatedData.assigned_number = generateAssignedNumber();
+    }
 
-      return updatedData;
-    });
-  }, [setFormData]);
+    return updatedData;
+  });
+}, [setFormData]);
 
   return (
     <Col className="sales-form-section">

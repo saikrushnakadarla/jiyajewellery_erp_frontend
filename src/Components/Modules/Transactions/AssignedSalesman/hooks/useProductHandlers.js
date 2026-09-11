@@ -55,7 +55,7 @@ const useProductHandlers = () => {
     gst_in: "",
     pan_card: "",
     terms: "Cash",
-    date: new Date().toISOString().split('T')[0],
+    date:"",
     transfer_number: transfer_number,
     code: "",
     product_id: "",
