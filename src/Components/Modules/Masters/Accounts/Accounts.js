@@ -276,7 +276,7 @@ const RepairForm = () => {
 
   return (
     <div className="main-container">
-      <Container className="accounts-form-container">
+      <Container className="accounts-form-container" style={{marginTop:"80px"}}>
         <form onSubmit={handleSubmit}>
           <Row className="accounts-form-section">
             <h4 className="mb-4">{id ? "Edit Account" : "Create Account"}</h4>

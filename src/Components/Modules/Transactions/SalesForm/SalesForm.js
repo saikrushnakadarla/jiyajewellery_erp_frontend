@@ -2821,9 +2821,10 @@ const handleSave = async () => {
     <div className="main-container">
       <Container className="sales-form-container" style={{marginTop:"80px"}}>
         <Form>
-          {/* <h3 style={{ marginTop: '-45px', marginBottom: '10px', textAlign: 'left', color: '#a36e29' }}>
-            Sales
-          </h3> */}
+          <h3 style={{ marginTop: '5px', marginBottom: '25px', textAlign: 'left', color: '#a36e29' }}>
+            Add Sales
+          </h3>
+
           <div className="sales-form">
             <div className="sales-form-left">
               <CustomerDetails

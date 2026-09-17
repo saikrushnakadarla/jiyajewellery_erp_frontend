@@ -793,7 +793,7 @@ const RepairForm = () => {
             >
               Close
             </Button>
-            <Button className="cus-back-btn" variant="secondary" onClick={handleBack}>cancel</Button>
+            <Button className="cus-back-btn" variant="secondary" onClick={handleBack}>Cancel</Button>
             <Button
               type="submit"
               variant="primary"

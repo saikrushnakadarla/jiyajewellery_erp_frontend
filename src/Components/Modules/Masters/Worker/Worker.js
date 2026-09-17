@@ -295,7 +295,7 @@ function Customer_Master() {
 
   return (
     <div className="main-container">
-      <div className="customer-master-container">
+      <div className="customer-master-container" style={{marginTop:"80px"}}>
         <h2>{id ? 'Edit Worker' : 'Add Worker'}</h2>
         <form className="customer-master-form" onSubmit={handleSubmit}>
           {/* Row 1 */}

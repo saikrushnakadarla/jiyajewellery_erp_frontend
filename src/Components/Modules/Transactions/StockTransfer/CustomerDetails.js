@@ -266,7 +266,7 @@ const CustomerDetails = ({
               display: 'flex', 
               alignItems: 'center', 
               gap: '10px',
-              paddingBottom: '4px'
+              paddingBottom: '10px'
             }}>
               {/* Capture Image Button */}
               <Button 
@@ -275,10 +275,11 @@ const CustomerDetails = ({
                 size="sm"
                 style={{ 
                   padding: '6px 14px',
-                  fontSize: '13px',
+                  fontSize: '16px',
                   whiteSpace: 'nowrap',
                   borderColor: '#a36e29',
                   color: '#a36e29',
+                  backgroundColor: 'white', // Prevents blue background on hover
                   marginTop: '24px',
                   height: '38px',
                   display: 'flex',

@@ -88,8 +88,8 @@ function FestOffers() {
 
   return (
     <div className="main-container">
-      <div className="customer-master-container">
-        <h2>{offer_id ? "Edit Fest Offer" : "Add Fest Offer"}</h2>
+      <div className="customer-master-container"  style={{marginTop:"80px"}}>
+        <h2 >{offer_id ? "Edit Fest Offer" : "Add Fest Offer"}</h2>
         <form className="customer-master-form" onSubmit={handleSubmit}>
           <Row>
             <Col md={4}>

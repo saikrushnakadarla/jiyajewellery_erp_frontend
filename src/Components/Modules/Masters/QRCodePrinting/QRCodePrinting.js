@@ -6,7 +6,8 @@ import Swal from "sweetalert2";
 import { jsPDF } from "jspdf";
 import QRCode from "qrcode";
 import "./QRCodePrinting.css";
-import baseURL from "../../../../Url/NodeBaseURL2";
+import baseURL from "../../../../Url/NodeBaseURL";
+import baseURL2 from "../../../../Url/NodeBaseURL2";
 
 const QRCodePrintingERP = () => {
   const [packetRecords, setPacketRecords] = useState([]);
@@ -37,7 +38,7 @@ const QRCodePrintingERP = () => {
   const fetchPacketRecords = async () => {
     try {
       setLoading(true);
-      const response = await axios.get(`${baseURL}/api/qr-packets?source=ERP`);
+      const response = await axios.get(`${baseURL2}/api/qr-packets?source=ERP`);
       if (response.data.success) {
         setPacketRecords(response.data.data || []);
       }
@@ -56,7 +57,7 @@ const QRCodePrintingERP = () => {
   // Fetch statistics (only ERP stats)
   const fetchStats = async () => {
     try {
-      const response = await axios.get(`${baseURL}/api/qr-packets/stats/summary`);
+      const response = await axios.get(`${baseURL2}/api/qr-packets/stats/summary`);
       if (response.data.success) {
         // Filter to show only ERP stats
         const erpStats = response.data.data.filter(stat => stat.source === 'ERP');
@@ -77,7 +78,7 @@ const QRCodePrintingERP = () => {
     if (!prefix) return "0001";
     
     try {
-      const response = await axios.get(`${baseURL}/api/qr-packets/next-number/${prefix}?source=ERP`);
+      const response = await axios.get(`${baseURL2}/api/qr-packets/next-number/${prefix}?source=ERP`);
       if (response.data.success) {
         return response.data.next_number;
       }
@@ -218,12 +219,12 @@ const QRCodePrintingERP = () => {
       let response;
       
       if (isEditing) {
-        response = await axios.put(`${baseURL}/api/qr-packets/${editId}`, {
+        response = await axios.put(`${baseURL2}/api/qr-packets/${editId}`, {
           ...formData,
           source: "ERP"
         });
       } else {
-        response = await axios.post(`${baseURL}/api/qr-packets`, {
+        response = await axios.post(`${baseURL2}/api/qr-packets`, {
           prefix: formData.prefix,
           qr_number: formData.qr_number,
           qr_code: formData.qr_code,
@@ -319,7 +320,7 @@ const QRCodePrintingERP = () => {
 
     if (result.isConfirmed) {
       try {
-        const response = await axios.delete(`${baseURL}/api/qr-packets/${id}`);
+        const response = await axios.delete(`${baseURL2}/api/qr-packets/${id}`);
         if (response.data.success) {
           Swal.fire({
             icon: 'success',
@@ -452,7 +453,7 @@ const QRCodePrintingERP = () => {
     <div className="erp-qr-main-container">
       <Container className="erp-qr-container">
         {/* Header */}
-        <Row className="erp-qr-header-row mb-4">
+        <Row className="erp-qr-header-row mb-4" style={{marginTop:"30px"}}>
           <Col md={12}>
             <div className="erp-qr-header-card">
               <div className="erp-qr-header-content">

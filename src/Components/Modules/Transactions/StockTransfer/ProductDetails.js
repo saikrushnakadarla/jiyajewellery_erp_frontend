@@ -901,9 +901,9 @@ const ProductDetails = ({
               style={{
                 backgroundColor: "#a36e29",
                 borderColor: "#a36e29",
-                padding: "4px 7px",
-                marginTop: "5px",
-                marginLeft: "-1px",
+                padding: "5px 15px",
+                marginTop: "1px",
+                marginLeft: "-65px",
                 fontSize: "13px"
               }}
             >
@@ -916,10 +916,10 @@ const ProductDetails = ({
               onClick={handleClear}
               style={{
                 backgroundColor: 'gray',
-                marginLeft: '-52px',
-                padding: "4px 7px",
+                marginLeft: "-120px",
+                padding: "5px 15px",
                 fontSize: "13px",
-                marginTop: "5px"
+                marginTop: "1px"
               }}
             >
               Clear

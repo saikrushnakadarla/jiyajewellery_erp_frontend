@@ -119,7 +119,7 @@ const AccountsTable = () => {
 
   return (
     <div className="main-container">
-      <div className="accounts-table-container">
+      <div className="accounts-table-container" style={{marginTop:"80px"}}>
         <Row className="mb-3">
           <Col className="d-flex justify-content-between align-items-center">
             <h3>Accounts</h3>

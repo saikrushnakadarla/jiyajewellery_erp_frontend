@@ -596,11 +596,11 @@ const FormWithTable = () => {
           </div>
         </div>
         <div className="row mt-3 itemmaster-form-container">
-          <div className="col-12" style={{ marginTop: '-55px' }}>
+          <div className="col-12" style={{ marginTop: '-50px' }}>
 
             {/* product details dection */}
             <div className="form-container">
-              <h4 style={{ marginBottom: "15px" }}>Category Details</h4>
+              <h4 style={{ marginBottom: "30px" }}>Category Details</h4>
               <div className="form-row">
                 <InputField
                   label="Metal Type:"

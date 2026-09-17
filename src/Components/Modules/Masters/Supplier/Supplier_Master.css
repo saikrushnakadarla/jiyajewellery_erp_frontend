@@ -1,8 +1,9 @@
 /* Container to align the buttons */
-.sup-button-container {
+    .sup-button-container {
         display: flex;
         gap: 10px; /* Space between buttons */
         margin-top: 20px;
+        justify-content: flex-end; 
       }
       
       /* Styling for the "Back" button */

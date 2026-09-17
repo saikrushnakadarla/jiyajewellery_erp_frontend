@@ -237,7 +237,7 @@ function SubCategory() {
 
   return (
     <div className="main-container">
-      <div className="customer-master-container">
+      <div className="customer-master-container" style={{marginTop:"80px"}}>
         <h2>{subcategory_id ? "Edit Sub Category" : "Add Sub Category"}</h2>
         <form className="customer-master-form" onSubmit={handleSubmit}>
           <Row>

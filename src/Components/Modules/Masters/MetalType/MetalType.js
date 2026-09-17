@@ -219,7 +219,7 @@ function MetalType() {
 
   return (
     <div className="main-container">
-      <div className="customer-master-container">
+      <div className="customer-master-container" style={{marginTop:"80px"}}>
         <h3 style={{ textAlign: 'center', marginBottom: '30px' }}>Metal Type</h3>
         <form ref={formRef} className="customer-master-form" onSubmit={handleSubmit}>
           {/* Row 1 */}

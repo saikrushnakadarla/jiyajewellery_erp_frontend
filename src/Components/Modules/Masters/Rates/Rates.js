@@ -139,7 +139,7 @@ const Rates = () => {
 
     return (
         <div className="main-container">
-            <div className="rate-container">
+            <div className="rate-container" style={{marginTop:"80px"}}>
                 <h3 style={{ textAlign: 'center' }} className="title">
                     ENTER TODAY RATE
                 </h3>

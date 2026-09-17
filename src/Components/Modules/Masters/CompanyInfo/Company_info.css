@@ -86,3 +86,29 @@
     min-width: 120px;
   }
 }
+
+.company-buttons {
+  display: flex;
+  flex-direction: row;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 10px;
+}
+
+.company-edit-btn {
+  padding: 6px 14px;
+  border-radius: 4px;
+  border: 1px solid blue;
+  background-color: blue;
+  color: white;
+  cursor: pointer;
+}
+
+.company-delete-btn {
+  padding: 6px 14px;
+  border-radius: 4px;
+  border: 1px solid red;
+  background-color: red;
+  color: white;
+  cursor: pointer;
+}

@@ -284,7 +284,7 @@ function DesignMaster() {
 
   return (
     <div className="main-container">
-      <div className="customer-master-container">
+      <div className="customer-master-container" style={{marginTop:"80px"}}>
         <h3 style={{ textAlign: "center", marginBottom: "30px" }}>
           {editMode ? " DesignMaster" : " DesignMaster"}
         </h3>

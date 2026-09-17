@@ -155,7 +155,7 @@ const SubCategoryTable = () => {
 
   return (
     <div className="main-container">
-      <div className="customers-table-container">
+      <div className="customers-table-container" style={{marginTop:"80px"}}>
         <Row className="mb-3">
           <Col className="d-flex justify-content-between align-items-center">
             <h3>Sub Category</h3>

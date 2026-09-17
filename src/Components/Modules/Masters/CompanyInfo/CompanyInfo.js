@@ -169,7 +169,7 @@ function CompanyInfo() {
 
   return (
     <div className="main-container">
-      <div className="customer-master-container">
+      <div className="customer-master-container"  style={{marginTop:"80px"}}>
         <h3 style={{ textAlign: "center", marginBottom: "30px" }}>
           {editMode ? "Edit Company Info" : "Company Info"}
         </h3>
@@ -248,30 +248,16 @@ function CompanyInfo() {
                   ))}
                 </Row>
               ))}
-              <div style={{ textAlign: "right" }}>
+              <div className="company-buttons">
                 <button
-                  style={{
-                    marginRight: "10px",
-                    padding: "6px 14px",
-                    borderRadius: "4px",
-                    border: "1px solid blue",
-                    backgroundColor: "blue",
-                    color: "white",
-                    cursor: "pointer"
-                  }}
+                  className="company-edit-btn"
                   onClick={() => handleEdit(item)}
                 >
                   Edit
                 </button>
+
                 <button
-                  style={{
-                    padding: "6px 14px",
-                    borderRadius: "4px",
-                    border: "1px solid red",
-                    backgroundColor: "red",
-                    color: "white",
-                    cursor: "pointer"
-                  }}
+                  className="company-delete-btn"
                   onClick={() => handleDelete(item.id)}
                 >
                   Delete
