@@ -18,22 +18,7 @@ const RepairsTable = () => {
   const { authToken, userId, userName, role } = useContext(AuthContext);
   // Extract mobile from location state
   const { mobile } = location.state || {};
-  const initialSearchValue = location.state?.mobile || ''; 
-
-
-// Add this helper function after your imports and before the component
-const generateUUID = () => {
-  // Check if crypto.randomUUID is available
-  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
-    return crypto.randomUUID(); // <- Fixed: removed the function call to itself
-  }
-  // Fallback for older browsers or HTTP contexts
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-    const r = Math.random() * 16 | 0;
-    const v = c === 'x' ? r : (r & 0x3 | 0x8);
-    return v.toString(16);
-  });
-};
+  const initialSearchValue = location.state?.mobile || '';
 
   const getTabId = () => {
     // First try to get from URL
@@ -47,7 +32,7 @@ const generateUUID = () => {
 
     // If still not found, generate new ID
     if (!tabId) {
-      tabId = generateUUID();
+      tabId = crypto.randomUUID();
       sessionStorage.setItem('tabId', tabId);
 
       // Update URL without page reload
@@ -65,31 +50,6 @@ const generateUUID = () => {
       console.log('Selected Mobile from Dashboard:', mobile);
     }
   }, [mobile]);
-
-  // Function to calculate Net Payable Amt (should equal Net Amt)
-  const calculateNetPayable = (row) => {
-    const netAmount = Number(row.net_amount) || 0;
-    return netAmount.toFixed(2);
-  };
-
-  // Function to calculate Paid Amt (initial should be 0.00)
-  const calculatePaidAmt = (row) => {
-    const paid_amt = Number(row.paid_amt) || 0;
-    const receipts_amt = Number(row.receipts_amt) || 0;
-    // Initially paid_amt should be 0.00, but we'll sum any payments
-    const totalPaid = paid_amt + receipts_amt;
-    return totalPaid.toFixed(2);
-  };
-
-  // Function to calculate Bal Amt (Net Payable Amt - Paid Amt)
-  const calculateBalAmt = (row) => {
-    const netPayable = Number(row.net_amount) || 0;
-    const paid_amt = Number(row.paid_amt) || 0;
-    const receipts_amt = Number(row.receipts_amt) || 0;
-    const totalPaid = paid_amt + receipts_amt;
-    const balance = netPayable - totalPaid;
-    return balance.toFixed(2);
-  };
 
   const columns = React.useMemo(
     () => [
@@ -119,69 +79,110 @@ const generateUUID = () => {
         accessor: 'order_number',
       },
       {
+        Header: 'Total Amt',
+        accessor: 'net_amount',
+        Cell: ({ value }) => value || 0
+      },
+      {
         Header: 'Old Amt',
         accessor: 'old_exchange_amt',
         Cell: ({ value }) => value || 0
       },
       {
+        Header: 'Scheme Amt',
+        accessor: 'scheme_amt',
+        Cell: ({ value }) => value || 0
+      },
+      {
+        Header: 'SaleReturn Amt',
+        accessor: 'sale_return_amt',
+        Cell: ({ value }) => value || 0
+      },
+      {
         Header: 'Net Amt',
-        accessor: 'net_amount',
-        id: 'net_amt', // Added unique id
+        accessor: 'net_bill_amount',
         Cell: ({ value }) => value || 0
-      },
-      {
-        Header: 'Advance Receipt Amt',
-        accessor: 'advance_receipt_amt',
-        Cell: ({ value }) => value || 0
-      },
-      {
-        Header: 'Net Payable Amt',
-        id: 'net_payable_amt', // Changed from accessor to id
-        Cell: ({ row }) => calculateNetPayable(row.original),
       },
       {
         Header: 'Paid Amt',
-        id: 'paid_amt_calculated', // Changed from accessor to id
-        Cell: ({ row }) => calculatePaidAmt(row.original),
+        accessor: 'paid_amt',
+        Cell: ({ row }) => {
+          const paid_amt = Number(row.original.paid_amt) || 0;
+          const receipts_amt = Number(row.original.receipts_amt) || 0;
+          const totalPaid = (paid_amt + receipts_amt).toFixed(2);
+          return totalPaid;
+        },
       },
       {
         Header: 'Bal Amt',
-        id: 'bal_amt_calculated', // Changed from accessor to id
-        Cell: ({ row }) => calculateBalAmt(row.original),
+        accessor: 'bal_amt',
+        Cell: ({ row }) => {
+          const bal_amt = Number(row.original.bal_amt) || 0;
+          const bal_after_receipts = Number(row.original.bal_after_receipts) || 0;
+          const receipts_amt = Number(row.original.receipts_amt) || 0;
+          let finalBalance;
+          if (bal_amt === receipts_amt) {
+            finalBalance = bal_after_receipts || 0;
+          } else {
+            finalBalance = bal_after_receipts ? bal_after_receipts : bal_amt || 0;
+          }
+          return finalBalance.toFixed(2);
+        },
       },
+
       {
         Header: "Invoice",
-        id: 'invoice_link', // Added unique id
         Cell: ({ row }) =>
+          // row.original.invoice_generated === "Yes" && row.original.invoice_number ? (
           <a
-            href={`${baseURL}/invoices/${row.original.invoice_number}.pdf`}
+            href={`${baseURL}/invoices/${row.original.invoice_number}.pdf`} // Fetch from backend
             target="_blank"
             rel="noopener noreferrer"
             style={{ textDecoration: 'none' }}
           >
             📝 View
-          </a>,
+          </a>
+        //   ) : (
+        //     "Not Available"
+        //   ),
+        // id: "invoice",
       },
+      // {
+      //   Header: 'Status',
+      //   accessor: 'status',
+      //   Cell: ({ row }) => {
+      //     const { net_bill_amount, paid_amt, receipts_amt } = row.original;
+
+      //     const totalPaid = Number(paid_amt) + Number(receipts_amt);
+      //     const netBill = Number(net_bill_amount);
+
+      //     return (
+      //       <span style={{  color: netBill === totalPaid ? 'green' : 'red' }}>
+      //         {netBill === totalPaid ? 'Delivered' : 'Not Delivered'}
+      //       </span>
+      //     );
+      //   },
+      // },
       {
         Header: 'Receipts',
-        id: 'receipts_button', // Added unique id
+        accessor: 'receipts',
         Cell: ({ row }) => {
-          const { net_amount, paid_amt, receipts_amt, transaction_status } = row.original;
+          const { net_bill_amount, paid_amt, receipts_amt, transaction_status } = row.original;
 
-          // Calculate total paid and net payable
+          // Ensure numerical calculations are performed correctly
           const totalPaid = Number(paid_amt) + Number(receipts_amt);
-          const netPayable = Number(net_amount);
+          const netBill = Number(net_bill_amount);
 
           return (
             <Button
               style={{
                 backgroundColor: '#28a745',
                 borderColor: '#28a745',
-                fontSize: '0.800rem',
-                padding: '0.10rem 0.5rem',
+                fontSize: '0.800rem', // Smaller font size
+                padding: '0.10rem 0.5rem', // Reduced padding
               }}
-              onClick={() => handleAddReceipt(row.original)}
-              disabled={netPayable === totalPaid}
+              onClick={() => handleAddReceipt(row.original)} // Pass row data to handle receipt creation
+              disabled={netBill === totalPaid} // Disable if transaction_status is ConvertedInvoice or netBill equals totalPaid
             >
               Add Receipt
             </Button>
@@ -190,10 +191,10 @@ const generateUUID = () => {
       },
       {
         Header: 'Actions',
-        id: 'actions', // Added unique id
+        accessor: 'actions',
         Cell: ({ row }) => {
           const isDisabled = row.original.invoice === "Converted";
-          const isAdmin = userName === "ADMIN";
+          const isAdmin = userName === "ADMIN"; // Check if user is ADMIN
           const isToday = isCurrentDate(row.original.date);
 
           return (
@@ -202,41 +203,84 @@ const generateUUID = () => {
                 style={{ cursor: 'pointer', marginLeft: '10px', color: 'green' }}
                 onClick={() => handleViewDetails(row.original.invoice_number)}
               />
+              {/* Edit icon (only for ADMIN) */}
               {isAdmin && (
                 <FaEdit
                   style={{
                     cursor: 'pointer',
                     marginLeft: '10px',
                     color: 'blue',
+                    color: isToday ? 'blue' : 'gray',
                   }}
                   onClick={() => {
-                    handleEdit(
-                      row.original.invoice_number,
-                      row.original.mobile,
-                      row.original.cash_amount,
-                      row.original.card_amt,
-                      row.original.chq_amt,
-                      row.original.online_amt,
-                      row.original.sale_return_amt,
-                      row.original.advance_receipt_amt
-                    );
+                    if (isToday) {
+                      handleEdit(
+                        row.original.invoice_number,
+                        row.original.mobile,
+                        row.original.cash_amount,
+                        row.original.card_amt,
+                        row.original.chq_amt,
+                        row.original.online_amt
+                      );
+                    }
                   }}
                 />
               )}
-              <FaTrash
+              {/* <FaEdit
                 style={{
-                  cursor: 'pointer',
+                  cursor: isDisabled ? 'not-allowed' : 'pointer',
                   marginLeft: '10px',
-                  color: 'red',
+                  color: isDisabled ? 'gray' : 'blue',
                 }}
                 onClick={() => {
-                  handleDelete(row.original.invoice_number);
+                  if (!isDisabled) {
+                    handleEdit(
+                      row.original.invoice_number,
+                      row.original.mobile,
+                      row.original.old_exchange_amt,
+                      row.original.scheme_amt,
+                      row.original.cash_amount,
+                      row.original.card_amt,
+                      row.original.chq_amt,
+                      row.original.online_amt
+                    );
+                  }
                 }}
-              />
+              /> */}
+              {/* Delete Icon - Disabled if isDisabled is true */}
+              {/* <FaTrash
+                style={{
+                  cursor: isDisabled ? 'not-allowed' : 'pointer',
+                  marginLeft: '10px',
+                  color: isDisabled ? 'gray' : 'red',
+                }}
+                onClick={() => {
+                  if (!isDisabled) {
+                    handleDelete(row.original.invoice_number);
+                  }
+                }}
+              /> */}
+              {/* Delete icon (only for ADMIN) */}
+              {isAdmin && (
+                <FaTrash
+                  style={{
+                    cursor: 'pointer',
+                    marginLeft: '10px',
+                    color: 'red',
+                    color: isToday ? 'red' : 'gray',
+                  }}
+                  onClick={() => {
+                    if (isToday) {
+                      handleDelete(row.original.invoice_number);
+                    }
+                  }}
+                />
+              )}
             </div>
           );
         },
       },
+
     ],
     []
   );
@@ -258,14 +302,13 @@ const generateUUID = () => {
     cash_amount,
     card_amt,
     chq_amt,
-    online_amt,
-    sale_return_amt,
-    advance_receipt_amt
+    online_amt
   ) => {
 
-    console.log("sale_return_amt=", sale_return_amt)
-    console.log("advance_receipt_amt=", advance_receipt_amt)
-
+    console.log("cash_amount=", cash_amount)
+    console.log("card_amt=", card_amt)
+    console.log("chq_amt=", chq_amt)
+    console.log("online_amt=", online_amt)
     const result = await Swal.fire({
       title: 'Are you sure?',
       text: 'Do you want to edit this record?',
@@ -277,10 +320,11 @@ const generateUUID = () => {
       cancelButtonText: 'No, cancel',
     });
 
-    const tabId = generateUUID();
+    const tabId = crypto.randomUUID();
 
     if (result.isConfirmed) {
       try {
+        // Fetch repair details
         const repairResponse = await axios.get(`${baseURL}/get-repair-details/${invoice_number}`);
         const repairDetails = repairResponse.data;
 
@@ -290,6 +334,7 @@ const generateUUID = () => {
           return;
         }
 
+        // Filter repeatedData to include only items with specific transaction statuses
         const filteredRepairData = repairDetails.repeatedData.filter(
           (item) => item.transaction_status === "Sales" || item.transaction_status === "ConvertedInvoice" || item.transaction_status === "ConvertedRepairInvoice"
         );
@@ -299,16 +344,21 @@ const generateUUID = () => {
           return;
         }
 
+        // Check if order_number exists; otherwise, use invoice_number
         const order_number = filteredRepairData[0]?.order_number || invoice_number;
 
+        // Fetch old items details using order_number if available; otherwise, use invoice_number
         const oldItemsResponse = await axios.get(`${baseURL}/get/olditems/${order_number}`);
         const oldItemsDetails = oldItemsResponse.data;
 
+        // Retrieve existing data from localStorage
         const existingDetails = JSON.parse(localStorage.getItem(`repairDetails_${tabId}`)) || [];
         const existingOldItems = JSON.parse(localStorage.getItem(`oldTableData_${tabId}`)) || [];
 
+        // Get today's date in yyyy-mm-dd format
         const today = new Date().toISOString().split('T')[0];
 
+        // Update repair and old items details with today's date
         const formattedRepairDetails = filteredRepairData.map((item) => ({
           ...item,
           date: today,
@@ -321,6 +371,7 @@ const generateUUID = () => {
           invoice_number,
         }));
 
+        // Combine and store updated details
         const updatedRepairDetails = [...existingDetails, ...formattedRepairDetails];
         const updatedOldItems = [...existingOldItems, ...formattedOldItems];
 
@@ -338,10 +389,14 @@ const generateUUID = () => {
 
         localStorage.setItem(`paymentDetails_${tabId}`, JSON.stringify(paymentDetails));
 
+
+        // **Set discount percentage in localStorage**
         if (updatedRepairDetails.length > 0 && updatedRepairDetails[0].disscount_percentage) {
           localStorage.setItem(`discount_${tabId}`, updatedRepairDetails[0].disscount_percentage);
+
         }
 
+        // Navigate to the sales page
         navigate(`/sales?tabId=${tabId}`, {
           state: {
             invoice_number,
@@ -350,12 +405,12 @@ const generateUUID = () => {
             card_amt,
             chq_amt,
             online_amt,
-            repairDetails: updatedRepairDetails,
-            sale_return_amt,
-            advance_receipt_amt,
+            repairDetails: updatedRepairDetails, // Ensure the repair details are passed
           },
         });
 
+        // Call handleDelete without confirmation
+        // await handleDelete(invoice_number, true, true);
       } catch (error) {
         console.error('Error fetching details:', error);
         Swal.fire('Error', 'Unable to fetch repair or old item details. Please try again.', 'error');
@@ -370,7 +425,7 @@ const generateUUID = () => {
       try {
         const response = await axios.delete(
           `${baseURL}/repair-details/${invoiceNumber}`,
-          { params: { skipMessage } }
+          { params: { skipMessage } } // Pass skipMessage as a query parameter
         );
         if (response.status === 200 || response.status === 204) {
           if (!skipMessage) {
@@ -383,6 +438,7 @@ const generateUUID = () => {
         Swal.fire('Error!', 'Failed to delete repair details. Please try again.', 'error');
       }
     } else {
+      // Show the confirmation alert
       Swal.fire({
         title: 'Are you sure?',
         text: `Do you really want to delete invoice ${invoiceNumber}?`,
@@ -397,6 +453,7 @@ const generateUUID = () => {
             const response = await axios.delete(`${baseURL}/repair-details/${invoiceNumber}`);
             if (response.status === 200) {
               Swal.fire('Deleted!', response.data.message, 'success');
+              // Update the table data by removing the deleted record
               setData((prevData) => prevData.filter((item) => item.invoice_number !== invoiceNumber));
             }
           } catch (error) {
@@ -415,9 +472,11 @@ const generateUUID = () => {
       date.getMonth() + 1
     ).padStart(2, '0')}-${date.getFullYear()}`;
   };
-  
   const handleCreate = () => {
-    const tabId = generateUUID();
+    // Generate a new tab ID or use existing one if available
+    const tabId = crypto.randomUUID();
+
+    // Navigate to sales page with the tabId
     navigate(`/sales?tabId=${tabId}`);
   };
 
@@ -426,23 +485,14 @@ const generateUUID = () => {
       const response = await axios.get(`${baseURL}/get-unique-repair-details`);
       console.log("Full response data: ", response.data);
 
+      // Filter out only 'Sales' items
       const filteredData = response.data.filter(
         (item) => item.transaction_status === 'Sales' || item.transaction_status === "ConvertedInvoice" || item.transaction_status === "ConvertedRepairInvoice"
       );
-      
-      // Transform the data to ensure proper initial values
-      const transformedData = filteredData.map(item => ({
-        ...item,
-        // Ensure net_amount is used as Net Payable Amt
-        net_payable_amt: item.net_amount || 0,
-        // Initialize paid_amt to 0 if not set
-        paid_amt: item.paid_amt || 0,
-        // Calculate balance
-        bal_amt: (Number(item.net_amount) || 0) - ((Number(item.paid_amt) || 0) + (Number(item.receipts_amt) || 0))
-      }));
-      
-      console.log("Filtered Orders: ", transformedData);
-      setData(transformedData);
+      console.log("Filtered Orders: ", filteredData);
+
+      // Set the filtered data
+      setData(filteredData);
       setLoading(false);
     } catch (error) {
       console.error('Error fetching repair details:', error);
@@ -455,13 +505,16 @@ const generateUUID = () => {
       const response = await axios.get(`${baseURL}/get-repair-details/${invoice_number}`);
       console.log("Fetched order details: ", response.data);
 
+      // Filter repeatedData to include only 'Sales' or 'ConvertedInvoice'
       const filteredData = response.data.repeatedData.filter(
         (item) => item.transaction_status === "Sales" || item.transaction_status === "ConvertedInvoice" || item.transaction_status === "ConvertedRepairInvoice"
       );
 
+      // Check if any item in repeatedData has invoice === "Converted"
       const isInvoiceConverted = filteredData.some(item => item.invoice === "Converted");
       console.log("isInvoiceConverted=", isInvoiceConverted)
 
+      // Set repair details with filtered data and conversion status
       setRepairDetails({
         ...response.data,
         repeatedData: filteredData,
@@ -478,13 +531,16 @@ const generateUUID = () => {
     fetchRepairs();
   }, []);
 
+  // const handleAddReceipt = (invoiceData) => {
+  //   navigate("/receipts", { state: { from: "/salestable", invoiceData } });
+  // };
   const handleAddReceipt = (invoiceData) => {
     navigate("/receipts", {
       state: {
         from: "/salestable",
         invoiceData: {
-          ...invoiceData,
-          mobile: invoiceData.mobile
+          ...invoiceData, // Spread all existing invoice data
+          mobile: invoiceData.mobile // Ensure mobile is included
         }
       }
     });
@@ -492,7 +548,7 @@ const generateUUID = () => {
 
   const handleCloseModal = () => {
     setShowModal(false);
-    setRepairDetails(null);
+    setRepairDetails(null); // Clear repair details on modal close
   };
 
   return (
@@ -517,6 +573,7 @@ const generateUUID = () => {
         )}
       </div>
 
+      {/* Modal to display repair details */}
       <Modal show={showModal} onHide={handleCloseModal} size="xl" className="m-auto">
         <Modal.Header closeButton>
           <Modal.Title>Sales Details</Modal.Title>
@@ -570,6 +627,7 @@ const generateUUID = () => {
                       <th>MC</th>
                       <th>Rate / Piece Cost</th>
                       <th>Tax Amt</th>
+                      {/* <th>Status</th> */}
                       <th>Sale Status</th>
                       <th>Total Price</th>
                     </tr>
@@ -588,8 +646,10 @@ const generateUUID = () => {
                         <td>{product.making_charges}</td>
                         <td>{product.pieace_cost ? product.pieace_cost : product.rate}</td>
                         <td>{product.tax_amt}</td>
+                        {/* <td>{product.transaction_status}</td> */}
                         <td>{product.sale_status}</td>
                         <td>{product.total_price}</td>
+
                       </tr>
                     ))}
                     <tr style={{ fontWeight: 'bold' }}>
