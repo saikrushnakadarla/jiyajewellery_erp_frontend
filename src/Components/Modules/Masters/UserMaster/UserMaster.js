@@ -119,7 +119,7 @@ useEffect(() => {
   return (
     <div className="main-container">
       <div className="customer-master-container">
-        <h2 style={{marginTop:"30px"}}>{id ? "Edit User" : "Add User"}</h2>
+        <h2>{id ? "Edit User" : "Add User"}</h2>
         <form className="customer-master-form" onSubmit={handleSubmit}>
           {/* Row 1 */}
           <Row>
