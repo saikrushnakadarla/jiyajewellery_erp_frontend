@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Page, Text, View, Document, StyleSheet, Image } from "@react-pdf/renderer";
-import logo1 from '../../../../Components/Pages/Images/newfriends_logo.jpg';
+import logo1 from '../../../../Navbar/jiya_logo.png';
 import QRCode from "qrcode";
 import { toWords } from "number-to-words";
 import baseURL from '../../../../Url/NodeBaseURL';

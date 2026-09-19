@@ -70,7 +70,9 @@ import { AuthProvider } from "./Components/Pages/Login/Context";
 import EstimateSales from './Components/Modules/Transactions/Sales/EstimateSales';
 import QRScanner from "./Components/QRScanner ";
 import RateCuts from './Components/Modules/Transactions/Purchase/RateCuts'
+import SalesRateCuts from './Components/Modules/Transactions/Sales/SalesRateCut'
 import PurchasePayment from './Components/Modules/Transactions/Purchase/PurchasePayment';
+import SalesPayment from './Components/Modules/Transactions/Sales/SalesPayment';
 import Festoffers from './Components/Modules/Masters/FestivalOffers/FestOffers';
 import Festofferstable from './Components/Modules/Masters/FestivalOffers/FestOffersTable';
 import ItemSales from './Components/Modules/Reports/ItemSale/ItemSale';
@@ -630,10 +632,22 @@ function App() {
               <PurchasePayment />
             </ProtectedRoute>
           } />
+
+            <Route path="/sales-payment" element={
+            <ProtectedRoute>
+              <SalesPayment />
+            </ProtectedRoute>
+          } />
           
           <Route path="/ratecuts" element={
             <ProtectedRoute>
               <RateCuts />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/sales-ratecuts" element={
+            <ProtectedRoute>
+              <SalesRateCuts />
             </ProtectedRoute>
           } />
           
