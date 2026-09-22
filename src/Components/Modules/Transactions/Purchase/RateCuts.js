@@ -10,12 +10,12 @@ const RepairForm = () => {
     const location = useLocation();
     const navigate = useNavigate();
     const receivedData = location.state || {};
-    console.log("total_pure_wt=", receivedData.total_pure_wt)
+
     const [formData, setFormData] = useState({
         purchase_id: receivedData.purchase_id || "",
         invoice: receivedData.invoice || "",
         category: receivedData.category || "",
-        total_pure_wt: receivedData.total_pure_wt || "",
+        total_pure_wt: "",
         rate_cut_wt: "",
         rate_cut: "",
         rate_cut_amt: "",
@@ -24,44 +24,87 @@ const RepairForm = () => {
         paid_wt: "",
     });
 
-    const [isEditable, setIsEditable] = useState(false); // Toggle edit mode
+    const [isEditable] = useState(false);
     const [rateCuts, setRateCuts] = useState([]);
-    
+    const [loadingBalance, setLoadingBalance] = useState(true);
+
+    // FIX: Fetch LIVE balance from backend instead of trusting the value
+    // passed from the table. Sums all rateCuts.rate_cut_wt for this purchase
+    // and subtracts from the purchase's own total_pure_wt.
+    useEffect(() => {
+        const fetchBalance = async () => {
+            if (!receivedData.purchase_id) {
+                setLoadingBalance(false);
+                return;
+            }
+            try {
+                const response = await axios.get(
+                    `${baseURL}/purchase-balance/${receivedData.purchase_id}`,
+                    { params: { total_pure_wt: receivedData.total_pure_wt || 0 } }
+                );
+                setFormData(prev => ({
+                    ...prev,
+                    total_pure_wt: Number(response.data.balance_weight).toFixed(3),
+                }));
+            } catch (error) {
+                console.error("Error fetching live balance:", error);
+                setFormData(prev => ({ ...prev, total_pure_wt: "0.000" }));
+            } finally {
+                setLoadingBalance(false);
+            }
+        };
+        fetchBalance();
+    }, [receivedData.purchase_id, receivedData.total_pure_wt]);
+
+    // Fetch list of past rate cuts for this purchase
+    useEffect(() => {
+        const fetchRateCuts = async () => {
+            try {
+                const response = await axios.get(`${baseURL}/rateCuts`);
+                const filteredRateCuts = response.data.filter(
+                    rateCut => rateCut.purchase_id === receivedData.purchase_id
+                );
+                setRateCuts(filteredRateCuts);
+            } catch (error) {
+                console.error("Error fetching rateCuts:", error);
+            }
+        };
+
+        if (receivedData.purchase_id) {
+            fetchRateCuts();
+        }
+    }, [receivedData.purchase_id]);
+
     const handleInputChange = (e) => {
         const { name, value } = e.target;
         setFormData((prevData) => {
             let updatedData = { ...prevData, [name]: value };
-    
-            // Validate rate_cut_wt should not be greater than total_pure_wt
+
+            // Validate rate_cut_wt should not be greater than balance weight
             if (name === "rate_cut_wt" && parseFloat(value) > parseFloat(prevData.total_pure_wt)) {
-                alert("Rate Cut Weight cannot be greater than Total Pure Weight.");
-                return prevData; // Prevent state update if invalid
+                alert("Rate Cut Weight cannot be greater than Balance Weight.");
+                return prevData;
             }
-    
+
             // Auto-calculate rate_cut_amt
             if (updatedData.rate_cut_wt && updatedData.rate_cut) {
-                updatedData.rate_cut_amt = parseFloat(updatedData.rate_cut_wt) * parseFloat(updatedData.rate_cut);
+                updatedData.rate_cut_amt =
+                    parseFloat(updatedData.rate_cut_wt) * parseFloat(updatedData.rate_cut);
             }
-    
-            // Ensure balance_amount is calculated even if paid_amount is empty
-            let paidAmount = updatedData.paid_amount ? parseFloat(updatedData.paid_amount) : 0;
+
+            // Calculate balance_amount
+            const paidAmount = updatedData.paid_amount ? parseFloat(updatedData.paid_amount) : 0;
             if (updatedData.rate_cut_amt !== undefined) {
-                let calculatedBalance = updatedData.rate_cut_amt - paidAmount;
-    
-                // Check if paid_amount is greater than rate_cut_amt
                 if (paidAmount > updatedData.rate_cut_amt) {
                     alert("Paid Amount cannot be greater than Rate Cut Amount.");
-                    return prevData; // Prevent state update if invalid
+                    return prevData;
                 }
-    
-                updatedData.balance_amount = calculatedBalance;
+                updatedData.balance_amount = updatedData.rate_cut_amt - paidAmount;
             }
-    
+
             return updatedData;
         });
     };
-    
-    
 
     const handleBack = () => {
         navigate("/purchasetable");
@@ -71,7 +114,7 @@ const RepairForm = () => {
         e.preventDefault();
 
         try {
-            const response = await axios.post(`${baseURL}/ratecuts`, formData);
+            await axios.post(`${baseURL}/ratecuts`, formData);
             alert("RateCut added successfully!");
             navigate("/purchasetable");
         } catch (error) {
@@ -80,42 +123,12 @@ const RepairForm = () => {
         }
     };
 
-    useEffect(() => {
-        const fetchRateCuts = async () => {
-            try {
-                const response = await axios.get(`${baseURL}/rateCuts`);
-                console.log("RateCuts Data:", response.data);
-    
-                // Filter rateCuts where purchase_id matches receivedData.purchase_id
-                const filteredRateCuts = response.data.filter(rateCut => rateCut.purchase_id === receivedData.purchase_id);
-    
-                setRateCuts(filteredRateCuts);
-            } catch (error) {
-                console.error("Error fetching rateCuts:", error);
-            }
-        };
-    
-        if (receivedData.purchase_id) {
-            fetchRateCuts();
-        }
-    }, [receivedData.purchase_id]); 
-    
-
     return (
         <div className="main-container">
             <Container className="payments-form-container">
                 <Row className="payments-form-section">
                     <h4 className="mb-4">Rate Cut</h4>
 
-                    {/* <Col xs={12} md={2}>
-                        <InputField
-                            label="Purchase Id"
-                            name="purchase_id"
-                            value={formData.purchase_id}
-                            onChange={handleInputChange}
-                            readOnly={!isEditable} 
-                        />
-                    </Col> */}
                     <Col xs={12} md={2}>
                         <InputField
                             label="Invoice"
@@ -138,9 +151,9 @@ const RepairForm = () => {
                         <InputField
                             label="Balance Weight"
                             name="total_pure_wt"
-                            value={formData.total_pure_wt}
+                            value={loadingBalance ? "Loading..." : formData.total_pure_wt}
                             onChange={handleInputChange}
-                            readOnly={!isEditable}
+                            readOnly
                         />
                     </Col>
 
@@ -189,6 +202,7 @@ const RepairForm = () => {
                             onChange={handleInputChange}
                         />
                     </Col>
+
                     <div className="form-buttons" style={{ marginTop: '-1px' }}>
                         <Button
                             variant="secondary"
@@ -208,6 +222,7 @@ const RepairForm = () => {
                             Save
                         </Button>
                     </div>
+
                     <h4 className="mb-4 mt-4">Rate Cuts List</h4>
                     <Table striped bordered hover>
                         <thead>
@@ -228,7 +243,7 @@ const RepairForm = () => {
                             {rateCuts.length > 0 ? (
                                 rateCuts.map((rateCut, index) => (
                                     <tr key={index}>
-                                        <td>{index+1}</td>
+                                        <td>{index + 1}</td>
                                         <td>{rateCut.invoice}</td>
                                         <td>{rateCut.category}</td>
                                         <td>{rateCut.rate_cut_wt}</td>
@@ -242,7 +257,7 @@ const RepairForm = () => {
                                 ))
                             ) : (
                                 <tr>
-                                    <td colSpan="8" className="text-center">
+                                    <td colSpan="10" className="text-center">
                                         No rate cuts available
                                     </td>
                                 </tr>
@@ -252,7 +267,6 @@ const RepairForm = () => {
 
                 </Row>
             </Container>
-
         </div>
     );
 };

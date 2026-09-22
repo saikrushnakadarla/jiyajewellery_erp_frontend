@@ -12,6 +12,7 @@ const RepairsTable = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [data, setData] = useState([]);
+  const [rateCuts, setRateCuts] = useState([]); // live sales rate-cut data, same pattern as Purchase table
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [repairDetails, setRepairDetails] = useState(null);
@@ -24,7 +25,7 @@ const RepairsTable = () => {
   const { mobile } = location.state || {};
   const initialSearchValue = location.state?.mobile || '';
 
-  // ✅ FIX 1: Hide the Expand checkbox column just for this table via CSS injection
+  // ✅ Hide the Expand checkbox column for this table
   useEffect(() => {
     const style = document.createElement('style');
     style.innerHTML = `
@@ -42,9 +43,7 @@ const RepairsTable = () => {
   const getTabId = () => {
     const urlParams = new URLSearchParams(window.location.search);
     let tabId = urlParams.get('tabId');
-    if (!tabId) {
-      tabId = sessionStorage.getItem('tabId');
-    }
+    if (!tabId) tabId = sessionStorage.getItem('tabId');
     if (!tabId) {
       tabId = crypto.randomUUID();
       sessionStorage.setItem('tabId', tabId);
@@ -56,61 +55,80 @@ const RepairsTable = () => {
 
   const tabId = getTabId();
 
+  // fetchRepairs + fetchRateCuts re-run whenever we come back to this route
+  // (location.key changes on every navigation, including "back" from
+  // RateCut / Payment / Receipt pages), instead of only once on first mount.
   useEffect(() => {
     fetchRepairs();
-  }, []);
+    fetchRateCuts();
+  }, [location.key]);
+
+  const fetchRateCuts = async () => {
+    try {
+      // FIXED: was `${baseURL}/salesRateCuts` — that route does not exist on
+      // the backend (router registers `/sales-rateCuts`, with a hyphen), so
+      // this request was 404ing silently and rateCuts state stayed [] forever.
+      // That's why Bal Amt (and Bal Wt) never reflected new rate cuts.
+      const response = await axios.get(`${baseURL}/sales-rateCuts`);
+      setRateCuts(response.data || []);
+    } catch (error) {
+      console.error("Error fetching sales rateCuts:", error);
+    }
+  };
+
+  // Same idea as Purchase table's getBalanceAmountForProduct, but keyed by sales_id
+  const getBalanceAmountForSale = (salesId) => {
+    const filtered = rateCuts.filter((rc) => rc.sales_id === salesId);
+    const total = filtered.reduce(
+      (sum, rc) => sum + (parseFloat(rc.balance_amount) || 0),
+      0
+    );
+    return total.toFixed(2);
+  };
+
+  // NEW: mirrors backend's getSalesBalance logic (total_weight_av - sum of rate_cut_wt used)
+  const getBalanceWeightForSale = (salesId, totalWeightAv) => {
+    const filtered = rateCuts.filter((rc) => rc.sales_id === salesId);
+    const usedWt = filtered.reduce(
+      (sum, rc) => sum + (parseFloat(rc.rate_cut_wt) || 0),
+      0
+    );
+    const balance = (Number(totalWeightAv) || 0) - usedWt;
+    return Math.max(0, balance).toFixed(3);
+  };
 
   const columns = React.useMemo(
     () => [
-      {
-        Header: 'SI',
-        Cell: ({ row }) => row.index + 1,
-      },
-      {
-        Header: 'Date',
-        accessor: 'date',
-        Cell: ({ value }) => formatDate(value),
-      },
-      {
-        Header: 'Mobile',
-        accessor: 'mobile',
-      },
-      {
-        Header: 'Account',
-        accessor: 'account_name',
-      },
-      {
-        Header: 'Invoice No',
-        accessor: 'invoice_number',
-      },
-      {
-        Header: 'Order No',
-        accessor: 'order_number',
-      },
+      { Header: 'SI', Cell: ({ row }) => row.index + 1 },
+      { Header: 'Date', accessor: 'date', Cell: ({ value }) => formatDate(value) },
+      { Header: 'Mobile', accessor: 'mobile' },
+      { Header: 'Account', accessor: 'account_name' },
+      { Header: 'Invoice No', accessor: 'invoice_number' },
+      { Header: 'Order No', accessor: 'order_number' },
       {
         Header: 'Total Amt',
         accessor: 'net_amount',
-        Cell: ({ value }) => value || 0
+        Cell: ({ value }) => value || 0,
       },
       {
         Header: 'Old Amt',
         accessor: 'old_exchange_amt',
-        Cell: ({ value }) => value || 0
+        Cell: ({ value }) => value || 0,
       },
       {
         Header: 'Scheme Amt',
         accessor: 'scheme_amt',
-        Cell: ({ value }) => value || 0
+        Cell: ({ value }) => value || 0,
       },
       {
         Header: 'SaleReturn Amt',
         accessor: 'sale_return_amt',
-        Cell: ({ value }) => value || 0
+        Cell: ({ value }) => value || 0,
       },
       {
         Header: 'Net Amt',
         accessor: 'net_bill_amount',
-        Cell: ({ value }) => value || 0
+        Cell: ({ value }) => value || 0,
       },
       {
         Header: 'Paid Amt',
@@ -118,14 +136,23 @@ const RepairsTable = () => {
         Cell: ({ row }) => {
           const paid_amt = Number(row.original.paid_amt) || 0;
           const receipts_amt = Number(row.original.receipts_amt) || 0;
-          const totalPaid = (paid_amt + receipts_amt).toFixed(2);
-          return totalPaid;
+          return (paid_amt + receipts_amt).toFixed(2);
         },
       },
       {
+        // Bal Amt prefers live rate-cut data (same source of truth the
+        // RateCut page writes to) and only falls back to the static
+        // bal_amt / bal_after_receipts fields when this sale has no rate cuts.
         Header: 'Bal Amt',
         accessor: 'bal_amt',
         Cell: ({ row }) => {
+          const salesId = row.original.id;
+          const hasRateCuts = rateCuts.some((rc) => rc.sales_id === salesId);
+
+          if (hasRateCuts) {
+            return getBalanceAmountForSale(salesId);
+          }
+
           const bal_amt = Number(row.original.bal_amt) || 0;
           const bal_after_receipts = Number(row.original.bal_after_receipts) || 0;
           const receipts_amt = Number(row.original.receipts_amt) || 0;
@@ -139,8 +166,26 @@ const RepairsTable = () => {
         },
       },
       {
+        // NEW: Bal Wt, mirroring Purchase table's Bal Wt column.
+        // Prefers live rate-cut weight usage; falls back to total_weight_av
+        // when this sale has no rate cuts yet.
+        Header: 'Bal Wt',
+        accessor: 'total_weight_av',
+        Cell: ({ row }) => {
+          const salesId = row.original.id;
+          const totalWeightAv = row.original.total_weight_av;
+          const hasRateCuts = rateCuts.some((rc) => rc.sales_id === salesId);
+
+          if (hasRateCuts) {
+            return getBalanceWeightForSale(salesId, totalWeightAv);
+          }
+
+          return (Number(totalWeightAv) || 0).toFixed(3);
+        },
+      },
+      {
         Header: "Invoice",
-        Cell: ({ row }) =>
+        Cell: ({ row }) => (
           <a
             href={`${baseURL}/invoices/${row.original.invoice_number}.pdf`}
             target="_blank"
@@ -149,6 +194,7 @@ const RepairsTable = () => {
           >
             📝 View
           </a>
+        ),
       },
       {
         Header: 'Receipts',
@@ -207,58 +253,51 @@ const RepairsTable = () => {
         ),
       },
       {
-  Header: 'Actions',
-  accessor: 'actions',
-  Cell: ({ row }) => {
-    return (
-      <div>
-        <FaEye
-          style={{ cursor: 'pointer', marginLeft: '10px', color: 'green' }}
-          onClick={() => handleViewDetails(row.original.invoice_number)}
-        />
-        <FaEdit
-          style={{ cursor: 'pointer', marginLeft: '10px', color: 'blue' }}
-          onClick={() =>
-            handleEdit(
-              row.original.invoice_number,
-              row.original.mobile,
-              row.original.cash_amount,
-              row.original.card_amt,
-              row.original.chq_amt,
-              row.original.online_amt
-            )
-          }
-        />
-        <FaTrash
-          style={{ cursor: 'pointer', marginLeft: '10px', color: 'red' }}
-          onClick={() => handleDelete(row.original.invoice_number)}
-        />
-      </div>
-    );
-  },
-},
+        Header: 'Actions',
+        accessor: 'actions',
+        Cell: ({ row }) => (
+          <div>
+            <FaEye
+              style={{ cursor: 'pointer', marginLeft: '10px', color: 'green' }}
+              onClick={() => handleViewDetails(row.original.invoice_number)}
+            />
+            <FaEdit
+              style={{ cursor: 'pointer', marginLeft: '10px', color: 'blue' }}
+              onClick={() =>
+                handleEdit(
+                  row.original.invoice_number,
+                  row.original.mobile,
+                  row.original.cash_amount,
+                  row.original.card_amt,
+                  row.original.chq_amt,
+                  row.original.online_amt
+                )
+              }
+            />
+            <FaTrash
+              style={{ cursor: 'pointer', marginLeft: '10px', color: 'red' }}
+              onClick={() => handleDelete(row.original.invoice_number)}
+            />
+          </div>
+        ),
+      },
     ],
-    [userName] // ✅ Added dependency so isAdmin updates properly
+    [userName, rateCuts] // rateCuts included so Bal Amt / Bal Wt cells re-render with fresh data
   );
 
-  // ✅ FIX 2: Compare only the date part, ignoring time/timezone issues
   function isCurrentDate(dateString) {
     if (!dateString) return false;
     const today = new Date();
     const date = new Date(dateString);
-
     const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
     const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-
     return todayStr === dateStr;
   }
 
   const formatDate = (dateString) => {
     if (!dateString) return '';
     const date = new Date(dateString);
-    return `${String(date.getDate()).padStart(2, '0')}-${String(
-      date.getMonth() + 1
-    ).padStart(2, '0')}-${date.getFullYear()}`;
+    return `${String(date.getDate()).padStart(2, '0')}-${String(date.getMonth() + 1).padStart(2, '0')}-${date.getFullYear()}`;
   };
 
   const handleCreate = () => {
@@ -268,6 +307,7 @@ const RepairsTable = () => {
 
   const fetchRepairs = async () => {
     try {
+      setLoading(true);
       const response = await axios.get(`${baseURL}/get-unique-repair-details`);
       const filteredData = response.data.filter(
         (item) =>
@@ -275,12 +315,10 @@ const RepairsTable = () => {
           item.transaction_status === "ConvertedInvoice" ||
           item.transaction_status === "ConvertedRepairInvoice"
       );
-
       const normalized = filteredData.map((item) => ({
         ...item,
         invoice: item.invoice_number,
       }));
-
       setData(normalized.reverse());
       setLoading(false);
     } catch (error) {
@@ -320,18 +358,26 @@ const RepairsTable = () => {
     }
   };
 
+  // ✅ Compute final balance amount correctly and pass to RateCut page
   const handleAddRateCut = (product) => {
-    const total_pure_wt =
-      (Number(product.total_weight_av) || 0) -
-      ((Number(product.paid_pure_weight) || 0) + (Number(product.paid_wt) || 0));
+    const bal_amt = Number(product.bal_amt) || 0;
+    const bal_after_receipts = Number(product.bal_after_receipts) || 0;
+    const receipts_amt = Number(product.receipts_amt) || 0;
 
-    const formatted_total_pure_wt = total_pure_wt.toFixed(3);
+    let finalBalanceAmount;
+    if (bal_amt === receipts_amt) {
+      finalBalanceAmount = bal_after_receipts || 0;
+    } else {
+      finalBalanceAmount = bal_after_receipts ? bal_after_receipts : bal_amt || 0;
+    }
+
     navigate("/sales-ratecuts", {
       state: {
         invoice: product.invoice_number,
         category: product.category || product.product_name,
         sales_id: product.id,
-        total_pure_wt: formatted_total_pure_wt,
+        total_weight_av: Number(product.total_weight_av) || 0,
+        bal_after_receipts: finalBalanceAmount,
       },
     });
   };
@@ -485,7 +531,6 @@ const RepairsTable = () => {
             columns={columns}
             data={data}
             initialSearchValue={initialSearchValue}
-            // ✅ Dummy props to satisfy DataTable. Since we hide the checkbox via CSS, these are never triggered.
             expandedRows={{}}
             toggleRowExpansion={() => {}}
           />

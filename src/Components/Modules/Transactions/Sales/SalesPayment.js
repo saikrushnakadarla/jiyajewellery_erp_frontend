@@ -9,8 +9,6 @@ const SalesPayment = () => {
     const location = useLocation();
     const navigate = useNavigate();
     const receivedData = location.state || {};
-    console.log("Pricing=", receivedData.Pricing)
-    console.log("Sales Id=", receivedData.sales_id)
 
     const [formData, setFormData] = useState({
         date: new Date().toISOString().split("T")[0],
@@ -48,7 +46,7 @@ const SalesPayment = () => {
                     payment_no: response.data.lastPaymentNumber,
                 }));
             } catch (error) {
-                console.error("Error fetching invoice_number number:", error);
+                console.error("Error fetching payment number:", error);
             }
         };
         fetchLastPaymentNumber();
@@ -63,7 +61,7 @@ const SalesPayment = () => {
                 ...updatedFormData,
                 rate_cut: "",
                 total_amt: "",
-                total_wt: ""
+                total_wt: "",
             };
         }
 
@@ -87,29 +85,7 @@ const SalesPayment = () => {
                 bal_amt: balAmt,
                 paid_wt: paidWt,
                 bal_wt: balWt,
-                paid_by: "By Amount"
-            };
-        } else if (name === "paid_wt") {
-            const paidWt = parseFloat(value) || 0;
-            const rateCut = parseFloat(formData.rate_cut) || 1;
-            const totalAmt = parseFloat(formData.total_amt) || 0;
-            const totalWt = parseFloat(formData.total_wt) || 0;
-
-            if (paidWt > totalWt) {
-                alert("Paid Weight cannot be greater than Outstanding Weight!");
-                return;
-            }
-
-            const paidAmt = (paidWt * rateCut).toFixed(2);
-            const balAmt = (totalAmt - paidAmt).toFixed(2);
-            const balWt = (totalWt - paidWt).toFixed(3);
-
-            updatedFormData = {
-                ...updatedFormData,
-                bal_amt: balAmt,
-                paid_amt: paidAmt,
-                bal_wt: balWt,
-                paid_by: "By Weight"
+                paid_by: "By Amount",
             };
         }
 
@@ -136,7 +112,7 @@ const SalesPayment = () => {
         const fetchSales = async () => {
             try {
                 const response = await axios.get(`${baseURL}/get/sales`);
-                setSales(response.data)
+                setSales(response.data);
             } catch (error) {
                 console.error("Error fetching sales:", error);
             }
@@ -178,7 +154,7 @@ const SalesPayment = () => {
         const fetchRateCuts = async () => {
             try {
                 const response = await axios.get(`${baseURL}/sales-rateCuts`);
-                setRateCuts(response.data)
+                setRateCuts(response.data);
             } catch (error) {
                 console.error("Error fetching rateCuts:", error);
             }
@@ -237,51 +213,23 @@ const SalesPayment = () => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        console.log("Submitting Data:", formData);
 
         try {
-            const response = await axios.post(`${baseURL}/salesPayments`, formData);
+            await axios.post(`${baseURL}/salesPayments`, formData);
             alert("Sales Payment Added Successfully!");
-            console.log(response.data);
-
-            setFormData({
-                date: new Date().toISOString().split("T")[0],
-                mode: "Cash",
-                cheque_number: "",
-                payment_no: "",
-                account_name: "",
-                invoice: "",
-                category: "",
-                rate_cut: "",
-                total_wt: "",
-                paid_wt: "",
-                bal_wt: "",
-                total_amt: "",
-                paid_amt: "",
-                bal_amt: "",
-                remarks: "",
-                rate_cut_id: "",
-                paid_by: "",
-            });
-
             navigate("/salestable");
         } catch (error) {
             console.error("Error submitting data:", error);
-            console.error("Response Data:", error.response?.data);
             alert(`Error: ${error.response?.data?.message || "Failed to add sales payment."}`);
         }
     };
 
-    const handleBack = () => {
-        navigate("/salestable");
-    };
+    const handleBack = () => navigate("/salestable");
 
     const getTabId = () => {
         const urlParams = new URLSearchParams(window.location.search);
         let tabId = urlParams.get('tabId');
-        if (!tabId) {
-            tabId = sessionStorage.getItem('tabId');
-        }
+        if (!tabId) tabId = sessionStorage.getItem('tabId');
         if (!tabId) {
             tabId = crypto.randomUUID();
             sessionStorage.setItem('tabId', tabId);
@@ -292,10 +240,7 @@ const SalesPayment = () => {
     };
 
     const tabId = getTabId();
-
-    const handleClose = () => {
-        navigate(`/sales?tabId=${tabId}`);
-    };
+    const handleClose = () => navigate(`/sales?tabId=${tabId}`);
 
     return (
         <div className="main-container">
@@ -396,7 +341,6 @@ const SalesPayment = () => {
                             </Col>
                         </>
                     )}
-
                     <Col xs={12} md={2}>
                         <InputField
                             label="Out Standing Amt"

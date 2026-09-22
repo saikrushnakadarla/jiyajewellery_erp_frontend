@@ -3,69 +3,119 @@ import InputField from "../../../Pages/InputField/InputField";
 import { Container, Row, Col, Button, Table } from "react-bootstrap";
 import { useNavigate, useLocation } from "react-router-dom";
 import baseURL from "../../../../Url/NodeBaseURL";
-import axios from 'axios';
+import axios from "axios";
 
 const SalesRateCut = () => {
     const location = useLocation();
     const navigate = useNavigate();
     const receivedData = location.state || {};
-    console.log("total_pure_wt=", receivedData.total_pure_wt)
-    
+
+    console.log("🔵 receivedData:", receivedData);
+    console.log("🔵 bal_after_receipts:", receivedData.bal_after_receipts);
+
+    // ✅ Seed balance_amount with bal_after_receipts
+    const initialBalanceAmount =
+        receivedData.bal_after_receipts !== undefined &&
+        receivedData.bal_after_receipts !== null &&
+        receivedData.bal_after_receipts !== ""
+            ? String(receivedData.bal_after_receipts)
+            : "";
+
     const [formData, setFormData] = useState({
         sales_id: receivedData.sales_id || "",
         invoice: receivedData.invoice || "",
         category: receivedData.category || "",
-        total_pure_wt: receivedData.total_pure_wt || "",
         rate_cut_wt: "",
         rate_cut: "",
         rate_cut_amt: "",
         paid_amount: "",
-        balance_amount: "",
-        paid_wt: "",
+        balance_amount: initialBalanceAmount,
     });
 
-    const [isEditable, setIsEditable] = useState(false);
+    const [isEditable] = useState(false);
     const [rateCuts, setRateCuts] = useState([]);
+    const [rate22crt, setRate22crt] = useState(0);
+
+    // ✅ Fetch current 22crt rate
+    useEffect(() => {
+        const fetchCurrentRate = async () => {
+            try {
+                const response = await axios.get(`${baseURL}/get/current-rates`);
+                const rate = parseFloat(response.data?.rate_22crt || 0);
+                console.log("🟢 rate_22crt fetched:", rate);
+                setRate22crt(rate);
+            } catch (error) {
+                console.error("🔴 Error fetching rates:", error);
+            }
+        };
+        fetchCurrentRate();
+    }, []);
+
+    // ✅ DERIVED VALUES — always in sync, never stale
+    const balanceAmountNum = Number(formData.balance_amount) || 0;
+    const balanceWeight =
+        rate22crt > 0 && balanceAmountNum > 0
+            ? (balanceAmountNum / rate22crt).toFixed(3)
+            : "";
+
+    const paidAmountNum = Number(formData.paid_amount) || 0;
+    const paidWeight =
+        rate22crt > 0 && paidAmountNum > 0
+            ? (paidAmountNum / rate22crt).toFixed(3)
+            : "";
+
+    console.log(
+        "🟡 balanceAmountNum:", balanceAmountNum,
+        "rate22crt:", rate22crt,
+        "balanceWeight:", balanceWeight
+    );
 
     const handleInputChange = (e) => {
         const { name, value } = e.target;
         setFormData((prevData) => {
             let updatedData = { ...prevData, [name]: value };
 
-            if (name === "rate_cut_wt" && parseFloat(value) > parseFloat(prevData.total_pure_wt)) {
-                alert("Rate Cut Weight cannot be greater than Total Pure Weight.");
-                return prevData;
-            }
-
+            // Auto-calc Rate Cut Amount = Rate Cut Wt × Rate Cut
             if (updatedData.rate_cut_wt && updatedData.rate_cut) {
-                updatedData.rate_cut_amt = parseFloat(updatedData.rate_cut_wt) * parseFloat(updatedData.rate_cut);
+                updatedData.rate_cut_amt =
+                    parseFloat(updatedData.rate_cut_wt) *
+                    parseFloat(updatedData.rate_cut);
             }
 
-            let paidAmount = updatedData.paid_amount ? parseFloat(updatedData.paid_amount) : 0;
-            if (updatedData.rate_cut_amt !== undefined) {
-                let calculatedBalance = updatedData.rate_cut_amt - paidAmount;
+            // Auto-calc Balance Amount = Rate Cut Amt − Paid Amt
+            const paidAmount = updatedData.paid_amount
+                ? parseFloat(updatedData.paid_amount)
+                : 0;
 
-                if (paidAmount > updatedData.rate_cut_amt) {
+            if (
+                updatedData.rate_cut_amt !== undefined &&
+                updatedData.rate_cut_amt !== ""
+            ) {
+                if (paidAmount > parseFloat(updatedData.rate_cut_amt)) {
                     alert("Paid Amount cannot be greater than Rate Cut Amount.");
                     return prevData;
                 }
-
-                updatedData.balance_amount = calculatedBalance;
+                updatedData.balance_amount =
+                    parseFloat(updatedData.rate_cut_amt) - paidAmount;
             }
 
             return updatedData;
         });
     };
 
-    const handleBack = () => {
-        navigate("/salestable");
-    };
+    const handleBack = () => navigate("/salestable");
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-
         try {
-            const response = await axios.post(`${baseURL}/sales-ratecuts`, formData);
+            // ✅ Include derived weights in the payload
+            const payload = {
+                ...formData,
+                total_pure_wt: balanceWeight,
+                paid_wt: paidWeight,
+            };
+            console.log("📤 Submitting:", payload);
+            await axios.post(`${baseURL}/sales-ratecuts`, payload);
             alert("RateCut added successfully!");
             navigate("/salestable");
         } catch (error) {
@@ -78,18 +128,15 @@ const SalesRateCut = () => {
         const fetchRateCuts = async () => {
             try {
                 const response = await axios.get(`${baseURL}/sales-rateCuts`);
-                console.log("RateCuts Data:", response.data);
-
-                const filteredRateCuts = response.data.filter(rateCut => rateCut.sales_id === receivedData.sales_id);
-                setRateCuts(filteredRateCuts);
+                const filtered = response.data.filter(
+                    (rc) => rc.sales_id === receivedData.sales_id
+                );
+                setRateCuts(filtered);
             } catch (error) {
                 console.error("Error fetching rateCuts:", error);
             }
         };
-
-        if (receivedData.sales_id) {
-            fetchRateCuts();
-        }
+        if (receivedData.sales_id) fetchRateCuts();
     }, [receivedData.sales_id]);
 
     return (
@@ -116,15 +163,18 @@ const SalesRateCut = () => {
                             readOnly={!isEditable}
                         />
                     </Col>
+
+                    {/* ✅ Balance Weight — derived, always correct */}
                     <Col xs={12} md={2}>
                         <InputField
-                            label="Balance Weight"
+                            label={`Balance Weight (Rate: ${rate22crt || 0})`}
                             name="total_pure_wt"
-                            value={formData.total_pure_wt}
-                            onChange={handleInputChange}
-                            readOnly={!isEditable}
+                            value={balanceWeight}
+                            onChange={() => {}}
+                            readOnly
                         />
                     </Col>
+
                     <Col xs={12} md={2}>
                         <InputField
                             label="Rate Cut Wt"
@@ -170,7 +220,8 @@ const SalesRateCut = () => {
                             onChange={handleInputChange}
                         />
                     </Col>
-                    <div className="form-buttons" style={{ marginTop: '-1px' }}>
+
+                    <div className="form-buttons" style={{ marginTop: "-1px" }}>
                         <Button
                             variant="secondary"
                             className="cus-back-btn"
@@ -207,18 +258,18 @@ const SalesRateCut = () => {
                         </thead>
                         <tbody>
                             {rateCuts.length > 0 ? (
-                                rateCuts.map((rateCut, index) => (
-                                    <tr key={index}>
-                                        <td>{index + 1}</td>
-                                        <td>{rateCut.invoice}</td>
-                                        <td>{rateCut.category}</td>
-                                        <td>{rateCut.rate_cut_wt}</td>
-                                        <td>{rateCut.rate_cut}</td>
-                                        <td>{rateCut.rate_cut_amt}</td>
-                                        <td>{rateCut.paid_amount}</td>
-                                        <td>{rateCut.balance_amount}</td>
-                                        <td>{rateCut.paid_wt}</td>
-                                        <td>{rateCut.bal_wt}</td>
+                                rateCuts.map((rc, i) => (
+                                    <tr key={i}>
+                                        <td>{i + 1}</td>
+                                        <td>{rc.invoice}</td>
+                                        <td>{rc.category}</td>
+                                        <td>{rc.rate_cut_wt}</td>
+                                        <td>{rc.rate_cut}</td>
+                                        <td>{rc.rate_cut_amt}</td>
+                                        <td>{rc.paid_amount}</td>
+                                        <td>{rc.balance_amount}</td>
+                                        <td>{rc.paid_wt}</td>
+                                        <td>{rc.bal_wt}</td>
                                     </tr>
                                 ))
                             ) : (

@@ -132,21 +132,16 @@ const RepairsTable = () => {
     });
   };
 
-  const handleAddRateCut = (product) => {
-    const total_pure_wt =
-      (Number(product.total_pure_wt) || 0) -
-      ((Number(product.paid_pure_weight) || 0) + (Number(product.paid_wt) || 0));
-
-    const formatted_total_pure_wt = total_pure_wt.toFixed(3);
-    navigate("/ratecuts", {
-      state: {
-        invoice: product.invoice,
-        category: product.category,
-        purchase_id: product.id,
-        total_pure_wt: formatted_total_pure_wt,
-      },
-    });
-  };
+ const handleAddRateCut = (product) => {
+  navigate("/ratecuts", {
+    state: {
+      invoice: product.invoice,
+      category: product.category,
+      purchase_id: product.id,
+      total_pure_wt: Number(product.total_pure_wt) || 0,
+    },
+  });
+};
 
   const fetchBalance = async (product_id, tag_id) => {
     try {
