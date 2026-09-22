@@ -10,9 +10,6 @@ const SalesRateCut = () => {
     const navigate = useNavigate();
     const receivedData = location.state || {};
 
-    console.log("🔵 receivedData:", receivedData);
-    console.log("🔵 bal_after_receipts:", receivedData.bal_after_receipts);
-
     // ✅ Seed balance_amount with bal_after_receipts
     const initialBalanceAmount =
         receivedData.bal_after_receipts !== undefined &&
@@ -25,6 +22,7 @@ const SalesRateCut = () => {
         sales_id: receivedData.sales_id || "",
         invoice: receivedData.invoice || "",
         category: receivedData.category || "",
+        total_pure_wt: receivedData.total_weight_av || 0, // This is the initial total weight
         rate_cut_wt: "",
         rate_cut: "",
         rate_cut_amt: "",
@@ -42,7 +40,6 @@ const SalesRateCut = () => {
             try {
                 const response = await axios.get(`${baseURL}/get/current-rates`);
                 const rate = parseFloat(response.data?.rate_22crt || 0);
-                console.log("🟢 rate_22crt fetched:", rate);
                 setRate22crt(rate);
             } catch (error) {
                 console.error("🔴 Error fetching rates:", error);
@@ -51,24 +48,35 @@ const SalesRateCut = () => {
         fetchCurrentRate();
     }, []);
 
-    // ✅ DERIVED VALUES — always in sync, never stale
+    // ✅ Fetch existing rate cuts for this sale to calculate current balance weight
+    useEffect(() => {
+        const fetchRateCuts = async () => {
+            try {
+                const response = await axios.get(`${baseURL}/sales-rateCuts`);
+                const filtered = response.data.filter(
+                    (rc) => rc.sales_id === receivedData.sales_id
+                );
+                setRateCuts(filtered);
+            } catch (error) {
+                console.error("Error fetching rateCuts:", error);
+            }
+        };
+        if (receivedData.sales_id) fetchRateCuts();
+    }, [receivedData.sales_id]);
+
+    // ✅ DERIVED VALUES
     const balanceAmountNum = Number(formData.balance_amount) || 0;
-    const balanceWeight =
-        rate22crt > 0 && balanceAmountNum > 0
-            ? (balanceAmountNum / rate22crt).toFixed(3)
-            : "";
+    
+    // Calculate total used weight from existing rate cuts
+    const totalUsedWt = rateCuts.reduce((sum, rc) => sum + (parseFloat(rc.rate_cut_wt) || 0), 0);
+    // Current Balance Weight = Initial Total Weight - Total Used Weight
+    const currentBalanceWeight = Math.max(0, (Number(receivedData.total_weight_av) || 0) - totalUsedWt);
 
     const paidAmountNum = Number(formData.paid_amount) || 0;
     const paidWeight =
         rate22crt > 0 && paidAmountNum > 0
             ? (paidAmountNum / rate22crt).toFixed(3)
             : "";
-
-    console.log(
-        "🟡 balanceAmountNum:", balanceAmountNum,
-        "rate22crt:", rate22crt,
-        "balanceWeight:", balanceWeight
-    );
 
     const handleInputChange = (e) => {
         const { name, value } = e.target;
@@ -108,11 +116,12 @@ const SalesRateCut = () => {
     const handleSubmit = async (e) => {
         e.preventDefault();
         try {
-            // ✅ Include derived weights in the payload
+            // ✅ Ensure total_pure_wt passed to backend is the CURRENT balance weight
             const payload = {
                 ...formData,
-                total_pure_wt: balanceWeight,
+                total_pure_wt: currentBalanceWeight.toFixed(3), 
                 paid_wt: paidWeight,
+                bal_wt: (currentBalanceWeight - (paidWeight || 0)).toFixed(3) // Optional: pass calculated bal_wt
             };
             console.log("📤 Submitting:", payload);
             await axios.post(`${baseURL}/sales-ratecuts`, payload);
@@ -123,21 +132,6 @@ const SalesRateCut = () => {
             alert("Failed to save data.");
         }
     };
-
-    useEffect(() => {
-        const fetchRateCuts = async () => {
-            try {
-                const response = await axios.get(`${baseURL}/sales-rateCuts`);
-                const filtered = response.data.filter(
-                    (rc) => rc.sales_id === receivedData.sales_id
-                );
-                setRateCuts(filtered);
-            } catch (error) {
-                console.error("Error fetching rateCuts:", error);
-            }
-        };
-        if (receivedData.sales_id) fetchRateCuts();
-    }, [receivedData.sales_id]);
 
     return (
         <div className="main-container">
@@ -164,12 +158,12 @@ const SalesRateCut = () => {
                         />
                     </Col>
 
-                    {/* ✅ Balance Weight — derived, always correct */}
+                    {/* ✅ Balance Weight — derived dynamically */}
                     <Col xs={12} md={2}>
                         <InputField
                             label={`Balance Weight (Rate: ${rate22crt || 0})`}
                             name="total_pure_wt"
-                            value={balanceWeight}
+                            value={currentBalanceWeight.toFixed(3)}
                             onChange={() => {}}
                             readOnly
                         />

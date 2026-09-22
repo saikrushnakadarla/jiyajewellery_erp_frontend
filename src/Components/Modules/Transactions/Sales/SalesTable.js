@@ -12,7 +12,7 @@ const RepairsTable = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [data, setData] = useState([]);
-  const [rateCuts, setRateCuts] = useState([]); // live sales rate-cut data, same pattern as Purchase table
+  const [rateCuts, setRateCuts] = useState([]); 
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [repairDetails, setRepairDetails] = useState(null);
@@ -55,9 +55,6 @@ const RepairsTable = () => {
 
   const tabId = getTabId();
 
-  // fetchRepairs + fetchRateCuts re-run whenever we come back to this route
-  // (location.key changes on every navigation, including "back" from
-  // RateCut / Payment / Receipt pages), instead of only once on first mount.
   useEffect(() => {
     fetchRepairs();
     fetchRateCuts();
@@ -65,10 +62,6 @@ const RepairsTable = () => {
 
   const fetchRateCuts = async () => {
     try {
-      // FIXED: was `${baseURL}/salesRateCuts` — that route does not exist on
-      // the backend (router registers `/sales-rateCuts`, with a hyphen), so
-      // this request was 404ing silently and rateCuts state stayed [] forever.
-      // That's why Bal Amt (and Bal Wt) never reflected new rate cuts.
       const response = await axios.get(`${baseURL}/sales-rateCuts`);
       setRateCuts(response.data || []);
     } catch (error) {
@@ -76,7 +69,6 @@ const RepairsTable = () => {
     }
   };
 
-  // Same idea as Purchase table's getBalanceAmountForProduct, but keyed by sales_id
   const getBalanceAmountForSale = (salesId) => {
     const filtered = rateCuts.filter((rc) => rc.sales_id === salesId);
     const total = filtered.reduce(
@@ -86,13 +78,20 @@ const RepairsTable = () => {
     return total.toFixed(2);
   };
 
-  // NEW: mirrors backend's getSalesBalance logic (total_weight_av - sum of rate_cut_wt used)
+  // ✅ FIXED: Calculate Balance Weight dynamically 
+  // If no rate cuts exist, return 0.000. Otherwise, subtract used rate_cut_wt from total.
   const getBalanceWeightForSale = (salesId, totalWeightAv) => {
     const filtered = rateCuts.filter((rc) => rc.sales_id === salesId);
+    
+    if (filtered.length === 0) {
+      return "0.000"; // ✅ Initially show 0.000
+    }
+
     const usedWt = filtered.reduce(
       (sum, rc) => sum + (parseFloat(rc.rate_cut_wt) || 0),
       0
     );
+    // Initial total weight minus all rate cut weights used
     const balance = (Number(totalWeightAv) || 0) - usedWt;
     return Math.max(0, balance).toFixed(3);
   };
@@ -131,18 +130,24 @@ const RepairsTable = () => {
         Cell: ({ value }) => value || 0,
       },
       {
+        // ✅ FIXED: Sums up paid_amt, receipts_amt, AND rateCuts paid_amount
         Header: 'Paid Amt',
         accessor: 'paid_amt',
         Cell: ({ row }) => {
+          const salesId = row.original.id;
           const paid_amt = Number(row.original.paid_amt) || 0;
           const receipts_amt = Number(row.original.receipts_amt) || 0;
-          return (paid_amt + receipts_amt).toFixed(2);
+          
+          // Sum paid_amount from all rate cuts for this sale
+          const rateCutsPaidTotal = rateCuts
+            .filter((rc) => rc.sales_id === salesId)
+            .reduce((sum, rc) => sum + (parseFloat(rc.paid_amount) || 0), 0);
+
+          const totalPaid = paid_amt + receipts_amt + rateCutsPaidTotal;
+          return totalPaid.toFixed(2);
         },
       },
       {
-        // Bal Amt prefers live rate-cut data (same source of truth the
-        // RateCut page writes to) and only falls back to the static
-        // bal_amt / bal_after_receipts fields when this sale has no rate cuts.
         Header: 'Bal Amt',
         accessor: 'bal_amt',
         Cell: ({ row }) => {
@@ -166,21 +171,12 @@ const RepairsTable = () => {
         },
       },
       {
-        // NEW: Bal Wt, mirroring Purchase table's Bal Wt column.
-        // Prefers live rate-cut weight usage; falls back to total_weight_av
-        // when this sale has no rate cuts yet.
         Header: 'Bal Wt',
         accessor: 'total_weight_av',
         Cell: ({ row }) => {
           const salesId = row.original.id;
           const totalWeightAv = row.original.total_weight_av;
-          const hasRateCuts = rateCuts.some((rc) => rc.sales_id === salesId);
-
-          if (hasRateCuts) {
-            return getBalanceWeightForSale(salesId, totalWeightAv);
-          }
-
-          return (Number(totalWeightAv) || 0).toFixed(3);
+          return getBalanceWeightForSale(salesId, totalWeightAv);
         },
       },
       {
@@ -201,7 +197,14 @@ const RepairsTable = () => {
         accessor: 'receipts',
         Cell: ({ row }) => {
           const { net_bill_amount, paid_amt, receipts_amt } = row.original;
-          const totalPaid = Number(paid_amt) + Number(receipts_amt);
+          
+          // Include rate cuts in total paid calculation to determine if receipt button is disabled
+          const salesId = row.original.id;
+          const rateCutsPaidTotal = rateCuts
+            .filter((rc) => rc.sales_id === salesId)
+            .reduce((sum, rc) => sum + (parseFloat(rc.paid_amount) || 0), 0);
+
+          const totalPaid = Number(paid_amt) + Number(receipts_amt) + rateCutsPaidTotal;
           const netBill = Number(net_bill_amount);
 
           return (
@@ -282,7 +285,7 @@ const RepairsTable = () => {
         ),
       },
     ],
-    [userName, rateCuts] // rateCuts included so Bal Amt / Bal Wt cells re-render with fresh data
+    [userName, rateCuts] 
   );
 
   function isCurrentDate(dateString) {
@@ -358,7 +361,6 @@ const RepairsTable = () => {
     }
   };
 
-  // ✅ Compute final balance amount correctly and pass to RateCut page
   const handleAddRateCut = (product) => {
     const bal_amt = Number(product.bal_amt) || 0;
     const bal_after_receipts = Number(product.bal_after_receipts) || 0;
@@ -376,7 +378,7 @@ const RepairsTable = () => {
         invoice: product.invoice_number,
         category: product.category || product.product_name,
         sales_id: product.id,
-        total_weight_av: Number(product.total_weight_av) || 0,
+        total_weight_av: Number(product.total_weight_av) || 0, // Pass initial total weight
         bal_after_receipts: finalBalanceAmount,
       },
     });
