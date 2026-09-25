@@ -231,59 +231,67 @@ const CustomerDetails = ({
   }, [location.state?.selectedMobile, customers]);
 
   // Fetch customer packets
-  const fetchCustomerPackets = async () => {
-    console.log("========== FETCHING CUSTOMER PACKETS ==========");
-    
-    const selectedCustomerId = formData.customer_id || formData.cust_id;
-    console.log("Selected Customer ID (account_id) from formData:", selectedCustomerId);
-    
-    if (!selectedCustomerId) {
-      console.log("❌ No customer selected");
-      alert("Please select a customer first");
-      return;
-    }
+// Fetch customer packets
+const fetchCustomerPackets = async () => {
+  console.log("========== FETCHING CUSTOMER PACKETS ==========");
+  
+  const selectedCustomerId = formData.customer_id || formData.cust_id;
+  console.log("Selected Customer ID (account_id) from formData:", selectedCustomerId);
+  
+  if (!selectedCustomerId) {
+    console.log("❌ No customer selected");
+    alert("Please select a customer first");
+    return;
+  }
 
-    setLoadingPackets(true);
-    try {
-      console.log("📡 Fetching all estimates from API...");
-      const response = await axios.get(`${baseURL2}/get/estimates`);
-      const allEstimates = Array.isArray(response.data) ? response.data : [];
+  setLoadingPackets(true);
+  try {
+    console.log("📡 Fetching all estimates from API...");
+    const response = await axios.get(`${baseURL2}/get/estimates`);
+    const allEstimates = Array.isArray(response.data) ? response.data : [];
+    
+    console.log("✅ Total estimates fetched:", allEstimates.length);
+    
+    const filteredPackets = allEstimates.filter(estimate => {
+      // ✅ FIX: match on customer_id (reliable, always populated by /add/estimate)
+      // instead of cust_id (inconsistently populated / corrupted by the old
+      // /edit/estimate/:id column-order bug).
+      const estimateCustomerId = estimate.customer_id;
+      const hasPacketBarcode = estimate.packet_barcode && 
+                               estimate.packet_barcode !== null && 
+                               estimate.packet_barcode !== 'null' &&
+                               estimate.packet_barcode !== '';
       
-      console.log("✅ Total estimates fetched:", allEstimates.length);
+      const isMatch = String(estimateCustomerId) === String(selectedCustomerId);
       
-      const filteredPackets = allEstimates.filter(estimate => {
-        const estimateCustId = estimate.cust_id;
-        const hasPacketBarcode = estimate.packet_barcode && 
-                                 estimate.packet_barcode !== null && 
-                                 estimate.packet_barcode !== 'null' &&
-                                 estimate.packet_barcode !== '';
-        
-        // NOTE: this compares estimate.cust_id against the account_id now
-        // being stored in formData.customer_id. Confirm your estimates
-        // table's cust_id actually stores account_id values — if it stores
-        // a different customer PK, this match will silently return nothing.
-        const isMatch = String(estimateCustId) === String(selectedCustomerId);
-        
-        if (isMatch && hasPacketBarcode) {
-          console.log(`✅ MATCH FOUND!`);
-          console.log(`   Estimate: ${estimate.estimate_number}`);
-          console.log(`   Cust ID: ${estimateCustId}`);
-          console.log(`   Packet Barcode: ${estimate.packet_barcode}`);
-        }
-        
-        return isMatch && hasPacketBarcode;
-      });
+      if (isMatch && hasPacketBarcode) {
+        console.log(`✅ MATCH FOUND!`);
+        console.log(`   Estimate: ${estimate.estimate_number}`);
+        console.log(`   Customer ID: ${estimateCustomerId}`);
+        console.log(`   Packet Barcode: ${estimate.packet_barcode}`);
+      }
       
-      console.log(`✅ Filtered packets count: ${filteredPackets.length}`);
-      setPacketData(filteredPackets);
-      setShowPacketModal(true);
-    } catch (error) {
-      console.error("❌ Error fetching estimates:", error);
-      alert("Failed to fetch packet details");
-    } finally {
-      setLoadingPackets(false);
+      return isMatch && hasPacketBarcode;
+    });
+    
+    console.log(`✅ Filtered packets count: ${filteredPackets.length}`);
+    setPacketData(filteredPackets);
+    setShowPacketModal(true);
+  } catch (error) {
+    console.error("❌ Error fetching estimates:", error);
+    if (error.response) {
+      console.error("Status:", error.response.status, "Data:", error.response.data);
+      alert(`Server error (${error.response.status}): ${error.response.data?.message || 'check console'}`);
+    } else if (error.request) {
+      console.error("No response received. Check baseURL2, CORS, and that the server is running:", baseURL2);
+      alert(`Could not reach the server at ${baseURL2}. This is usually CORS, a wrong URL, or the server being down — check console/network tab.`);
+    } else {
+      alert(`Request setup error: ${error.message}`);
     }
-  };
+  } finally {
+    setLoadingPackets(false);
+  }
+};
 
   // Fetch products for selected packet
   const fetchProductsForPacket = async (packetBarcode) => {
