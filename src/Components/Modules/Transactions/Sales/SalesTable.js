@@ -12,7 +12,7 @@ const RepairsTable = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [data, setData] = useState([]);
-  const [rateCuts, setRateCuts] = useState([]); 
+  const [rateCuts, setRateCuts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [repairDetails, setRepairDetails] = useState(null);
@@ -21,6 +21,8 @@ const RepairsTable = () => {
   const [selectedProduct, setSelectedProduct] = useState(null);
 
   const { authToken, userId, userName, role } = useContext(AuthContext);
+
+  const [goldRate, setGoldRate] = useState(0);
 
   const { mobile } = location.state || {};
   const initialSearchValue = location.state?.mobile || '';
@@ -56,6 +58,19 @@ const RepairsTable = () => {
   const tabId = getTabId();
 
   useEffect(() => {
+    const fetchGoldRate = async () => {
+      try {
+        const response = await axios.get(`${baseURL}/get/current-rates`);
+        const rate = parseFloat(response.data?.rate_22crt || 0);
+        setGoldRate(rate);
+      } catch (error) {
+        console.error("Error fetching gold rate:", error);
+      }
+    };
+    fetchGoldRate();
+  }, []);
+
+  useEffect(() => {
     fetchRepairs();
     fetchRateCuts();
   }, [location.key]);
@@ -69,31 +84,35 @@ const RepairsTable = () => {
     }
   };
 
+  // ✅ Bal Amt = sum of all ratecuts' remaining balance_amount
   const getBalanceAmountForSale = (salesId) => {
     const filtered = rateCuts.filter((rc) => rc.sales_id === salesId);
-    const total = filtered.reduce(
+    const totalRemaining = filtered.reduce(
       (sum, rc) => sum + (parseFloat(rc.balance_amount) || 0),
       0
     );
-    return total.toFixed(2);
+    return totalRemaining.toFixed(2);
   };
 
-  // ✅ FIXED: Calculate Balance Weight dynamically 
-  // If no rate cuts exist, return 0.000. Otherwise, subtract used rate_cut_wt from total.
-  const getBalanceWeightForSale = (salesId, totalWeightAv) => {
+  // ✅ Bal Wt = (initialBalanceAmount / goldRate) − sum(rate_cut_wt)
+  // ⚠️ Uses rate_cut_wt (fixed at ratecut creation) NOT bal_wt (which decreases with payments)
+  const getBalanceWeightForSale = (salesId, initialBalanceAmount) => {
     const filtered = rateCuts.filter((rc) => rc.sales_id === salesId);
-    
-    if (filtered.length === 0) {
-      return "0.000"; // ✅ Initially show 0.000
-    }
 
-    const usedWt = filtered.reduce(
+    if (filtered.length === 0) return "0.000";
+    if (goldRate <= 0) return "0.000";
+
+    // Total wt that has been rate-cut (fixed)
+    const totalRateCutWt = filtered.reduce(
       (sum, rc) => sum + (parseFloat(rc.rate_cut_wt) || 0),
       0
     );
-    // Initial total weight minus all rate cut weights used
-    const balance = (Number(totalWeightAv) || 0) - usedWt;
-    return Math.max(0, balance).toFixed(3);
+
+    // Initial balance in grams = initial balance amount / gold rate
+    const initialBalanceWt = (Number(initialBalanceAmount) || 0) / goldRate;
+
+    const remainingWt = Math.max(0, initialBalanceWt - totalRateCutWt);
+    return remainingWt.toFixed(3);
   };
 
   const columns = React.useMemo(
@@ -130,15 +149,14 @@ const RepairsTable = () => {
         Cell: ({ value }) => value || 0,
       },
       {
-        // ✅ FIXED: Sums up paid_amt, receipts_amt, AND rateCuts paid_amount
         Header: 'Paid Amt',
         accessor: 'paid_amt',
         Cell: ({ row }) => {
           const salesId = row.original.id;
           const paid_amt = Number(row.original.paid_amt) || 0;
           const receipts_amt = Number(row.original.receipts_amt) || 0;
-          
-          // Sum paid_amount from all rate cuts for this sale
+
+          // ✅ Sum paid_amount from all ratecuts (includes initial + receipt payments)
           const rateCutsPaidTotal = rateCuts
             .filter((rc) => rc.sales_id === salesId)
             .reduce((sum, rc) => sum + (parseFloat(rc.paid_amount) || 0), 0);
@@ -147,36 +165,50 @@ const RepairsTable = () => {
           return totalPaid.toFixed(2);
         },
       },
-      {
-        Header: 'Bal Amt',
-        accessor: 'bal_amt',
-        Cell: ({ row }) => {
-          const salesId = row.original.id;
-          const hasRateCuts = rateCuts.some((rc) => rc.sales_id === salesId);
+     {
+  Header: 'Bal Amt',
+  accessor: 'bal_amt',
+  Cell: ({ row }) => {
+    const salesId = row.original.id;
+    const hasRateCuts = rateCuts.some((rc) => rc.sales_id === salesId);
 
-          if (hasRateCuts) {
-            return getBalanceAmountForSale(salesId);
-          }
+    if (hasRateCuts) {
+      return getBalanceAmountForSale(salesId);
+    }
 
-          const bal_amt = Number(row.original.bal_amt) || 0;
-          const bal_after_receipts = Number(row.original.bal_after_receipts) || 0;
-          const receipts_amt = Number(row.original.receipts_amt) || 0;
-          let finalBalance;
-          if (bal_amt === receipts_amt) {
-            finalBalance = bal_after_receipts || 0;
-          } else {
-            finalBalance = bal_after_receipts ? bal_after_receipts : bal_amt || 0;
-          }
-          return finalBalance.toFixed(2);
-        },
-      },
+    // No ratecuts → original logic
+    const bal_amt = Number(row.original.bal_amt) || 0;
+    const bal_after_receipts = Number(row.original.bal_after_receipts) || 0;
+    const receipts_amt = Number(row.original.receipts_amt) || 0;
+    let finalBalance;
+    if (bal_amt === receipts_amt) {
+      finalBalance = bal_after_receipts || 0;
+    } else {
+      finalBalance = bal_after_receipts ? bal_after_receipts : bal_amt || 0;
+    }
+    return finalBalance.toFixed(2);
+  },
+},
       {
         Header: 'Bal Wt',
         accessor: 'total_weight_av',
         Cell: ({ row }) => {
           const salesId = row.original.id;
-          const totalWeightAv = row.original.total_weight_av;
-          return getBalanceWeightForSale(salesId, totalWeightAv);
+          const hasRateCuts = rateCuts.some((rc) => rc.sales_id === salesId);
+          if (!hasRateCuts) return "0.000";
+
+          const bal_amt = Number(row.original.bal_amt) || 0;
+          const bal_after_receipts = Number(row.original.bal_after_receipts) || 0;
+          const receipts_amt = Number(row.original.receipts_amt) || 0;
+
+          let initialBalanceAmount;
+          if (bal_amt === receipts_amt) {
+            initialBalanceAmount = bal_after_receipts || 0;
+          } else {
+            initialBalanceAmount = bal_after_receipts || bal_amt || 0;
+          }
+
+          return getBalanceWeightForSale(salesId, initialBalanceAmount);
         },
       },
       {
@@ -197,7 +229,7 @@ const RepairsTable = () => {
         accessor: 'receipts',
         Cell: ({ row }) => {
           const { net_bill_amount, paid_amt, receipts_amt } = row.original;
-          
+
           // Include rate cuts in total paid calculation to determine if receipt button is disabled
           const salesId = row.original.id;
           const rateCutsPaidTotal = rateCuts
@@ -285,7 +317,7 @@ const RepairsTable = () => {
         ),
       },
     ],
-    [userName, rateCuts] 
+    [userName, rateCuts, goldRate]
   );
 
   function isCurrentDate(dateString) {
@@ -366,11 +398,11 @@ const RepairsTable = () => {
     const bal_after_receipts = Number(product.bal_after_receipts) || 0;
     const receipts_amt = Number(product.receipts_amt) || 0;
 
-    let finalBalanceAmount;
+    let originalBalance;
     if (bal_amt === receipts_amt) {
-      finalBalanceAmount = bal_after_receipts || 0;
+      originalBalance = bal_after_receipts || 0;
     } else {
-      finalBalanceAmount = bal_after_receipts ? bal_after_receipts : bal_amt || 0;
+      originalBalance = bal_after_receipts || bal_amt || 0;
     }
 
     navigate("/sales-ratecuts", {
@@ -378,8 +410,8 @@ const RepairsTable = () => {
         invoice: product.invoice_number,
         category: product.category || product.product_name,
         sales_id: product.id,
-        total_weight_av: Number(product.total_weight_av) || 0, // Pass initial total weight
-        bal_after_receipts: finalBalanceAmount,
+        total_weight_av: 0, // ✅ no longer used for balance wt
+        bal_after_receipts: originalBalance,
       },
     });
   };
@@ -534,7 +566,7 @@ const RepairsTable = () => {
             data={data}
             initialSearchValue={initialSearchValue}
             expandedRows={{}}
-            toggleRowExpansion={() => {}}
+            toggleRowExpansion={() => { }}
           />
         )}
       </div>

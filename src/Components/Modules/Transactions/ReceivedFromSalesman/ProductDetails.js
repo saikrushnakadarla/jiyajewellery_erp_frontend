@@ -1687,7 +1687,7 @@ const ProductDetails = ({
                     </Button>
                     {receivedCaptureWeightOfBag > 0 && assignedCaptureWeight > 0 && (
                       doWeightsMatch
-                        ? <span style={{ color: '#28a745', fontWeight: 'bold' }}>✅ Match</span>
+                        ? <span style={{ color: '#28a745', fontWeight: 'bold' }}>✅ Matched</span>
                         : <span style={{ color: '#dc3545', fontWeight: 'bold' }}>❌ Mismatch</span>
                     )}
                   </div>
