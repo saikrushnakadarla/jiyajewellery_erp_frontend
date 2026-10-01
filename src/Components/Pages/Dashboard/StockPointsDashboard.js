@@ -178,6 +178,7 @@ function StockPointDashboard() {
           barcode: visit.barcode,
           scheduled_date: visit.scheduled_date,
           status: visit.status,
+          salesman_id: visit.salesman_id,
           salesman_name: visit.salesman_name,
           salesman_photo: visit.salesman_photo || null,
           customer_status: visit.customer_status || 'Scheduled',
@@ -378,15 +379,12 @@ function StockPointDashboard() {
     }
   };
 
-  // Get unique salesman details for a customer
+  // Get unique salesman ids for a customer's visits
   const getSalesmanDetails = (visits) => {
     const salesmanMap = {};
     visits.forEach(v => {
-      if (v.salesman_name && !salesmanMap[v.salesman_name]) {
-        salesmanMap[v.salesman_name] = {
-          name: v.salesman_name,
-          photo: v.salesman_photo || null
-        };
+      if (v.salesman_id && !salesmanMap[v.salesman_id]) {
+        salesmanMap[v.salesman_id] = { id: v.salesman_id };
       }
     });
     return Object.values(salesmanMap);
@@ -449,174 +447,21 @@ function StockPointDashboard() {
                       transition: 'all 0.3s ease'
                     }}>
                       <Card.Body style={{ padding: '0' }}>
-                        {/* Header with Customer Name, ID and Status */}
-                        <div style={{
-                          padding: '18px 24px',
-                          background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
-                          borderBottom: '1px solid #e2e8f0',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                          gap: '12px',
-                          flexWrap: 'wrap'
-                        }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                            <div style={{
-                              width: '48px',
-                              height: '48px',
-                              borderRadius: '50%',
-                              background: 'linear-gradient(135deg, #8b5cf6, #6366f1)',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              fontSize: '20px',
-                              fontWeight: '600',
-                              color: '#fff',
-                              flexShrink: 0,
-                              boxShadow: '0 4px 12px rgba(99, 102, 241, 0.3)'
-                            }}>
-                              {customer.customer_name?.charAt(0) || 'C'}
-                            </div>
-                            <div>
-                              <h6 style={{ margin: 0, fontSize: '16px', fontWeight: 600, color: '#0f172a' }}>
-                                {customer.customer_name || 'Unknown Customer'}
-                              </h6>
-                              <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>
-                                <span style={{ fontWeight: 500, color: '#475569' }}>ID:</span> {customer.customer_id || 'N/A'}
-                              </div>
-                            </div>
-                          </div>
-                          <Badge 
-                            bg={getStatusBadgeColor(customer.customer_status)} 
-                            style={{ 
-                              fontSize: '12px', 
-                              padding: '6px 16px', 
-                              borderRadius: '20px',
-                              fontWeight: 500,
-                              boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
-                            }}
-                          >
-                            {customer.customer_status || 'Scheduled'}
-                          </Badge>
-                        </div>
-
-                        {/* Address Section with Icons */}
-                        <div style={{ 
-                          padding: '16px 24px', 
-                          borderBottom: '1px solid #f1f5f9',
-                          backgroundColor: '#ffffff'
-                        }}>
-                          <div style={{ 
-                            display: 'grid', 
-                            gridTemplateColumns: '1fr',
-                            gap: '6px'
-                          }}>
-                            {customer.address1 && (
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                <span style={{ color: '#64748b', fontSize: '16px', width: '20px' }}>🏠</span>
-                                <span style={{ fontSize: '13px', color: '#334155' }}>
-                                  <strong>Address 1:</strong> {customer.address1}
-                                </span>
-                              </div>
-                            )}
-                            {customer.address2 && (
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                <span style={{ color: '#64748b', fontSize: '16px', width: '20px' }}>📍</span>
-                                <span style={{ fontSize: '13px', color: '#334155' }}>
-                                  <strong>Address 2:</strong> {customer.address2}
-                                </span>
-                              </div>
-                            )}
-                            {customer.city && (
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                <span style={{ color: '#64748b', fontSize: '16px', width: '20px' }}>🏙️</span>
-                                <span style={{ fontSize: '13px', color: '#334155' }}>
-                                  <strong>City:</strong> {customer.city}
-                                </span>
-                              </div>
-                            )}
-                            {customer.district && (
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                <span style={{ color: '#64748b', fontSize: '16px', width: '20px' }}>🗺️</span>
-                                <span style={{ fontSize: '13px', color: '#334155' }}>
-                                  <strong>District:</strong> {customer.district}
-                                </span>
-                              </div>
-                            )}
-                            {customer.state && (
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                <span style={{ color: '#64748b', fontSize: '16px', width: '20px' }}>🏛️</span>
-                                <span style={{ fontSize: '13px', color: '#334155' }}>
-                                  <strong>State:</strong> {customer.state}
-                                </span>
-                              </div>
-                            )}
-                            {customer.pincode && (
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                <span style={{ color: '#64748b', fontSize: '16px', width: '20px' }}>📮</span>
-                                <span style={{ fontSize: '13px', color: '#334155' }}>
-                                  <strong>Pincode:</strong> {customer.pincode}
-                                </span>
-                              </div>
-                            )}
-                            {!customer.address1 && !customer.city && !customer.state && (
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                <span style={{ color: '#94a3b8', fontSize: '16px', width: '20px' }}>📍</span>
-                                <span style={{ fontSize: '13px', color: '#94a3b8' }}>
-                                  No address available
-                                </span>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Status Details Section */}
+                        {/* Today Date */}
                         <div style={{
                           backgroundColor: '#f8fafc',
                           padding: '14px 24px',
                           borderBottom: '1px solid #f1f5f9'
                         }}>
-                          {customer.customer_status?.toLowerCase() === 'scheduled' && customer.visits.length > 0 && (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-                              <span style={{ color: '#3b82f6', fontSize: '18px' }}>📋</span>
-                              <span style={{ fontSize: '13px', color: '#334155' }}>
-                                <strong style={{ color: '#1e293b' }}>Scheduled:</strong> {formatDateTime(customer.visits[0]?.scheduled_date)}
-                              </span>
-                            </div>
-                          )}
-                          
-                          {customer.customer_status?.toLowerCase() === 'not available' && customer.reschedule_date && (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-                              <span style={{ color: '#ef4444', fontSize: '18px' }}>🔄</span>
-                              <span style={{ fontSize: '13px', color: '#334155' }}>
-                                <strong style={{ color: '#1e293b' }}>Rescheduled:</strong> {formatDateTime(customer.reschedule_date)}
-                              </span>
-                              {customer.reschedule_notes && (
-                                <span style={{ 
-                                  fontSize: '12px', 
-                                  color: '#64748b',
-                                  backgroundColor: '#f1f5f9',
-                                  padding: '2px 12px',
-                                  borderRadius: '12px',
-                                  marginLeft: '4px'
-                                }}>
-                                  📝 {customer.reschedule_notes}
-                                </span>
-                              )}
-                            </div>
-                          )}
-
-                          {customer.customer_status?.toLowerCase() === 'available' && (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                              <span style={{ color: '#22c55e', fontSize: '18px' }}>✅</span>
-                              <span style={{ fontSize: '13px', color: '#334155' }}>
-                                <strong style={{ color: '#1e293b' }}>Status:</strong> Available - Visit completed
-                              </span>
-                            </div>
-                          )}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                            <span style={{ color: '#3b82f6', fontSize: '18px' }}>📋</span>
+                            <span style={{ fontSize: '13px', color: '#334155' }}>
+                              <strong style={{ color: '#1e293b' }}>Date:</strong> {formatDateTime(customer.visits[0]?.scheduled_date)}
+                            </span>
+                          </div>
                         </div>
 
-                        {/* Salesman Details with Photos */}
+                        {/* Visits */}
                         <div style={{
                           padding: '14px 24px',
                           display: 'flex',
@@ -647,7 +492,7 @@ function StockPointDashboard() {
                           </Badge>
                         </div>
 
-                        {/* Salesman Photos Section */}
+                        {/* Salesman ID (no photo / no name) */}
                         {salesmanDetails.length > 0 && (
                           <div style={{
                             padding: '12px 24px',
@@ -661,56 +506,18 @@ function StockPointDashboard() {
                             <span style={{ fontSize: '13px', fontWeight: 500, color: '#475569' }}>
                               👤 Salesman:
                             </span>
-                            {salesmanDetails.map((salesman, idx) => (
-                              <div key={idx} style={{ 
+                            {salesmanDetails.map((salesman) => (
+                              <div key={salesman.id} style={{ 
                                 display: 'flex', 
                                 alignItems: 'center', 
-                                gap: '8px',
                                 backgroundColor: '#ffffff',
-                                padding: '4px 12px 4px 4px',
+                                padding: '6px 14px',
                                 borderRadius: '50px',
                                 boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
                                 border: '1px solid #e2e8f0'
                               }}>
-                                {salesman.photo ? (
-                                  <img 
-                                    src={`${baseURL}${salesman.photo}`} 
-                                    alt={salesman.name}
-                                    style={{
-                                      width: '32px',
-                                      height: '32px',
-                                      borderRadius: '50%',
-                                      objectFit: 'cover',
-                                      border: '2px solid #e2e8f0'
-                                    }}
-                                    onError={(e) => {
-                                      e.target.style.display = 'none';
-                                      e.target.parentElement.innerHTML = `
-                                        <div style="width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#8b5cf6,#6366f1);display:flex;align-items:center;justify-content:center;color:#fff;font-size:14px;font-weight:600;flex-shrink:0;">
-                                          ${salesman.name.charAt(0)}
-                                        </div>
-                                      `;
-                                    }}
-                                  />
-                                ) : (
-                                  <div style={{
-                                    width: '32px',
-                                    height: '32px',
-                                    borderRadius: '50%',
-                                    background: 'linear-gradient(135deg, #8b5cf6, #6366f1)',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    color: '#fff',
-                                    fontSize: '14px',
-                                    fontWeight: 600,
-                                    flexShrink: 0
-                                  }}>
-                                    {salesman.name.charAt(0)}
-                                  </div>
-                                )}
                                 <span style={{ fontSize: '13px', color: '#334155', fontWeight: 500 }}>
-                                  {salesman.name}
+                                  ID: {salesman.id}
                                 </span>
                               </div>
                             ))}
