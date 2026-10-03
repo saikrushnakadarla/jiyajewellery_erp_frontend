@@ -208,7 +208,8 @@ const VisitLogsWarehouseSchedule = () => {
         warehouse_id: item.warehouse_id,
         warehouse_name: item.warehouse_name,
         status: item.status,
-        description: item.description
+        description: item.description,
+        salesman_ids: item.salesman_ids // 👈 ADDED: needed to filter salesmen per stock point
       }));
       console.log(`✅ Stock points found: ${mappedData.length}`);
       setStockPoints(mappedData);
@@ -284,6 +285,27 @@ const VisitLogsWarehouseSchedule = () => {
     }
   };
 
+  // ========== FILTER SALESMEN BY SELECTED STOCK POINT ==========
+  // Compares stockpoints API `salesman_ids` (e.g. "77,72")
+  // with account-details API `account_id`
+  const getFilteredSalesmen = () => {
+    if (!formData.warehouse_id) return [];
+
+    const selectedSP = stockPoints.find(
+      sp => sp.id === parseInt(formData.warehouse_id)
+    );
+    if (!selectedSP || !selectedSP.salesman_ids) return [];
+
+    // "77,72" -> [77, 72]
+    const allowedIds = String(selectedSP.salesman_ids)
+      .split(',')
+      .map(id => parseInt(id.trim()))
+      .filter(id => !isNaN(id));
+
+    return salesmen.filter(s => allowedIds.includes(s.account_id));
+  };
+  // =============================================================
+
   // Handle stock point selection change
   const handleStockPointChange = (e) => {
     const { value } = e.target;
@@ -291,7 +313,12 @@ const VisitLogsWarehouseSchedule = () => {
     setFormData(prev => ({
       ...prev,
       warehouse_id: value,
-      barcodes: []
+      barcodes: [],
+      // 👇 ADDED: reset salesman (and photo) because the salesman list changes per stock point
+      salesman_id: '',
+      salesman_photo: null,
+      salesman_photo_preview: null,
+      salesman_photo_path: null
     }));
     setSelectedBarcodeDetails([]);
     
@@ -1141,7 +1168,7 @@ const VisitLogsWarehouseSchedule = () => {
                       </Form.Group>
                     </Col>
 
-                    {/* Salesman Dropdown */}
+                    {/* Salesman Dropdown - filtered by selected stock point */}
                     <Col lg={3} md={6} className="mb-3">
                       <Form.Group>
                         <Form.Label className="vlws-label">
@@ -1152,17 +1179,22 @@ const VisitLogsWarehouseSchedule = () => {
                           value={formData.salesman_id}
                           onChange={handleInputChange}
                           className="vlws-select"
+                          disabled={!formData.warehouse_id}
                         >
-                          <option value="">-- Select Salesman (Optional) --</option>
-                          {salesmen.map(salesman => (
+                          <option value="">
+                            {!formData.warehouse_id
+                              ? '-- Select Stock Point First --'
+                              : '-- Select Salesman (Optional) --'}
+                          </option>
+                          {getFilteredSalesmen().map(salesman => (
                             <option key={salesman.account_id} value={salesman.account_id}>
                               {salesman.account_name} {salesman.phone ? `(${salesman.phone})` : ''}
                             </option>
                           ))}
                         </Form.Select>
-                        {salesmen.length === 0 && (
+                        {formData.warehouse_id && getFilteredSalesmen().length === 0 && (
                           <small className="text-muted mt-1 d-block">
-                            No salesmen available. You can assign later.
+                            No salesmen assigned to this stock point.
                           </small>
                         )}
                       </Form.Group>
