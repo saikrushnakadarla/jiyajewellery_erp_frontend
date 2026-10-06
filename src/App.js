@@ -117,6 +117,9 @@ import AdminReceivedSalesmanTable from "./Components/Modules/Transactions/AdminR
 import AdminReturnToMainStockTable from "./Components/Modules/Transactions/AdminReturnToMainStock/AdminReturnToMainStockTable";
 
 
+import GSTR1Report from "./Components/Modules/Transactions/GSTRReports/GSTRReports"; // adjust path
+
+
 
 function App() {
   const location = useLocation();
@@ -218,6 +221,14 @@ function App() {
               <ItemMasterTable />
             </ProtectedRoute>
           } />
+
+
+
+          <Route path="/gstr1Report" element={
+                // <ProtectedRoute>
+                  <GSTR1Report />
+                // </ProtectedRoute>
+            } />
           
           <Route path="/estimates/" element={
             <ProtectedRoute>

@@ -573,6 +573,14 @@ function Navbar() {
                 Item Sale Report
               </Link>
 
+              <Link
+                  to="/gstr1Report"
+                  onClick={handleItemClick}
+                  className={isActive("/gstr1Report")}
+                >
+                  GSTR1 Report
+              </Link>
+
               {/* ===== FIXED: Warehouse Report Items with SIDE-OPENING dropdown ===== */}
               <div
                 className="navbar-dropdown nested-dropdown"

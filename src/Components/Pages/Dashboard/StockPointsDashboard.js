@@ -393,7 +393,7 @@ function StockPointDashboard() {
   return (
     <div className="main-container" style={{ backgroundColor: '#b7721834', minHeight: '100vh' }}>
       <div className="dashboard-header">
-        <h2 style={{ marginTop: "65px", marginLeft: "15px" }}>
+        <h2 style={{ marginTop: "50px", marginLeft: "15px" }}>
           Welcome, {userName || getCurrentStockPoint() || 'Stock Point User'}
         </h2>
         <p style={{ marginLeft: "15px", color: "#666" }}>

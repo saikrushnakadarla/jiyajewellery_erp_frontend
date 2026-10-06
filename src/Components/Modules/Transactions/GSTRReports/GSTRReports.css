@@ -1,0 +1,127 @@
+.sales-table-container {
+  max-width: 1500px;
+  margin: auto;
+  padding: 20px;
+  margin-top: 70px;
+  border-radius: 10px;
+  background-color: rgba(163, 110, 41, 0.08);
+}
+
+.gstr-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-end;
+  margin-bottom: 20px;
+  padding: 14px;
+  border-radius: 8px;
+  background-color: #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+}
+
+.gstr-filters .form-group {
+  display: flex;
+  flex-direction: column;
+  min-width: 160px;
+}
+
+.gstr-filters label {
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 4px;
+  color: #444;
+}
+
+.gstr-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.gstr-card {
+  background-color: #fff;
+  border-left: 4px solid #a36e29;
+  border-radius: 8px;
+  padding: 12px 14px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+}
+
+.gstr-card .gstr-card-label {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #777;
+}
+
+.gstr-card .gstr-card-value {
+  font-size: 18px;
+  font-weight: 700;
+  color: #222;
+  margin-top: 2px;
+}
+
+.gstr-tabs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+.gstr-tab-btn {
+  border: 1px solid #a36e29;
+  background: #fff;
+  color: #a36e29;
+  padding: 6px 16px;
+  border-radius: 20px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease-in-out;
+}
+
+.gstr-tab-btn.active,
+.gstr-tab-btn:hover {
+  background: #a36e29;
+  color: #fff;
+}
+
+.gstr-table-wrapper {
+  background-color: #fff;
+  border-radius: 8px;
+  padding: 10px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+  overflow-x: auto;
+}
+
+.gstr-error {
+  color: #b00020;
+  background: #fdecea;
+  border: 1px solid #f5c2c0;
+  padding: 8px 12px;
+  border-radius: 6px;
+  margin-bottom: 14px;
+}
+
+.gstr-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.gstr-badge.inter {
+  background: #fff3cd;
+  color: #7a5b00;
+}
+
+.gstr-badge.intra {
+  background: #d1e7dd;
+  color: #0f5132;
+}
+
+.text-right-num {
+  text-align: right;
+  white-space: nowrap;
+}
