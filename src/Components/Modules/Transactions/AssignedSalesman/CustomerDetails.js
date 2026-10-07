@@ -103,29 +103,23 @@ const CustomerDetails = ({
     }
   };
 
+  // ========== FIX: reset salesman when stock point changes ==========
   const handleActiveStockPointChange = (e) => {
     const value = e.target.value;
     console.log("Manual selection changed to:", value);
-    
+
+    const selectedStockPoint = value
+      ? stockPoints.find(sp => sp.stock_point_id === parseInt(value))
+      : null;
+
     setFormData(prev => ({
       ...prev,
-      active_stock_point_id: value
+      active_stock_point_id: value,
+      active_stock_point_details: selectedStockPoint || null,
+      // reset salesman because the salesman list changes per stock point
+      salesman_id: "",
+      salesman_name: null
     }));
-
-    if (value) {
-      const selectedStockPoint = stockPoints.find(sp => sp.stock_point_id === parseInt(value));
-      if (selectedStockPoint) {
-        setFormData(prev => ({
-          ...prev,
-          active_stock_point_details: selectedStockPoint
-        }));
-      }
-    } else {
-      setFormData(prev => ({
-        ...prev,
-        active_stock_point_details: null
-      }));
-    }
   };
 
   // UPDATED: When salesman changes, store both ID and name in formData
@@ -266,6 +260,28 @@ const CustomerDetails = ({
 
   // ============= END CAMERA FUNCTIONS =============
 
+  // ========== FILTER SALESMEN BY SELECTED STOCK POINT ==========
+  // stockpoints API `salesman_ids` (e.g. "77,72") vs account-details `account_id`
+  const getFilteredSalesmen = () => {
+    if (!formData.active_stock_point_id) return [];
+
+    const selectedSP = stockPoints.find(
+      sp => String(sp.stock_point_id) === String(formData.active_stock_point_id)
+    );
+    if (!selectedSP || !selectedSP.salesman_ids) return [];
+
+    const rawIds = Array.isArray(selectedSP.salesman_ids)
+      ? selectedSP.salesman_ids
+      : String(selectedSP.salesman_ids).split(',');
+
+    const allowedIds = rawIds
+      .map(id => parseInt(String(id).trim()))
+      .filter(id => !isNaN(id));
+
+    return salesmen.filter(s => allowedIds.includes(parseInt(s.account_id)));
+  };
+  // =============================================================
+
   // Prepare active stock point options
   const activeStockPointOptions = [
     { value: "", label: "Select Active Stock Point" },
@@ -275,10 +291,19 @@ const CustomerDetails = ({
     }))
   ];
 
-  // Prepare salesman options
+  // Prepare salesman options (filtered by selected stock point)
+  const filteredSalesmen = getFilteredSalesmen();
+
   const salesmanOptions = [
-    { value: "", label: "Select Salesman" },
-    ...salesmen.map(salesman => ({
+    {
+      value: "",
+      label: !formData.active_stock_point_id
+        ? "Select Stock Point First"
+        : filteredSalesmen.length === 0
+          ? "No salesmen assigned to this stock point"
+          : "Select Salesman"
+    },
+    ...filteredSalesmen.map(salesman => ({
       value: salesman.account_id.toString(),
       label: salesman.account_name
     }))
