@@ -76,6 +76,24 @@ const CustomerDetails = ({
     }
   }, [stockPoints, userName]);
 
+  // ========== NEW: when a salesman gets auto-selected from a barcode ==========
+  // useProductHandlers sets salesman_id (and name if the visit-logs API has it).
+  // If the name is still missing, look it up from the salesmen list so that
+  // alerts, scan messages and save remarks keep showing the proper name.
+  useEffect(() => {
+    if (formData.salesman_id && !formData.salesman_name && salesmen.length > 0) {
+      const found = salesmen.find(
+        s => String(s.account_id) === String(formData.salesman_id)
+      );
+      if (found) {
+        setFormData(prev => ({
+          ...prev,
+          salesman_name: found.account_name || ""
+        }));
+      }
+    }
+  }, [formData.salesman_id, formData.salesman_name, salesmen]);
+
   const fetchStockPoints = async () => {
     try {
       const response = await axios.get(`${baseURL}/api/stockpoints`);
@@ -122,7 +140,7 @@ const CustomerDetails = ({
     }));
   };
 
-  // UPDATED: When salesman changes, store both ID and name in formData
+  // When salesman changes manually, store both ID and name in formData
   const handleSalesmanChange = (e) => {
     const value = e.target.value;
     console.log("Salesman selected:", value);
@@ -303,9 +321,11 @@ const CustomerDetails = ({
           ? "No salesmen assigned to this stock point"
           : "Select Salesman"
     },
+    // CHANGED: show the Salesman ID in the dropdown instead of the name
+    // (salesman_name is still stored in formData for alerts / save remarks)
     ...filteredSalesmen.map(salesman => ({
       value: salesman.account_id.toString(),
-      label: salesman.account_name
+      label: salesman.account_id.toString()
     }))
   ];
 
@@ -330,7 +350,7 @@ const CustomerDetails = ({
 
         <Col xs={12} md={4}>
           <InputField
-            label="Salesman"
+            label="Salesman ID"
             name="salesman_id"
             type="select"
             value={formData.salesman_id || ""}
@@ -366,8 +386,7 @@ const CustomerDetails = ({
                 backgroundColor: 'transparent'
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = 'transparent'; // Light brown on hover
-                // Use 'transparent' if you want no background on hover
+                e.currentTarget.style.backgroundColor = 'transparent';
                 e.currentTarget.style.boxShadow = 'none';
               }}
               onMouseLeave={(e) => {

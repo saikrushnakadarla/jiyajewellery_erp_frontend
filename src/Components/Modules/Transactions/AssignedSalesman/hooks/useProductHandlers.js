@@ -189,7 +189,7 @@ const useProductHandlers = () => {
     
     const salesmanId = parseInt(formData.salesman_id);
     const scheduledBarcodes = visitLogsData
-      .filter(log => log.salesman_id === salesmanId)
+      .filter(log => Number(log.salesman_id) === salesmanId)
       .map(log => log.barcode);
     
     console.log(`Scheduled barcodes for salesman ${formData.salesman_name} (ID: ${salesmanId}):`, scheduledBarcodes);
@@ -786,15 +786,14 @@ const useProductHandlers = () => {
     fetchPurity();
   }, [formData.metal_type]);
 
-  // FIXED: handleBarcodeChange with proper filtering for MAIN STOCK ROOM
-  // 🆕 ALSO FIXED: total_price / tax_amt are now explicitly reset to "" whenever
-  // a NEW barcode/tag is selected. Previously, stale total_price from the
-  // PREVIOUSLY selected item could remain in formData for a render or two,
-  // which (together with the "Auto add on select" effect in
-  // AssignedSalesmanForm.js) could cause an auto-add to fire using the old
-  // item's stale total_price before the new item's own price finished
-  // calculating. Clearing it here forces the auto-add effect to wait for the
-  // freshly-calculated total_price of the newly selected item.
+  // handleBarcodeChange
+  // - Filters out MAIN STOCK ROOM / unavailable / not-owned tags
+  // - total_price / tax_amt are reset on every new tag selection so the
+  //   auto-add effect waits for the freshly calculated price
+  // - NEW: if NO salesman is selected, the salesman is auto-detected from the
+  //   visit-logs schedule using the selected barcode and stored in
+  //   formData.salesman_id / salesman_name (instead of showing an alert).
+  //   If a salesman IS selected, the original validation is kept.
   const handleBarcodeChange = async (code) => {
     try {
       if (!code) {
@@ -878,7 +877,7 @@ const useProductHandlers = () => {
           disscount_percentage: "",
           disscount: "",
           tax_percent: product.tax_slab,
-          // 🆕 clear stale calculated fields from any previously selected item
+          // clear stale calculated fields from any previously selected item
           total_price: "",
           tax_amt: "",
           rate_amt: "",
@@ -907,7 +906,7 @@ const useProductHandlers = () => {
             return;
           }
 
-          // FIX: CHECK: Product must NOT be in MAIN STOCK ROOM
+          // CHECK: Product must NOT be in MAIN STOCK ROOM
           if (tag.Stock_Point === "MAIN STOCK ROOM") {
             alert("This product is still in MAIN STOCK ROOM and cannot be assigned to a salesman.");
             setFormData((prevData) => ({
@@ -929,13 +928,17 @@ const useProductHandlers = () => {
             return;
           }
 
-          // Check if the product is scheduled for the selected salesman
+          // ---- Resolve salesman (existing flow OR auto-detect from barcode) ----
+          let resolvedSalesmanId = formData.salesman_id;
+          let resolvedSalesmanName = formData.salesman_name;
+
           if (formData.salesman_id) {
+            // Existing flow: salesman already chosen -> barcode must be scheduled for him
             const salesmanId = parseInt(formData.salesman_id);
             const isScheduledForSalesman = visitLogsData.some(
-              log => log.salesman_id === salesmanId && log.barcode === String(code)
+              log => Number(log.salesman_id) === salesmanId && String(log.barcode) === String(code)
             );
-            
+
             if (!isScheduledForSalesman) {
               alert(`This product (${code}) is not scheduled for the selected salesman (${formData.salesman_name || formData.salesman_id}). Please select a different product or salesman.`);
               setFormData((prevData) => ({
@@ -946,13 +949,26 @@ const useProductHandlers = () => {
               return;
             }
           } else {
-            alert("Please select a salesman first before scanning/selecting a product.");
-            setFormData((prevData) => ({
-              ...prevData,
-              code: "",
-            }));
-            setIsQtyEditable(true);
-            return;
+            // NEW flow: no salesman selected -> find salesman from the barcode's schedule
+            const scheduledLog = visitLogsData.find(
+              log => String(log.barcode) === String(code)
+            );
+
+            if (!scheduledLog) {
+              alert(`This product (${code}) is not scheduled for any salesman.`);
+              setFormData((prevData) => ({
+                ...prevData,
+                code: "",
+              }));
+              setIsQtyEditable(true);
+              return;
+            }
+
+            resolvedSalesmanId = String(scheduledLog.salesman_id);
+            // Name from log if the API provides it; otherwise CustomerDetails
+            // fills the name from the salesmen list using the id.
+            resolvedSalesmanName =
+              scheduledLog.salesman_name || scheduledLog.account_name || formData.salesman_name || "";
           }
 
           const productId = tag.product_id;
@@ -1005,6 +1021,9 @@ const useProductHandlers = () => {
           setFormData((prevData) => ({
             ...prevData,
             code: tag.PCode_BarCode || "",
+            // keep / auto-fill salesman
+            salesman_id: resolvedSalesmanId || prevData.salesman_id || "",
+            salesman_name: resolvedSalesmanName || prevData.salesman_name || "",
             product_id: tag.product_id || "",
             opentag_id: tag.opentag_id || "",
             product_name: tag.sub_category || "",
@@ -1030,7 +1049,7 @@ const useProductHandlers = () => {
             mc_per_gram: tag.MC_Per_Gram || "",
             making_charges: tag.Making_Charges || "",
             tax_percent: productDetails?.tax_slab || tag.tax_percent || "03% GST",
-            // 🆕 clear stale calculated fields from any previously selected item so
+            // clear stale calculated fields from any previously selected item so
             // the auto-add effect only fires once THIS item's price is (re)computed
             total_price: "",
             tax_amt: "",
