@@ -259,6 +259,15 @@ function Navbar() {
               >
                 Customer Master
               </Link>
+              <Link
+                  to="/deliveryagenttable"
+                  onClick={handleItemClick}
+                  className={
+                    isActive("/deliveryagenttable") || isActive("/deliveryagentmaster")
+                  }
+                >
+                  Delivery Agent Master
+                </Link>
                   <Link
                     to="/salesmantable"
                     onClick={handleItemClick}
@@ -733,6 +742,11 @@ function Navbar() {
               location.pathname === "/customerstable") && (
                 <h1 className="path-heading">CUSTOMERS</h1>
               )}
+
+              {(location.pathname === "/deliveryagentmaster" ||
+      location.pathname === "/deliveryagenttable") && (
+        <h1 className="path-heading">DELIVERY AGENTS</h1>
+      )}
             {(location.pathname === "/suppliermaster" ||
               location.pathname === "/suppliertable") && (
                 <h1 className="path-heading">SUPPLIERS</h1>

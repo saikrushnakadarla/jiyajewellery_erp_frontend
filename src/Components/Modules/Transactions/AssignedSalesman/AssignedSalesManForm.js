@@ -7,6 +7,11 @@ import InvoiceDetails from "./InvoiceDetails";
 import ProductDetails from "./ProductDetails";
 import ProductTable from "./ProductTable";
 import PaymentDetails from "./PaymentDetails";
+// ===== NEW (Delivery Agent) =====
+import AssignmentModeTabs from "./AgentModeTabs";
+import DeliveryAgentDetails from "./DeliveryAgentDetails";
+import AgentSummaryBar from "./AgentSummaryBar";
+// ================================
 import useProductHandlers from "./hooks/useProductHandlers";
 import useCalculations from "./hooks/useCalculations";
 import "./../Sales/SalesForm.css";
@@ -24,12 +29,12 @@ const AssignedSalesmanForm = () => {
   const [showPDFDownload, setShowPDFDownload] = useState(false);
   const [customers, setCustomers] = useState([]);
   const [metal, setMetal] = useState("");
-  
+
   // State for stock points
   const [activeStockPoints, setActiveStockPoints] = useState([]);
   const [otherStockPoints, setOtherStockPoints] = useState([]);
 
-  // NEW: State for stock transfers (to validate all barcodes are selected)
+  // State for stock transfers (to validate all barcodes are selected)
   const [stockTransfers, setStockTransfers] = useState([]);
   const [selectedTransferItems, setSelectedTransferItems] = useState([]);
   const [isAllProductsSelected, setIsAllProductsSelected] = useState(false);
@@ -125,9 +130,52 @@ const AssignedSalesmanForm = () => {
     isTotalPriceCleared,
     setIsTotalPriceCleared,
     manualTotalPriceRef,
-    visitLogsData, // <-- ADD THIS: Get visitLogsData from the hook
+    visitLogsData,
   } = useProductHandlers();
 
+  // ===== NEW (Delivery Agent) =====
+  // ASSIGNMENT MODE (Without / With Delivery Agent)
+  // Stored inside formData so it persists per tab like the rest of the form.
+
+
+    // ===== ASSIGNMENT MODE (Without / With Delivery Agent) =====
+  const assignMode = formData.assign_mode || "direct";
+  // Page inside "With Delivery Agent" tab: "select" (page 1) or "form" (page 2)
+  const agentStep = formData.agent_step || "select";
+  const showAgentSelectionPage = assignMode === "agent" && agentStep !== "form";
+
+  const handleAssignModeChange = (mode) => {
+    if (mode === assignMode) return; // clicking the active tab does nothing
+    setFormData((prev) => ({
+      ...prev,
+      assign_mode: mode,
+      agent_step: "select",
+      // switching tabs clears any agent selection
+      delivery_agent_id: "",
+      delivery_agent_name: "",
+      delivery_agent_code: "",
+      delivery_agent_mobile: "",
+      delivery_agent_details: null,
+    }));
+  };
+
+  // Page 1 -> Page 2
+  const handleAgentNext = () => {
+    if (!formData.delivery_agent_id) {
+      alert("Please select a Delivery Agent");
+      return;
+    }
+    setFormData((prev) => ({ ...prev, agent_step: "form" }));
+  };
+
+  // Page 2 -> Page 1 (keeps the selected agent)
+  const handleChangeAgent = () => {
+    setFormData((prev) => ({ ...prev, agent_step: "select" }));
+  };
+
+  // "Cancel" on page 1 -> back to the normal tab
+  const handleAgentCancel = () => handleAssignModeChange("direct");
+ 
   // ============= AUTO-ADD-ON-SELECT REFS =============
   // Tracks whether a barcode selection is waiting to be auto-added to the table
   // once its calculated fields (total_price etc.) have finished populating.
@@ -140,25 +188,43 @@ const AssignedSalesmanForm = () => {
   });
 
   // ============= HANDLE WEIGHT CAPTURE FROM PRODUCT DETAILS =============
-const handleCaptureWeight = async (itemId, weightData) => {
+  const handleCaptureWeight = async (itemId, weightData) => {
   // Update the captured weights state using the itemId (which is the barcode or item_id)
-  setCapturedWeights(prev => ({
-    ...prev,
-    [itemId]: {
-      total_grams: weightData.total_grams,
-      grams: weightData.grams,
-      milligrams: weightData.milligrams,
-      raw_text: weightData.raw_text,
-      confidence: weightData.confidence || 100,
-      captured_at: new Date().toISOString()
-    }
-  }));
+    setCapturedWeights(prev => ({
+      ...prev,
+      [itemId]: {
+        total_grams: weightData.total_grams,
+        grams: weightData.grams,
+        milligrams: weightData.milligrams,
+        raw_text: weightData.raw_text,
+        confidence: weightData.confidence || 100,
+        captured_at: new Date().toISOString()
+      }
+    }));
 
   // Also store weight data directly in the repairDetails item
   // FIX: Use item.item_id || item.code as the canonical key
-  setRepairDetails(prev => 
-    prev.map((item) => {
-      const itemIdFromItem = item.item_id || item.code;   // ⬅️ was: item.item_id || item.id || item.code
+    setRepairDetails(prev =>
+      prev.map((item) => {
+        const itemIdFromItem = item.item_id || item.code;
+        if (String(itemIdFromItem) === String(itemId)) {
+          return {
+            ...item,
+            weight_machine_reading: weightData.total_grams,
+            weight_machine_grams: weightData.grams,
+            weight_machine_milligrams: weightData.milligrams,
+            weight_machine_raw: weightData.raw_text,
+            weight_machine_confidence: weightData.confidence || 100
+          };
+        }
+        return item;
+      })
+    );
+
+  // Save to localStorage
+  // FIX: Use item.item_id || item.code as the canonical key
+    const updatedRepairDetails = repairDetails.map((item) => {
+      const itemIdFromItem = item.item_id || item.code;
       if (String(itemIdFromItem) === String(itemId)) {
         return {
           ...item,
@@ -170,65 +236,47 @@ const handleCaptureWeight = async (itemId, weightData) => {
         };
       }
       return item;
-    })
-  );
+    });
+    localStorage.setItem(`repairDetails_${tabId}`, JSON.stringify(updatedRepairDetails));
 
-  // Save to localStorage
-  // FIX: Use item.item_id || item.code as the canonical key
-  const updatedRepairDetails = repairDetails.map((item) => {
-    const itemIdFromItem = item.item_id || item.code;   // ⬅️ same fix here
-    if (String(itemIdFromItem) === String(itemId)) {
-      return {
-        ...item,
-        weight_machine_reading: weightData.total_grams,
-        weight_machine_grams: weightData.grams,
-        weight_machine_milligrams: weightData.milligrams,
-        weight_machine_raw: weightData.raw_text,
-        weight_machine_confidence: weightData.confidence || 100
-      };
-    }
-    return item;
-  });
-  localStorage.setItem(`repairDetails_${tabId}`, JSON.stringify(updatedRepairDetails));
-
-  // 🆕 NEW: Save weight to database immediately
-  try {
+    // Save weight to database immediately
+    try {
     // Find the actual item_id from the repairDetails
     // FIX: Use item.item_id || item.code as the canonical key
-    const item = repairDetails.find(item => {
-      const itemIdFromItem = item.item_id || item.code;   // ⬅️ same fix here
-      return String(itemIdFromItem) === String(itemId);
-    });
+      const item = repairDetails.find(item => {
+        const itemIdFromItem = item.item_id || item.code;
+        return String(itemIdFromItem) === String(itemId);
+      });
 
-    if (item && item.item_id) {
-      console.log(`💾 Saving weight to database for item_id: ${item.item_id}`);
-      
-      const payload = {
-        total_grams: weightData.total_grams,
-        grams: weightData.grams,
-        milligrams: weightData.milligrams,
-        raw_text: weightData.raw_text,
-        confidence: weightData.confidence || 100
-      };
+      if (item && item.item_id) {
+        console.log(`💾 Saving weight to database for item_id: ${item.item_id}`);
 
-      const response = await axios.put(
-        `${baseURL}/api/assigned-salesman/update-item-weight/${item.item_id}`,
-        payload
-      );
+        const payload = {
+          total_grams: weightData.total_grams,
+          grams: weightData.grams,
+          milligrams: weightData.milligrams,
+          raw_text: weightData.raw_text,
+          confidence: weightData.confidence || 100
+        };
 
-      if (response.data.success) {
-        console.log(`✅ Weight saved to database for item ${item.item_id}`);
+        const response = await axios.put(
+          `${baseURL}/api/assigned-salesman/update-item-weight/${item.item_id}`,
+          payload
+        );
+
+        if (response.data.success) {
+          console.log(`✅ Weight saved to database for item ${item.item_id}`);
+        } else {
+          console.warn('⚠️ Weight saved locally but database update may have failed');
+        }
       } else {
-        console.warn('⚠️ Weight saved locally but database update may have failed');
+        console.warn('⚠️ Could not find item_id to save weight to database');
       }
-    } else {
-      console.warn('⚠️ Could not find item_id to save weight to database');
-    }
-  } catch (error) {
-    console.error('❌ Error saving weight to database:', error);
+    } catch (error) {
+      console.error('❌ Error saving weight to database:', error);
     // Don't show error to user - weight is still saved locally
-  }
-};
+    }
+  };
 
   // ============= HANDLE WEIGHT CAPTURE FROM TABLE =============
   const handleCaptureWeightFromTable = (itemId, itemDetails) => {
@@ -251,7 +299,7 @@ const handleCaptureWeight = async (itemId, weightData) => {
 
     // Calculate Item Gross Total (sum of gross_weight)
     const itemGross = repairDetails.reduce(
-      (sum, item) => sum + parseFloat(item.gross_weight || 0), 
+      (sum, item) => sum + parseFloat(item.gross_weight || 0),
       0
     );
     setItemGrossTotal(itemGross);
@@ -317,7 +365,7 @@ const handleCaptureWeight = async (itemId, weightData) => {
     fetchCustomers();
   }, []);
 
-  // ✅ Fetch next assigned number from assigned-salesman API
+  // Fetch next assigned number from assigned-salesman API
   useEffect(() => {
     const fetchNextAssignedNumber = async () => {
       try {
@@ -358,7 +406,7 @@ const handleCaptureWeight = async (itemId, weightData) => {
     fetchStockPoints();
   }, []);
 
-  // 🆕 NEW: Fetch stock transfers to get all transferred products
+  // Fetch stock transfers to get all transferred products
   useEffect(() => {
     const fetchStockTransfers = async () => {
       try {
@@ -372,18 +420,18 @@ const handleCaptureWeight = async (itemId, weightData) => {
     fetchStockTransfers();
   }, []);
 
-  // 🆕 NEW: Get transfer items for a specific stock point
+  // Get transfer items for a specific stock point
   const getTransferItemsForStockPoint = async (stockPointId) => {
     try {
       if (!stockPointId) return [];
-      
+
       // Find all transfers that have this stock point as destination
       const transfers = stockTransfers.filter(
         t => t.to_stock_point_id === parseInt(stockPointId) && t.status === 'completed'
       );
-      
+
       console.log(`📦 Found ${transfers.length} transfers for stock point ${stockPointId}`);
-      
+
       // Get details for each transfer to get items
       const allItems = [];
       for (const transfer of transfers) {
@@ -405,7 +453,7 @@ const handleCaptureWeight = async (itemId, weightData) => {
           console.error(`Error fetching transfer details for ${transfer.transfer_id}:`, error);
         }
       }
-      
+
       console.log(`📦 Total items found: ${allItems.length}`);
       return allItems;
     } catch (error) {
@@ -431,29 +479,29 @@ const handleCaptureWeight = async (itemId, weightData) => {
     }
   }, [formData.active_stock_point_id, stockTransfers]);
 
-  // 🆕 NEW: Check if all products from a transfer are selected
+  // Check if all products from a transfer are selected
   const checkAllProductsSelected = (selectedBarcodes) => {
     // Log for debugging
     console.log("🔍 checkAllProductsSelected - selectedBarcodes:", selectedBarcodes);
     console.log("🔍 checkAllProductsSelected - selectedTransferItems:", selectedTransferItems);
-    
+
     if (!selectedTransferItems.length) {
       console.log("⚠️ selectedTransferItems is empty");
       return false;
     }
-    
+
     if (!selectedBarcodes.length) {
       console.log("⚠️ selectedBarcodes is empty");
       return false;
     }
-    
+
     // Group items by transfer_id
     const groupedByTransfer = {};
     selectedTransferItems.forEach(item => {
       // Use PCode_BarCode from stock transfer
       const barcode = item.PCode_BarCode || item.code;
       const transferId = item.transfer_id;
-      
+
       if (!groupedByTransfer[transferId]) {
         groupedByTransfer[transferId] = [];
       }
@@ -461,9 +509,9 @@ const handleCaptureWeight = async (itemId, weightData) => {
         groupedByTransfer[transferId].push(barcode);
       }
     });
-    
+
     console.log("📊 Grouped by transfer:", groupedByTransfer);
-    
+
     // For each transfer, check if all its barcodes are in selectedBarcodes
     for (const transferId in groupedByTransfer) {
       const allBarcodes = groupedByTransfer[transferId];
@@ -479,17 +527,17 @@ const handleCaptureWeight = async (itemId, weightData) => {
     return false;
   };
 
-  // 🆕 NEW: Get barcodes that are already added to repairDetails
+  // Get barcodes that are already added to repairDetails
   const getSelectedBarcodes = () => {
     return repairDetails.map(item => item.code).filter(Boolean);
   };
 
-  // 🆕 NEW: Check validation when repairDetails changes
+  // Check validation when repairDetails changes
   useEffect(() => {
     const selectedBarcodes = getSelectedBarcodes();
     const allSelected = checkAllProductsSelected(selectedBarcodes);
     setIsAllProductsSelected(allSelected);
-    
+
     if (allSelected) {
       console.log("✅ All products from a transfer have been selected!");
     } else {
@@ -501,7 +549,7 @@ const handleCaptureWeight = async (itemId, weightData) => {
   const handleActiveStockPointChange = (e) => {
     const selectedId = parseInt(e.target.value);
     const selectedStockPoint = activeStockPoints.find(sp => sp.stock_point_id === selectedId);
-    
+
     setFormData(prev => ({
       ...prev,
       active_stock_point_id: selectedId,
@@ -513,7 +561,7 @@ const handleCaptureWeight = async (itemId, weightData) => {
   const handleOtherStockPointChange = (e) => {
     const selectedId = parseInt(e.target.value);
     const selectedStockPoint = otherStockPoints.find(sp => sp.stock_point_id === selectedId);
-    
+
     setFormData(prev => ({
       ...prev,
       other_stock_point_id: selectedId,
@@ -545,7 +593,7 @@ const handleCaptureWeight = async (itemId, weightData) => {
   const formatDate = (date) => {
     const d = new Date(date);
     const day = String(d.getDate()).padStart(2, "0");
-    const month = String(d.getMonth() + 1).padStart(2, "0"); // Months are 0-based
+    const month = String(d.getMonth() + 1).padStart(2, "0");
     const year = d.getFullYear();
     return `${day}-${month}-${year}`;
   };
@@ -561,8 +609,8 @@ const handleCaptureWeight = async (itemId, weightData) => {
       setReturnData({
         ...returnData,
         transfer_number: selectedInvoiceNumber,
-        date: selectedInvoice.date ? formatDate(selectedInvoice.date) : "", // Format date
-        terms: selectedInvoice.terms || "", // Set the terms from the selected invoice
+        date: selectedInvoice.date ? formatDate(selectedInvoice.date) : "",
+        terms: selectedInvoice.terms || "",
       });
     } else {
       setReturnData({
@@ -584,7 +632,7 @@ const handleCaptureWeight = async (itemId, weightData) => {
           (item) => item.transaction_status === "Sales",
         );
         setUniqueInvoice(filteredData);
-        setFilteredInvoices(filteredData); // Initially, show all invoices
+        setFilteredInvoices(filteredData);
       } catch (error) {
         console.error("Error fetching repair details:", error);
       }
@@ -596,7 +644,7 @@ const handleCaptureWeight = async (itemId, weightData) => {
   useEffect(() => {
     const fetchInvoiceDetails = async () => {
       if (!returnData.transfer_number) {
-        setInvoiceDetails([]); // Ensure it's an empty array, not null
+        setInvoiceDetails([]);
         return;
       }
 
@@ -608,14 +656,14 @@ const handleCaptureWeight = async (itemId, weightData) => {
           (invoice) => invoice.status !== "Sale Returned",
         );
 
-        setInvoiceDetails(filteredData || []); // Ensure it's always an array
+        setInvoiceDetails(filteredData || []);
         console.log("Fetched Invoice Details:", filteredData);
       } catch (error) {
         console.error(
           `Error fetching details for invoice ${returnData.transfer_number}:`,
           error,
         );
-        setInvoiceDetails([]); // Set empty array on error
+        setInvoiceDetails([]);
       }
     };
 
@@ -685,7 +733,7 @@ const handleCaptureWeight = async (itemId, weightData) => {
   const [isManualNetMode, setIsManualNetMode] = useState(false);
 
   useEffect(() => {
-    localStorage.setItem(`discount_${tabId}`, discount); // Save to localStorage when discount changes
+    localStorage.setItem(`discount_${tabId}`, discount);
   }, [discount]);
 
   // const handleDiscountChange = (e) => {
@@ -850,9 +898,9 @@ const handleCaptureWeight = async (itemId, weightData) => {
     }
 
     setDiscount(discountValue);
-    setManualNetAmount(0); // Reset manualNetAmount to exit manual mode
-    setIsManualNetMode(false); // Ensure we're in normal discount mode
-    applyDiscountToRepairDetails(discountValue); // Recalculate with new discount
+    setManualNetAmount(0);
+    setIsManualNetMode(false);
+    applyDiscountToRepairDetails(discountValue);
   };
 
   const [festivalShowModal, festivalSetShowModal] = useState(false);
@@ -1171,25 +1219,25 @@ const handleCaptureWeight = async (itemId, weightData) => {
           throw new Error("Failed to fetch stock entries");
         }
         const data = await response.json();
-        
+
         let stockData = data.result || [];
-        
+
         // FIX: Filter based on logged-in user ID AND exclude MAIN STOCK ROOM
         if (loggedInUserId) {
-          stockData = stockData.filter(item => 
-            item.Status === "Available" && 
+          stockData = stockData.filter(item =>
+            item.Status === "Available" &&
             item.user_id === loggedInUserId &&
             // CRITICAL FIX: Exclude products in MAIN STOCK ROOM
-            item.Stock_Point !== 'MAIN STOCK ROOM' 
+            item.Stock_Point !== 'MAIN STOCK ROOM'
           );
         } else {
           // If no logged-in user, only show Available items and exclude MAIN STOCK ROOM
-          stockData = stockData.filter(item => 
+          stockData = stockData.filter(item =>
             item.Status === "Available" &&
             item.Stock_Point !== 'MAIN STOCK ROOM'
           );
         }
-        
+
         console.log("✅ Filtered Stock Data (excludes MAIN STOCK ROOM):", stockData);
         setStock(stockData);
       } catch (error) {
@@ -1197,7 +1245,7 @@ const handleCaptureWeight = async (itemId, weightData) => {
         setStock([]);
       }
     };
-    
+
     fetchStock();
   }, [loggedInUserId]);
 
@@ -1304,7 +1352,7 @@ const handleCaptureWeight = async (itemId, weightData) => {
       const response = await axios.get(
         `${baseURL}/get-order-details/${order_number}`,
       );
-      console.log("Fetched order details: ", response.data); // Log full response data
+      console.log("Fetched order details: ", response.data);
 
       // Filter repeatedData to include only items where transaction_status is "Orders"
       const filteredData = response.data.repeatedData.filter(
@@ -1345,7 +1393,7 @@ const handleCaptureWeight = async (itemId, weightData) => {
       const filteredData = response.data.repeatedData
         .filter((item) => {
           const stockItem = stock?.find(s => s.PCode_BarCode === item.code);
-          return stockItem && 
+          return stockItem &&
                  stockItem.Status === "Available" &&
                  (loggedInUserId ? stockItem.user_id === loggedInUserId : true);
         })
@@ -1401,27 +1449,27 @@ const handleCaptureWeight = async (itemId, weightData) => {
       setRepairDetails([]);
 
       await fetchOrderDetails(order_number);
-      setSelectedOrder(order_number); // Mark this as selected
+      setSelectedOrder(order_number);
     } else {
       // Uncheck the currently selected order
       localStorage.removeItem(`repairDetails_${tabId}`);
       setRepairDetails([]);
-      setSelectedOrder(""); // Clear selection
+      setSelectedOrder("");
       console.log(`Removed repairDetails_${tabId} from localStorage`);
     }
   };
 
   useEffect(() => {
     if (repairDetails.length > 0 && autoEditIndex !== null) {
-      handleEdit(autoEditIndex); // Trigger edit for current index
-      setAutoUpdateInProgress(true); // Enable update trigger
+      handleEdit(autoEditIndex);
+      setAutoUpdateInProgress(true);
     }
   }, [repairDetails, autoEditIndex]);
 
   useEffect(() => {
     if (autoUpdateInProgress) {
-      handleUpdate(); // Update after editing
-      setAutoUpdateInProgress(false); // Reset update trigger
+      handleUpdate();
+      setAutoUpdateInProgress(false);
     }
   }, [formData]);
 
@@ -1429,9 +1477,9 @@ const handleCaptureWeight = async (itemId, weightData) => {
     if (!autoUpdateInProgress && autoEditIndex !== null) {
       const nextIndex = autoEditIndex + 1;
       if (nextIndex < repairDetails.length) {
-        setAutoEditIndex(nextIndex); // Proceed to next item
+        setAutoEditIndex(nextIndex);
       } else {
-        setAutoEditIndex(null); // Finished all updates
+        setAutoEditIndex(null);
         console.log("All items updated.");
       }
     }
@@ -1460,8 +1508,8 @@ const handleCaptureWeight = async (itemId, weightData) => {
 
       // First check if the repair item exists in stock with matching user_id
       const stockItem = stock?.find(s => s.PCode_BarCode === repair.code);
-      
-      if (!stockItem || stockItem.Status !== "Available" || 
+
+      if (!stockItem || stockItem.Status !== "Available" ||
           (loggedInUserId && stockItem.user_id !== loggedInUserId)) {
         alert("This repair item is not available for transfer or doesn't belong to you");
         return null;
@@ -1508,7 +1556,7 @@ const handleCaptureWeight = async (itemId, weightData) => {
           tax_percent: "0",
           tax_amt: "0",
           hm_charges: "0",
-          code: repair.code, // Add the barcode code
+          code: repair.code,
         },
       ];
 
@@ -1545,7 +1593,7 @@ const handleCaptureWeight = async (itemId, weightData) => {
         [repair.repair_no]: true,
       }));
 
-      setSelectedOrder(""); // Optional reset
+      setSelectedOrder("");
     } else {
       localStorage.removeItem(storageKey);
       setRepairDetails([]);
@@ -1609,7 +1657,7 @@ const handleCaptureWeight = async (itemId, weightData) => {
   const handleAdd = () => {
     // Check if the selected product belongs to the logged-in user and is Available
     const selectedStockItem = stock?.find(s => s.PCode_BarCode === formData.code);
-    
+
     if (selectedStockItem) {
       if (selectedStockItem.Status !== "Available") {
         alert("This product is not available for transfer");
@@ -1808,7 +1856,6 @@ const handleCaptureWeight = async (itemId, weightData) => {
       sale_status: "Delivered",
       piece_taxable_amt: "",
       festival_discount: "",
-      // Reset new fields
       cover_wt: "",
       card_wt: "",
       packing_wt: "",
@@ -1849,8 +1896,8 @@ const handleCaptureWeight = async (itemId, weightData) => {
       date: new Date().toISOString().split("T")[0],
       transfer_number: "",
       active_stock_point_id: "",
-      salesman_id: "",        // Add this
-      salesman_name: "",      // Add this
+      salesman_id: "",
+      salesman_name: "",
       active_stock_point_details: null,
     });
     setPaymentDetails({
@@ -1871,7 +1918,7 @@ const handleCaptureWeight = async (itemId, weightData) => {
   };
 
   const handleBack = () => {
-    navigate("/assign-to-salesman"); // Change from "/salestable" to "/stock-transfers"
+    navigate("/assign-to-salesman");
   };
 
   // const handleAddCustomer = () => {
@@ -1883,7 +1930,7 @@ const handleCaptureWeight = async (itemId, weightData) => {
     navigate("/customermaster", {
       state: {
         from: `/sales?tabId=${tabId}`,
-        mobile: mobile, // Pass the mobile number here
+        mobile: mobile,
       },
     });
   };
@@ -2254,7 +2301,7 @@ const handleCaptureWeight = async (itemId, weightData) => {
 
     taxAmount = totalTax;
     taxableAmount = totalTaxableNet;
-    netAmount = taxableAmount + taxAmount; // Add back old items amount to net
+    netAmount = taxableAmount + taxAmount;
 
     const discountBase = totalMakingCharges + totalPieceCost;
     discountPercent = discountBase ? (discountAmt * 100) / discountBase : 0;
@@ -2262,7 +2309,7 @@ const handleCaptureWeight = async (itemId, weightData) => {
 
   const handleManualNetAmountChange = (value) => {
     setManualNetAmount(value);
-    setIsManualNetMode(true); // Enter manual net amount mode
+    setIsManualNetMode(true);
   };
 
   const handleManualNetPayAmountChange = (value) => {
@@ -2356,7 +2403,7 @@ const handleCaptureWeight = async (itemId, weightData) => {
     if (roundedDiscount !== discount) {
       setDiscount(roundedDiscount);
       localStorage.setItem(`discount_${tabId}`, roundedDiscount.toString());
-      applyDiscountToRepairDetails(roundedDiscount, true); // Pass true to preserve festival discount
+      applyDiscountToRepairDetails(roundedDiscount, true);
     }
 
     setManualNetAmount(calculatedNetAmount);
@@ -2443,7 +2490,7 @@ const handleCaptureWeight = async (itemId, weightData) => {
   const [product, setProduct] = useState([]); // State to store table data
   const [company, setCompany] = useState(null);
   const [error, setError] = useState(null);
-  
+
   const fetchProducts = async () => {
     try {
       const response = await fetch(`${baseURL}/get/products`);
@@ -2648,7 +2695,7 @@ const handleCaptureWeight = async (itemId, weightData) => {
       };
 
       const response = await axios.post(`${baseURL}/ledger`, ledgerData);
-      
+
       if (response.status === 201 || response.status === 200) {
         console.log("Ledger entry created successfully:", response.data);
         return true;
@@ -2772,222 +2819,243 @@ const handleCaptureWeight = async (itemId, weightData) => {
 
   // In AssignedSalesmanForm.js - Updated handleSave
 // In AssignedSalesmanForm.js - Updated handleSave
-const handleSave = async () => {
-  try {
-    const activeStockPointDetails = formData.active_stock_point_details;
-    const selectedSalesman = formData.salesman_id ? {
-      salesman_id: formData.salesman_id,
-      salesman_name: formData.salesman_name
-    } : null;
+  const handleSave = async () => {
+    try {
+      const activeStockPointDetails = formData.active_stock_point_details;
+      const selectedSalesman = formData.salesman_id ? {
+        salesman_id: formData.salesman_id,
+        salesman_name: formData.salesman_name
+      } : null;
 
-    if (!activeStockPointDetails) {
-      alert("Please select an Active Stock Point");
-      return;
-    }
-
-    if (!selectedSalesman) {
-      alert("Please select a Salesman");
-      return;
-    }
-
-    if (!repairDetails || repairDetails.length === 0) {
-      alert("Please add items to transfer");
-      return;
-    }
-
-    // Check if ALL products from a transfer are selected
-    const selectedBarcodes = repairDetails.map(item => item.code).filter(Boolean);
-    const allSelected = checkAllProductsSelected(selectedBarcodes);
-
-    if (!allSelected) {
-      alert("⚠️ You must select ALL products from a stock transfer before assigning to a salesman. Please add all products from the same transfer.");
-      return;
-    }
-
-    const transferIds = repairDetails
-      .map(item => item.transfer_id)
-      .filter(Boolean);
-    
-    const uniqueTransferIds = [...new Set(transferIds)];
-    if (uniqueTransferIds.length > 1) {
-      alert("⚠️ All products must belong to the same stock transfer. Please select products from only one transfer.");
-      return;
-    }
-
-    let nextAssignedNumber = formData.assigned_number || formData.transfer_number;
-    
-    if (!nextAssignedNumber) {
-      try {
-        const response = await axios.get(`${baseURL}/api/assigned-salesman/lastAssignedNumber`);
-        nextAssignedNumber = response.data.lastAssignedNumber;
-      } catch (error) {
-        console.error("Error fetching next assigned number:", error);
-        nextAssignedNumber = `ASN001`;
+      if (!activeStockPointDetails) {
+        alert("Please select an Active Stock Point");
+        return;
       }
-    }
 
-    console.log("Saving with Assigned Number:", nextAssignedNumber);
+      if (!selectedSalesman) {
+        alert("Please select a Salesman");
+        return;
+      }
 
-    const captureImage = formData.capture_image || null;
-    console.log("📷 Capture Image present:", !!captureImage);
+      // ===== NEW (Delivery Agent) =====
+      const isAgentMode = formData.assign_mode === "agent";
+      if (isAgentMode && !formData.delivery_agent_id) {
+        alert("Please select a Delivery Agent");
+        return;
+      }
+      // ================================
+
+      if (!repairDetails || repairDetails.length === 0) {
+        alert("Please add items to transfer");
+        return;
+      }
+
+      const selectedBarcodes = repairDetails.map(item => item.code).filter(Boolean);
+      const allSelected = checkAllProductsSelected(selectedBarcodes);
+
+      if (!allSelected) {
+        alert("⚠️ You must select ALL products from a stock transfer before assigning to a salesman. Please add all products from the same transfer.");
+        return;
+      }
+
+      const transferIds = repairDetails
+        .map(item => item.transfer_id)
+        .filter(Boolean);
+
+      const uniqueTransferIds = [...new Set(transferIds)];
+      if (uniqueTransferIds.length > 1) {
+        alert("⚠️ All products must belong to the same stock transfer. Please select products from only one transfer.");
+        return;
+      }
+
+      let nextAssignedNumber = formData.assigned_number || formData.transfer_number;
+
+      if (!nextAssignedNumber) {
+        try {
+          const response = await axios.get(`${baseURL}/api/assigned-salesman/lastAssignedNumber`);
+          nextAssignedNumber = response.data.lastAssignedNumber;
+        } catch (error) {
+          console.error("Error fetching next assigned number:", error);
+          nextAssignedNumber = `ASN001`;
+        }
+      }
+
+      console.log("Saving with Assigned Number:", nextAssignedNumber);
+
+      const captureImage = formData.capture_image || null;
+      console.log("📷 Capture Image present:", !!captureImage);
 
     // Calculate weight totals
-    const calculatedItemGrossTotal = repairDetails.reduce(
-      (sum, item) => sum + parseFloat(item.gross_weight || 0), 
-      0
-    );
-    
-    const calculatedPacketGrossTotal = repairDetails.reduce(
-      (sum, item) => sum + parseFloat(item.gross_weight || 0) + parseFloat(item.packing_wt || 0),
-      0
-    );
+      const calculatedItemGrossTotal = repairDetails.reduce(
+        (sum, item) => sum + parseFloat(item.gross_weight || 0),
+        0
+      );
+
+      const calculatedPacketGrossTotal = repairDetails.reduce(
+        (sum, item) => sum + parseFloat(item.gross_weight || 0) + parseFloat(item.packing_wt || 0),
+        0
+      );
 
     // ================================================================
-    // WEIGHT CAPTURE – take the first captured weight (single total)
+      // WEIGHT CAPTURE – take the first captured weight (single total)
     // ================================================================
-    let totalWeightMachineReading = 0;
-    let totalWeightMachineGrams = 0;
-    let totalWeightMachineMilligrams = 0;
-    let totalWeightMachineConfidence = 0;
-    let hasWeightData = false;
+      let totalWeightMachineReading = 0;
+      let totalWeightMachineGrams = 0;
+      let totalWeightMachineMilligrams = 0;
+      let totalWeightMachineConfidence = 0;
+      let hasWeightData = false;
 
     // 1) Check capturedWeights
-    const weightKeys = Object.keys(capturedWeights);
-    for (const key of weightKeys) {
-      const weight = capturedWeights[key];
-      if (weight && weight.total_grams > 0) {
-        totalWeightMachineReading = parseFloat(weight.total_grams) || 0;
-        totalWeightMachineGrams = parseInt(weight.grams) || 0;
-        totalWeightMachineMilligrams = parseInt(weight.milligrams) || 0;
-        totalWeightMachineConfidence = parseInt(weight.confidence) || 0;
-        hasWeightData = true;
-        break;
-      }
-    }
-
-    // 2) Fallback: check items directly
-    if (!hasWeightData) {
-      for (const item of repairDetails) {
-        if (item.weight_machine_reading && parseFloat(item.weight_machine_reading) > 0) {
-          totalWeightMachineReading = parseFloat(item.weight_machine_reading) || 0;
-          totalWeightMachineGrams = parseInt(item.weight_machine_grams) || 0;
-          totalWeightMachineMilligrams = parseInt(item.weight_machine_milligrams) || 0;
-          totalWeightMachineConfidence = parseInt(item.weight_machine_confidence) || 0;
+      const weightKeys = Object.keys(capturedWeights);
+      for (const key of weightKeys) {
+        const weight = capturedWeights[key];
+        if (weight && weight.total_grams > 0) {
+          totalWeightMachineReading = parseFloat(weight.total_grams) || 0;
+          totalWeightMachineGrams = parseInt(weight.grams) || 0;
+          totalWeightMachineMilligrams = parseInt(weight.milligrams) || 0;
+          totalWeightMachineConfidence = parseInt(weight.confidence) || 0;
           hasWeightData = true;
           break;
         }
       }
-    }
 
-    console.log(`📊 Total weight machine reading: ${totalWeightMachineReading}g`);
+    // 2) Fallback: check items directly
+      if (!hasWeightData) {
+        for (const item of repairDetails) {
+          if (item.weight_machine_reading && parseFloat(item.weight_machine_reading) > 0) {
+            totalWeightMachineReading = parseFloat(item.weight_machine_reading) || 0;
+            totalWeightMachineGrams = parseInt(item.weight_machine_grams) || 0;
+            totalWeightMachineMilligrams = parseInt(item.weight_machine_milligrams) || 0;
+            totalWeightMachineConfidence = parseInt(item.weight_machine_confidence) || 0;
+            hasWeightData = true;
+            break;
+          }
+        }
+      }
+
+      console.log(`📊 Total weight machine reading: ${totalWeightMachineReading}g`);
     // ================================================================
 
-    const transferData = repairDetails.map(item => ({
-      product_id: item.product_id || null,
-      product_name: item.product_name || null,
-      metal_type: item.metal_type || null,
-      purity: item.purity || item.selling_purity || null,
-      category: item.category || null,
-      sub_category: item.sub_category || item.product_name || null,
-      design_name: item.design_name || null,
-      qty: parseFloat(item.qty) || 1,
-      gross_weight: parseFloat(item.gross_weight) || 0,
-      stone_weight: parseFloat(item.stone_weight) || 0,
-      net_weight: parseFloat(item.total_weight_av) || parseFloat(item.weight_bw) || 0,
-      rate: parseFloat(item.rate) || 0,
-      making_charges: parseFloat(item.making_charges) || 0,
-      stone_price: parseFloat(item.stone_price) || 0,
-      total_price: parseFloat(item.total_price) || 0,
-      image: item.image || null,
-      remarks: item.remarks || null,
-      PCode_BarCode: item.code,
-      cover_wt: parseFloat(item.cover_wt) || 0,
-      card_wt: parseFloat(item.card_wt) || 0,
-      packing_wt: parseFloat(item.packing_wt) || 0,
-      item_id: item.item_id || null,
+      const transferData = repairDetails.map(item => ({
+        product_id: item.product_id || null,
+        product_name: item.product_name || null,
+        metal_type: item.metal_type || null,
+        purity: item.purity || item.selling_purity || null,
+        category: item.category || null,
+        sub_category: item.sub_category || item.product_name || null,
+        design_name: item.design_name || null,
+        qty: parseFloat(item.qty) || 1,
+        gross_weight: parseFloat(item.gross_weight) || 0,
+        stone_weight: parseFloat(item.stone_weight) || 0,
+        net_weight: parseFloat(item.total_weight_av) || parseFloat(item.weight_bw) || 0,
+        rate: parseFloat(item.rate) || 0,
+        making_charges: parseFloat(item.making_charges) || 0,
+        stone_price: parseFloat(item.stone_price) || 0,
+        total_price: parseFloat(item.total_price) || 0,
+        image: item.image || null,
+        remarks: item.remarks || null,
+        PCode_BarCode: item.code,
+        cover_wt: parseFloat(item.cover_wt) || 0,
+        card_wt: parseFloat(item.card_wt) || 0,
+        packing_wt: parseFloat(item.packing_wt) || 0,
+        item_id: item.item_id || null,
       // ===== SINGLE TOTAL WEIGHT applied to ALL items =====
-      weight_machine_reading: totalWeightMachineReading || 0,
-      weight_machine_grams: totalWeightMachineGrams || 0,
-      weight_machine_milligrams: totalWeightMachineMilligrams || 0,
-      weight_machine_confidence: totalWeightMachineConfidence || 0,
-      weight_machine_raw: item.weight_machine_raw || (hasWeightData ? `Total: ${totalWeightMachineReading}g` : null),
-    }));
+        weight_machine_reading: totalWeightMachineReading || 0,
+        weight_machine_grams: totalWeightMachineGrams || 0,
+        weight_machine_milligrams: totalWeightMachineMilligrams || 0,
+        weight_machine_confidence: totalWeightMachineConfidence || 0,
+        weight_machine_raw: item.weight_machine_raw || (hasWeightData ? `Total: ${totalWeightMachineReading}g` : null),
+      }));
 
     // Check if any items have weight machine data
-    const hasAnyWeightData = transferData.some(item => 
-      item.weight_machine_reading > 0
-    );
+      const hasAnyWeightData = transferData.some(item =>
+        item.weight_machine_reading > 0
+      );
 
-    const payload = {
-      transfer_data: transferData,
-      from_stock_point_id: parseInt(formData.active_stock_point_id),
-      to_salesman_id: parseInt(selectedSalesman.salesman_id),
-      transfer_date: formData.date || new Date().toISOString().split('T')[0],
-      reference_number: nextAssignedNumber,
-      remarks: `Assigned to ${selectedSalesman.salesman_name} from ${activeStockPointDetails.stock_point_name}`,
-      created_by: formData.account_name || "system",
-      from_user_id: activeStockPointDetails.user_id || null,
-      to_user_id: null,
-      capture_image: captureImage,
+      const payload = {
+        transfer_data: transferData,
+        from_stock_point_id: parseInt(formData.active_stock_point_id),
+        to_salesman_id: parseInt(selectedSalesman.salesman_id),
+        transfer_date: formData.date || new Date().toISOString().split('T')[0],
+        reference_number: nextAssignedNumber,
+        remarks: `Assigned to ${selectedSalesman.salesman_name} from ${activeStockPointDetails.stock_point_name}`,
+        created_by: formData.account_name || "system",
+        from_user_id: activeStockPointDetails.user_id || null,
+        to_user_id: null,
+        capture_image: captureImage,
       // Weight totals
-      item_gross_total: calculatedItemGrossTotal,
-      packet_gross_total: calculatedPacketGrossTotal,
-      total_weight_with_bag: totalWeightWithBag || 0,
+        item_gross_total: calculatedItemGrossTotal,
+        packet_gross_total: calculatedPacketGrossTotal,
+        total_weight_with_bag: totalWeightWithBag || 0,
       // ===== SINGLE TOTAL WEIGHT for the transfer =====
-      weight_machine_reading: totalWeightMachineReading || 0,
-      weight_machine_grams: totalWeightMachineGrams || 0,
-      weight_machine_milligrams: totalWeightMachineMilligrams || 0,
-      weight_machine_confidence: totalWeightMachineConfidence || 0,
-      weight_machine_raw: hasAnyWeightData ? `Total: ${totalWeightMachineReading}g` : null,
-    };
+        weight_machine_reading: totalWeightMachineReading || 0,
+        weight_machine_grams: totalWeightMachineGrams || 0,
+        weight_machine_milligrams: totalWeightMachineMilligrams || 0,
+        weight_machine_confidence: totalWeightMachineConfidence || 0,
+        weight_machine_raw: hasAnyWeightData ? `Total: ${totalWeightMachineReading}g` : null,
 
-    console.log("📦 Sending Assigned Salesman Payload:", payload);
+        // ===== NEW (Delivery Agent): ONLY delivery_agent_id is sent =====
+        // Not sent in "Without Delivery Agent" mode (backend stores NULL).
+        ...(isAgentMode && {
+          delivery_agent_id: parseInt(formData.delivery_agent_id),
+        }),
+      };
 
-    const response = await axios.post(`${baseURL}/api/assigned-salesman/save-assigned-salesman`, payload);
-   
-    if (response.status === 200 || response.status === 201) {
-      alert(`✅ All products assigned to Salesman successfully! Assigned Number: ${nextAssignedNumber}`);
-      
+      console.log("📦 Sending Assigned Salesman Payload:", payload);
+
+      const response = await axios.post(`${baseURL}/api/assigned-salesman/save-assigned-salesman`, payload);
+
+      if (response.status === 200 || response.status === 201) {
+        alert(`✅ All products assigned to Salesman successfully! Assigned Number: ${nextAssignedNumber}`);
+
       // Clear data — this already empties the Product Table (repairDetails) on successful Save & Send for Approval
-      setOldSalesData([]);
-      setSchemeSalesData([]);
-      setRepairDetails([]);
-      setPaymentDetails({
-        cash_amount: 0,
-        card_amt: 0,
-        chq: "",
-        chq_amt: 0,
-        online: "",
-        online_amt: 0,
-      });
-      setOldTableData([]);
-      setSchemeTableData([]);
-      setDiscount(0);
-      setIsAllProductsSelected(false);
-      setTotalWeightWithBag(0);
-      setItemGrossTotal(0);
-      setPacketGrossTotal(0);
-      setCapturedWeights({});
-      
-      setFormData({
-        ...formData,
-        active_stock_point_id: "",
-        salesman_id: "",
-        salesman_name: "",
-        active_stock_point_details: null,
-        assigned_number: "",
-        transfer_number: "",
-        capture_image: null,
-        capture_image_file: null
-      });
-      
-      navigate("/assign-to-salesman");
+        setOldSalesData([]);
+        setSchemeSalesData([]);
+        setRepairDetails([]);
+        setPaymentDetails({
+          cash_amount: 0,
+          card_amt: 0,
+          chq: "",
+          chq_amt: 0,
+          online: "",
+          online_amt: 0,
+        });
+        setOldTableData([]);
+        setSchemeTableData([]);
+        setDiscount(0);
+        setIsAllProductsSelected(false);
+        setTotalWeightWithBag(0);
+        setItemGrossTotal(0);
+        setPacketGrossTotal(0);
+        setCapturedWeights({});
+
+        setFormData({
+          ...formData,
+          active_stock_point_id: "",
+          salesman_id: "",
+          salesman_name: "",
+          active_stock_point_details: null,
+          assigned_number: "",
+          transfer_number: "",
+          capture_image: null,
+          capture_image_file: null,
+          // ===== NEW (Delivery Agent) =====
+          assign_mode: "direct",
+          delivery_agent_id: "",
+          delivery_agent_name: "",
+          delivery_agent_code: "",
+          delivery_agent_mobile: "",
+          delivery_agent_details: null,
+          // ================================
+        });
+
+        navigate("/assign-to-salesman");
+      }
+    } catch (error) {
+      console.error("Error saving assigned salesman:", error);
+      alert("Error saving assigned salesman: " + (error.response?.data?.message || error.message));
     }
-  } catch (error) {
-    console.error("Error saving assigned salesman:", error);
-    alert("Error saving assigned salesman: " + (error.response?.data?.message || error.message));
-  }
-};
+  };
 
   const refreshSalesData = () => {
     setOldSalesData([]);
@@ -3001,7 +3069,7 @@ const handleSave = async () => {
       online: "",
       online_amt: 0,
     });
-    setOldTableData([]); // Clear the oldTableData state
+    setOldTableData([]);
     setSchemeTableData([]);
     setDiscount(0);
     setTotalWeightWithBag(0);
@@ -3018,11 +3086,11 @@ const handleSave = async () => {
     window.location.reload();
   };
 
-  const mobileRef = useRef(null); // Reference to Mobile input field in CustomerDetails
+  const mobileRef = useRef(null);
 
   useEffect(() => {
     if (formData.code) {
-      mobileRef.current?.focus(); // Move focus to Mobile when BarCode is entered
+      mobileRef.current?.focus();
     }
   }, [formData.code]);
 
@@ -3030,313 +3098,212 @@ const handleSave = async () => {
   useCalculations(formData, setFormData, offers, isManualTotalPriceChange,
     setIsManualTotalPriceChange, isTotalPriceCleared);
 
-  return (
+   return (
     <div className="main-container">
       <Container className="sales-form-container" style={{marginTop: "70px"}}>
         <Form>
-          {/* <h3 style={{ marginTop: '-45px', marginBottom: '10px', textAlign: 'left', color: '#a36e29' }}>
-            Sales
-          </h3> */}
-          <div className="sales-form">
-            <div className="sales-form-left">
-              <CustomerDetails
-                formData={formData}
-                setFormData={setFormData}
-                handleCustomerChange={handleCustomerChange}
-                handleAddCustomer={handleAddCustomer}
-                customers={customers}
-                setSelectedMobile={setSelectedMobile} // Pass the setSelectedMobile function here
-                mobileRef={mobileRef}
-                tabId={tabId}
-              />
-            </div>
-            <div className="sales-form-right">
-              <InvoiceDetails formData={formData} setFormData={setFormData} />
-            </div>
-          </div>
+          {/* Mode tabs (centered) */}
+          <AssignmentModeTabs mode={assignMode} onChange={handleAssignModeChange} />
 
-          {/* Stock Points Selection Section - COMMENTED OUT */}
-          {/* <div className="sales-form" style={{ marginTop: "15px", marginBottom: "15px" }}>
-            <div className="sales-form-left">
-              <div style={{ padding: "10px", border: "1px solid #ddd", borderRadius: "5px", backgroundColor: "#f9f9f9" }}>
-                <label style={{ fontWeight: "bold", marginBottom: "10px", display: "block", color: "#a36e29" }}>
-                  Active Stock Point *
-                </label>
-                <select
-                  className="form-control"
-                  value={formData.active_stock_point_id || ""}
-                  onChange={handleActiveStockPointChange}
-                  style={{ width: "100%", padding: "8px", borderRadius: "4px", border: "1px solid #ccc" }}
-                >
-                  <option value="">Select Active Stock Point</option>
-                  {activeStockPoints.map(sp => (
-                    <option key={sp.stock_point_id} value={sp.stock_point_id}>
-                      {sp.stock_point_name} {sp.user_id ? `(User ID: ${sp.user_id})` : ''}
-                    </option>
-                  ))}
-                </select>
-                {formData.active_stock_point_details && (
-                  <div style={{ marginTop: "8px", fontSize: "12px", color: "#666" }}>
-                    Location: {formData.active_stock_point_details.location} | 
-                    Status: {formData.active_stock_point_details.status} |
-                    {formData.active_stock_point_details.user_id && ` User ID: ${formData.active_stock_point_details.user_id}`}
-                  </div>
-                )}
+          {/* ===== PAGE 1 (With Delivery Agent): select agent, then Next ===== */}
+          {showAgentSelectionPage && (
+            <div className="sales-form" style={{ marginTop: "10px" }}>
+              <div className="sales-form-left" style={{ width: "100%" }}>
+                <DeliveryAgentDetails
+                  formData={formData}
+                  setFormData={setFormData}
+                  onNext={handleAgentNext}
+                  onCancel={handleAgentCancel}
+                />
               </div>
             </div>
-            <div className="sales-form-right">
-              <div style={{ padding: "10px", border: "1px solid #ddd", borderRadius: "5px", backgroundColor: "#f9f9f9" }}>
-                <label style={{ fontWeight: "bold", marginBottom: "10px", display: "block", color: "#a36e29" }}>
-                  Other Stock Point *
-                </label>
-                <select
-                  className="form-control"
-                  value={formData.other_stock_point_id || ""}
-                  onChange={handleOtherStockPointChange}
-                  style={{ width: "100%", padding: "8px", borderRadius: "4px", border: "1px solid #ccc" }}
-                  disabled={!formData.active_stock_point_id}
-                >
-                  <option value="">Select Other Stock Point</option>
-                  {otherStockPoints
-                    .filter(sp => sp.stock_point_id !== formData.active_stock_point_id)
-                    .map(sp => (
-                      <option key={sp.stock_point_id} value={sp.stock_point_id}>
-                        {sp.stock_point_name} {sp.user_id ? `(User ID: ${sp.user_id})` : ''}
-                      </option>
-                    ))}
-                </select>
-                {formData.other_stock_point_details && (
-                  <div style={{ marginTop: "8px", fontSize: "12px", color: "#666" }}>
-                    Location: {formData.other_stock_point_details.location} | 
-                    Status: {formData.other_stock_point_details.status} |
-                    {formData.other_stock_point_details.user_id && ` User ID: ${formData.other_stock_point_details.user_id}`}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div> */}
+          )}
 
-          {/* 🆕 NEW: Display validation status message */}
-          {selectedTransferItems.length > 0 && !isAllProductsSelected && (
-            <div className="alert alert-warning mt-2" style={{ padding: "8px 12px", fontSize: "14px" }}>
-              <strong>⚠️ Note:</strong> You must add <strong>ALL</strong> products from a stock transfer before assigning to a salesman.
-              {repairDetails.length > 0 && (
-                <span> Currently selected: {repairDetails.length} of {selectedTransferItems.length} products.</span>
+          {/* ===== MAIN FORM: "Without Delivery Agent" tab, or page 2 of "With Delivery Agent" ===== */}
+          {!showAgentSelectionPage && (
+            <>
+              {assignMode === "agent" && (
+                <AgentSummaryBar formData={formData} onChangeAgent={handleChangeAgent} />
               )}
-            </div>
+
+              <div className="sales-form">
+                <div className="sales-form-left">
+                  <CustomerDetails
+                    formData={formData}
+                    setFormData={setFormData}
+                    handleCustomerChange={handleCustomerChange}
+                    handleAddCustomer={handleAddCustomer}
+                    customers={customers}
+                    setSelectedMobile={setSelectedMobile}
+                    mobileRef={mobileRef}
+                    tabId={tabId}
+                  />
+                </div>
+                <div className="sales-form-right">
+                  <InvoiceDetails formData={formData} setFormData={setFormData} />
+                </div>
+              </div>
+
+              {/* Validation status message */}
+              {selectedTransferItems.length > 0 && !isAllProductsSelected && (
+                <div className="alert alert-warning mt-2" style={{ padding: "8px 12px", fontSize: "14px" }}>
+                  <strong>⚠️ Note:</strong> You must add <strong>ALL</strong> products from a stock transfer before assigning to a salesman.
+                  {repairDetails.length > 0 && (
+                    <span> Currently selected: {repairDetails.length} of {selectedTransferItems.length} products.</span>
+                  )}
+                </div>
+              )}
+              {isAllProductsSelected && (
+                <div className="alert alert-success mt-2" style={{ padding: "8px 12px", fontSize: "14px" }}>
+                  <strong>✅ All products from this transfer have been added!</strong> You can now assign to salesman.
+                </div>
+              )}
+
+              <div
+                className="sales-form-section"
+                style={{ marginTop: "-20px", marginBottom: "5px" }}
+              >
+                <ProductDetails
+                  formData={formData}
+                  setFormData={setFormData}
+                  handleChange={handleChange}
+                  handleBarcodeChange={handleBarcodeSelectAndAutoAdd}
+                  handleProductNameChange={handleProductNameChange}
+                  handleMetalTypeChange={handleMetalTypeChange}
+                  handleDesignNameChange={handleDesignNameChange}
+                  handleAdd={handleAdd}
+                  products={products}
+                  data={data}
+                  uniqueProducts={uniqueProducts}
+                  categoryOptions={categoryOptions}
+                  subcategoryOptions={subcategoryOptions}
+                  purityOptions={purityOptions}
+                  designOptions={designOptions}
+                  metaltypeOptions={metaltypeOptions}
+                  filteredMetalTypes={filteredMetalTypes}
+                  filteredPurityOptions={filteredPurityOptions}
+                  filteredDesignOptions={filteredDesignOptions}
+                  isBarcodeSelected={isBarcodeSelected}
+                  isQtyEditable={isQtyEditable}
+                  handleUpdate={handleUpdate}
+                  isEditing={editIndex !== null}
+                  handleImageChange={handleImageChange}
+                  image={image}
+                  fileInputRef={fileInputRef}
+                  clearImage={clearImage}
+                  captureImage={captureImage}
+                  setShowWebcam={setShowWebcam}
+                  showWebcam={showWebcam}
+                  webcamRef={webcamRef}
+                  setShowOptions={setShowOptions}
+                  showOptions={showOptions}
+                  estimate={estimate}
+                  selectedEstimate={selectedEstimate}
+                  handleEstimateChange={handleEstimateChange}
+                  refreshSalesData={refreshSalesData}
+                  clearProductTable={clearProductTable}
+                  fetchCategory={fetchCategory}
+                  fetchSubCategory={fetchSubCategory}
+                  taxableAmount={taxableAmount}
+                  tabId={tabId}
+                  offers={offers}
+                  isTotalPriceCleared={isTotalPriceCleared}
+                  setIsTotalPriceCleared={setIsTotalPriceCleared}
+                  isManualTotalPriceChange={isManualTotalPriceChange}
+                  setIsManualTotalPriceChange={setIsManualTotalPriceChange}
+                  manualTotalPriceRef={manualTotalPriceRef}
+                  handleOrderChange={handleOrderChange}
+                  selectedOrder={selectedOrder}
+                  orderData={orderData}
+                  visitLogsData={visitLogsData}
+                  itemGrossTotal={itemGrossTotal}
+                  packetGrossTotal={packetGrossTotal}
+                  totalWeightWithBag={totalWeightWithBag}
+                  onTotalWeightWithBagChange={handleTotalWeightWithBagChange}
+                  onCaptureWeight={handleCaptureWeight}
+                  isWeightProcessing={isWeightProcessing}
+                  currentItemId={repairDetails.length > 0 ? repairDetails[0]?.item_id || repairDetails[0]?.id || 0 : null}
+                  triggerWeightCamera={triggerWeightCamera}
+                  setTriggerWeightCamera={setTriggerWeightCamera}
+                />
+              </div>
+
+              <div className="sales-form-section">
+                <ProductTable
+                  repairDetails={repairDetails}
+                  onEdit={handleEdit}
+                  onDelete={handleDelete}
+                  itemGrossTotal={itemGrossTotal}
+                  packetGrossTotal={packetGrossTotal}
+                  totalWeightWithBag={totalWeightWithBag}
+                  onTotalWeightWithBagChange={handleTotalWeightWithBagChange}
+                  capturedWeights={capturedWeights}
+                  isWeightProcessing={isWeightProcessing}
+                  onCaptureWeightFromTable={handleCaptureWeightFromTable}
+                />
+              </div>
+
+              <div className="sales-form">
+                <div className="sales-form-fourth">
+                  <PaymentDetails
+                    paymentDetails={paymentDetails}
+                    setPaymentDetails={setPaymentDetails}
+                    handleSave={handleSave}
+                    handleBack={handleBack}
+                    totalPrice={totalPrice}
+                    repairDetails={repairDetails}
+                    setRepairDetails={setRepairDetails}
+                    taxableAmount={taxableAmount}
+                    discountAmt={discountAmt}
+                    totalAmount={totalAmount}
+                    taxAmount={taxAmount}
+                    netAmount={netAmount}
+                    oldItemsAmount={oldItemsAmount}
+                    schemeAmount={schemeAmount}
+                    netPayableAmount={netPayableAmount}
+                    salesNetAmount={salesNetAmount}
+                    salesAmountToPass={salesAmountToPass}
+                    salesTaxableAmount={salesTaxableAmount}
+                    netPayAmount={netPayAmount}
+                    oldSalesData={oldSalesData}
+                    schemeSalesData={schemeSalesData}
+                    discount={discount}
+                    handleDiscountChange={handleDiscountChange}
+                    refreshSalesData={refreshSalesData}
+                    setOffers={setOffers}
+                    offers={offers}
+                    loading={loading}
+                    festivalShowModal={festivalShowModal}
+                    handleFestivalShowModal={handleFestivalShowModal}
+                    handleFestivalCloseModal={handleFestivalCloseModal}
+                    appliedOffers={appliedOffers}
+                    setAppliedOffers={setAppliedOffers}
+                    festivalDiscountAmt={festivalDiscountAmt}
+                    tabId={tabId}
+                    manualNetAmount={manualNetAmount}
+                    setManualNetAmount={setManualNetAmount}
+                    handleManualNetAmountChange={handleManualNetAmountChange}
+                    isManualNetMode={isManualNetMode}
+                    setIsManualNetMode={setIsManualNetMode}
+                    handleManualNetPayAmountChange={handleManualNetPayAmountChange}
+                    manualNetPayAmount={manualNetPayAmount}
+                    handleApply={handleApply}
+                    isAnyOfferApplied={isAnyOfferApplied}
+                    selectedAdvanceReceiptAmount={selectedAdvanceReceiptAmount}
+                    isAllProductsSelected={isAllProductsSelected}
+                    selectedTransferItems={selectedTransferItems}
+                    itemGrossTotal={itemGrossTotal}
+                    packetGrossTotal={packetGrossTotal}
+                    totalWeightWithBag={totalWeightWithBag}
+                    onTotalWeightWithBagChange={handleTotalWeightWithBagChange}
+                    capturedWeights={capturedWeights}
+                    requireWeightForAll={true}
+                  />
+                </div>
+              </div>
+            </>
           )}
-          {isAllProductsSelected && (
-            <div className="alert alert-success mt-2" style={{ padding: "8px 12px", fontSize: "14px" }}>
-              <strong>✅ All products from this transfer have been added!</strong> You can now assign to salesman.
-            </div>
-          )}
 
-          <div
-            className="sales-form-section"
-            style={{ marginTop: "-20px", marginBottom: "5px" }}
-          >
-            <ProductDetails
-              formData={formData}
-              setFormData={setFormData}
-              handleChange={handleChange}
-              handleBarcodeChange={handleBarcodeSelectAndAutoAdd}
-              // handleProductChange={handleProductChange}
-              handleProductNameChange={handleProductNameChange}
-              handleMetalTypeChange={handleMetalTypeChange}
-              handleDesignNameChange={handleDesignNameChange}
-              handleAdd={handleAdd}
-              products={products}
-              data={data}
-              uniqueProducts={uniqueProducts}
-              categoryOptions={categoryOptions}
-              subcategoryOptions={subcategoryOptions}
-              purityOptions={purityOptions}
-              designOptions={designOptions}
-              metaltypeOptions={metaltypeOptions}
-              filteredMetalTypes={filteredMetalTypes}
-              filteredPurityOptions={filteredPurityOptions}
-              filteredDesignOptions={filteredDesignOptions}
-              isBarcodeSelected={isBarcodeSelected}
-              isQtyEditable={isQtyEditable}
-              handleUpdate={handleUpdate}
-              isEditing={editIndex !== null}
-              handleImageChange={handleImageChange}
-              image={image}
-              fileInputRef={fileInputRef}
-              clearImage={clearImage}
-              captureImage={captureImage}
-              setShowWebcam={setShowWebcam}
-              showWebcam={showWebcam}
-              webcamRef={webcamRef}
-              setShowOptions={setShowOptions}
-              showOptions={showOptions}
-              estimate={estimate}
-              selectedEstimate={selectedEstimate}
-              handleEstimateChange={handleEstimateChange}
-              refreshSalesData={refreshSalesData}
-              // 🆕 NEW: Clear the Product Table when the "Clear" button in ProductDetails is clicked
-              clearProductTable={clearProductTable}
-              fetchCategory={fetchCategory}
-              fetchSubCategory={fetchSubCategory}
-              taxableAmount={taxableAmount}
-              tabId={tabId}
-              offers={offers}
-              isTotalPriceCleared={isTotalPriceCleared}
-              setIsTotalPriceCleared={setIsTotalPriceCleared}
-              isManualTotalPriceChange={isManualTotalPriceChange}
-              setIsManualTotalPriceChange={setIsManualTotalPriceChange}
-              manualTotalPriceRef={manualTotalPriceRef}
-              handleOrderChange={handleOrderChange}
-              selectedOrder={selectedOrder}
-              orderData={orderData}
-              visitLogsData={visitLogsData} // <-- ADD THIS: Pass visitLogsData to ProductDetails
-              itemGrossTotal={itemGrossTotal}
-              packetGrossTotal={packetGrossTotal}
-              totalWeightWithBag={totalWeightWithBag}
-              onTotalWeightWithBagChange={handleTotalWeightWithBagChange}
-              // ============= NEW: Weight capture props =============
-              onCaptureWeight={handleCaptureWeight}
-              isWeightProcessing={isWeightProcessing}
-              currentItemId={repairDetails.length > 0 ? repairDetails[0]?.item_id || repairDetails[0]?.id || 0 : null}
-              // ============= NEW: Trigger weight camera from table =============
-              triggerWeightCamera={triggerWeightCamera}
-              setTriggerWeightCamera={setTriggerWeightCamera}
-            />
-          </div>
-
-          <div className="sales-form-section">
-            <ProductTable
-              repairDetails={repairDetails}
-              onEdit={handleEdit}
-              onDelete={handleDelete}
-              itemGrossTotal={itemGrossTotal}
-              packetGrossTotal={packetGrossTotal}
-              totalWeightWithBag={totalWeightWithBag}
-              onTotalWeightWithBagChange={handleTotalWeightWithBagChange}
-              // ============= NEW: Weight capture props =============
-              capturedWeights={capturedWeights}
-              isWeightProcessing={isWeightProcessing}
-              // ============= NEW: Handle weight capture from table =============
-              onCaptureWeightFromTable={handleCaptureWeightFromTable}
-            />
-          </div>
-
-          <div className="sales-form">
-            {/* <div className="sales-form-third">
-              <SalesFormSection
-                metal={metal}
-                setMetal={setMetal}
-                setOldSalesData={setOldSalesData}
-                oldTableData={oldTableData}
-                setOldTableData={setOldTableData}
-                setSchemeSalesData={setSchemeSalesData}
-                schemeTableData={schemeTableData}
-                setSchemeTableData={setSchemeTableData}
-                filteredInvoices={filteredInvoices}
-                setFilteredInvoices={setFilteredInvoices}
-                uniqueInvoice={uniqueInvoice}
-                setUniqueInvoice={setUniqueInvoice}
-                invoiceDetails={invoiceDetails}
-                setInvoiceDetails={setInvoiceDetails}
-                handleInvoiceChange={handleInvoiceChange}
-                returnData={returnData}
-                setReturnData={setReturnData}
-                selectedMobile={formData.mobile}
-                selectedRows={selectedRows}
-                setSelectedRows={setSelectedRows}
-                isAllSelected={isAllSelected}
-                setIsAllSelected={setIsAllSelected}
-                handleCheckboxChange={handleCheckboxChange}
-                handleSelectAllChange={handleSelectAllChange}
-                salesTaxableAmount={salesTaxableAmount}
-                salesTaxAmount={salesTaxAmount}
-                salesNetAmount={salesNetAmount}
-                repairDetails={repairDetails}
-                resetSaleReturnForm={resetSaleReturnForm}
-                handleCheckout={handleCheckout}
-                tabId={tabId}
-                setRepairDetails={setRepairDetails}
-                formData={formData}
-                orderData={orderData}
-                handleCloseModal={handleCloseModal}
-                handleViewDetails={handleViewDetails}
-                selectedOrder={selectedOrder}
-                handleOrderCheckboxChange={handleOrderCheckboxChange}
-                showModal={showModal}
-                orderDetails={orderDetails}
-                loading={loading}
-                formatDate={formatDate}
-                repairs={repairs}
-                handleRepairCheckboxChange={handleRepairCheckboxChange}
-                // Pass these new props
-                onAdvanceAmountChange={setSelectedAdvanceReceiptAmount}
-                selectedAdvanceReceiptAmount={selectedAdvanceReceiptAmount}
-                onReceiptIdsChange={setSelectedReceiptIds}
-              />
-            </div> */}
-            <div className="sales-form-fourth">
-              <PaymentDetails
-                paymentDetails={paymentDetails}
-                setPaymentDetails={setPaymentDetails}
-                handleSave={handleSave}
-                handleBack={handleBack}
-                totalPrice={totalPrice}
-                repairDetails={repairDetails}
-                setRepairDetails={setRepairDetails}
-                taxableAmount={taxableAmount}
-                discountAmt={discountAmt}
-                totalAmount={totalAmount}
-                taxAmount={taxAmount}
-                netAmount={netAmount}
-                oldItemsAmount={oldItemsAmount}
-                schemeAmount={schemeAmount}
-                netPayableAmount={netPayableAmount}
-                salesNetAmount={salesNetAmount}
-                salesAmountToPass={salesAmountToPass}
-                salesTaxableAmount={salesTaxableAmount}
-                netPayAmount={netPayAmount}
-                oldSalesData={oldSalesData}
-                schemeSalesData={schemeSalesData}
-                discount={discount}
-                handleDiscountChange={handleDiscountChange}
-                refreshSalesData={refreshSalesData}
-                setOffers={setOffers}
-                offers={offers}
-                loading={loading}
-                festivalShowModal={festivalShowModal}
-                // handleApply={handleApply}
-                handleFestivalShowModal={handleFestivalShowModal}
-                handleFestivalCloseModal={handleFestivalCloseModal}
-                appliedOffers={appliedOffers}
-                setAppliedOffers={setAppliedOffers}
-                festivalDiscountAmt={festivalDiscountAmt}
-                tabId={tabId}
-                manualNetAmount={manualNetAmount}
-                setManualNetAmount={setManualNetAmount}
-                handleManualNetAmountChange={handleManualNetAmountChange}
-                isManualNetMode={isManualNetMode}
-                setIsManualNetMode={setIsManualNetMode}
-                handleManualNetPayAmountChange={handleManualNetPayAmountChange}
-                manualNetPayAmount={manualNetPayAmount}
-                handleApply={handleApply}
-                isAnyOfferApplied={isAnyOfferApplied}
-                // Pass the selected advance amount
-                selectedAdvanceReceiptAmount={selectedAdvanceReceiptAmount}
-                // 🆕 NEW: Pass validation props
-                isAllProductsSelected={isAllProductsSelected}
-                selectedTransferItems={selectedTransferItems}
-                // repairDetails={repairDetails}
-                // NEW: Weight totals props
-                itemGrossTotal={itemGrossTotal}
-                packetGrossTotal={packetGrossTotal}
-                totalWeightWithBag={totalWeightWithBag}
-                onTotalWeightWithBagChange={handleTotalWeightWithBagChange}
-                // ===== NEW: Weight validation props =====
-                capturedWeights={capturedWeights}
-                requireWeightForAll={true}  // Set to true to enforce weight capture, false to make it optional
-              />
-            </div>
-          </div>
           {showPDFDownload && (
             <PDFDownloadLink
               document={

@@ -11,6 +11,7 @@
   border-radius: 10px;
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
   margin: 80px 30px;
+  background-color: rgba(163, 110, 41, 0.08);
 }
 
 .salesman-table-container h3 {

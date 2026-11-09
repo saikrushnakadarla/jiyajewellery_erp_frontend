@@ -1,0 +1,218 @@
+/* DeliveryAgent.css – all classes prefixed with "da-" so nothing existing is affected.
+   Uses the same brand colour (#a36e29) as Salesman screens. */
+
+/* ---------- Table page ---------- */
+.da-table-container {
+  padding: 25px 30px;
+  border-radius: 10px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  margin: 80px 30px;
+  background-color: rgba(163, 110, 41, 0.08);
+}
+
+.da-table-container h3 {
+  color: #2c3e50;
+  font-weight: 600;
+  font-size: 24px;
+  margin: 0;
+}
+
+.da-thumb {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  object-fit: cover;
+  cursor: pointer;
+}
+
+.da-status {
+  display: inline-block;
+  padding: 3px 12px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.da-status-active { background: #e6f4ea; color: #1e7e34; }
+.da-status-inactive { background: #fdecea; color: #c0392b; }
+
+/* ---------- Form page ---------- */
+.da-master-container {
+  padding: 30px 35px;
+  background: #ffffff;
+  border-radius: 10px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  margin: 80px 30px;
+  max-width: 1400px;
+}
+
+.da-master-container h2 {
+  color: #2c3e50;
+  font-weight: 600;
+  font-size: 26px;
+  margin-bottom: 10px;
+  padding-bottom: 15px;
+  border-bottom: 2px solid #eef0f2;
+}
+
+.da-section-title {
+  margin: 22px 0 12px;
+  padding-left: 12px;
+  border-left: 4px solid #a36e29;
+  color: #2c3e50;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.da-master-form .input-label {
+  font-weight: 500;
+  color: #2c3e50;
+  font-size: 14px;
+  margin-bottom: 4px;
+  display: block;
+}
+
+.da-master-form .form-control,
+.da-master-form .form-select {
+  border-radius: 6px;
+  border: 1px solid #dce1e8;
+  padding: 8px 12px;
+  font-size: 14px;
+  background-color: #ffffff;
+  width: 100%;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.da-master-form .form-control:not(.da-textarea),
+.da-master-form .form-select {
+  height: 40px;
+}
+
+.da-master-form .form-control:focus,
+.da-master-form .form-select:focus {
+  border-color: #a36e29;
+  box-shadow: 0 0 0 3px rgba(163, 110, 41, 0.12);
+  outline: none;
+}
+
+.da-master-form .form-control::placeholder {
+  color: #b0b8c4;
+  font-size: 13px;
+}
+
+.da-textarea { resize: vertical; min-height: 70px; }
+
+/* Photo */
+.da-photo-section {
+  background: #f8f9fb;
+  padding: 18px 22px;
+  border-radius: 8px;
+}
+
+.da-upload-btn {
+  padding: 8px 22px;
+  border: none;
+  border-radius: 6px;
+  background: #3498db;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.da-upload-btn:hover { background: #2980b9; }
+
+.da-optional-text {
+  color: #8a94a6;
+  font-size: 12px;
+  margin-left: 10px;
+}
+
+.da-photo-preview {
+  position: relative;
+  width: 120px;
+  height: 120px;
+  margin-top: 15px;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 3px solid #a36e29;
+}
+.da-photo-preview img { width: 100%; height: 100%; object-fit: cover; }
+
+.da-remove-photo-btn {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(231, 76, 60, 0.9);
+  color: #fff;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.da-remove-photo-btn:hover { background: #e74c3c; }
+
+/* Actions */
+.da-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 15px;
+  margin-top: 25px;
+  padding-top: 20px;
+  border-top: 2px solid #eef0f2;
+}
+
+.da-back-btn {
+  padding: 10px 35px;
+  border: 1px solid #dce1e8;
+  border-radius: 6px;
+  background: #f8f9fb;
+  color: #555;
+  font-weight: 500;
+  font-size: 14px;
+  cursor: pointer;
+}
+.da-back-btn:hover { background: #eef0f2; }
+
+.da-save-btn {
+  padding: 10px 40px;
+  border: none;
+  border-radius: 6px;
+  background: #a36e29;
+  color: #fff;
+  font-weight: 500;
+  font-size: 14px;
+  cursor: pointer;
+}
+.da-save-btn:hover:not(:disabled) { background: #8a5d22; }
+.da-save-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.da-upload-btn:focus-visible,
+.da-back-btn:focus-visible,
+.da-save-btn:focus-visible,
+.da-remove-photo-btn:focus-visible {
+  outline: 2px solid #a36e29;
+  outline-offset: 2px;
+}
+
+/* ---------- Responsive ---------- */
+@media (max-width: 992px) {
+  .da-master-container, .da-table-container { padding: 20px 25px; margin: 15px; }
+}
+@media (max-width: 768px) {
+  .da-master-container, .da-table-container { padding: 15px 18px; margin: 10px; }
+  .da-master-container h2 { font-size: 20px; }
+  .da-form-actions { flex-direction: column; }
+  .da-form-actions button { width: 100%; }
+}
+@media (max-width: 576px) {
+  .da-master-container, .da-table-container { padding: 12px 14px; margin: 8px; }
+  .da-table-container h3 { font-size: 18px; }
+  .da-photo-preview { width: 100px; height: 100px; }
+}

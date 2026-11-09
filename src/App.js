@@ -117,7 +117,11 @@ import AdminReceivedSalesmanTable from "./Components/Modules/Transactions/AdminR
 import AdminReturnToMainStockTable from "./Components/Modules/Transactions/AdminReturnToMainStock/AdminReturnToMainStockTable";
 
 
-import GSTR1Report from "./Components/Modules/Transactions/GSTRReports/GSTRReports"; // adjust path
+import GSTR1Report from "./Components/Modules/Transactions/GSTRReports/GSTRReports";
+
+
+import DeliveryAgentTable from './Components/Modules/Masters/DeliveryAgent/DeliveryAgentTable';
+import DeliveryAgentForm from './Components/Modules/Masters/DeliveryAgent/DeliveryAgentForm';
 
 
 
@@ -259,6 +263,12 @@ function App() {
               <Customer_Master />
             </ProtectedRoute>
           } />
+
+
+
+      <Route path="/deliveryagenttable" element={<ProtectedRoute><DeliveryAgentTable /></ProtectedRoute>} />
+      <Route path="/deliveryagentmaster" element={<ProtectedRoute><DeliveryAgentForm /></ProtectedRoute>} />
+      <Route path="/deliveryagentmaster/:id" element={<ProtectedRoute><DeliveryAgentForm /></ProtectedRoute>} />
           
           <Route path="/salesmantable" element={
             <ProtectedRoute>
