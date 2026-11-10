@@ -7,7 +7,7 @@
   border-radius: 10px;
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
   margin: 80px 30px;
-  background-color: rgba(163, 110, 41, 0.08);
+  background-color: rgba(163, 110, 41, 0.08); 
 }
 
 .da-table-container h3 {
@@ -43,6 +43,7 @@
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
   margin: 80px 30px;
   max-width: 1400px;
+  background-color: rgba(163, 110, 41, 0.08);
 }
 
 .da-master-container h2 {
@@ -216,3 +217,21 @@
   .da-table-container h3 { font-size: 18px; }
   .da-photo-preview { width: 100px; height: 100px; }
 }
+
+
+.da-checkbox-group {
+  display: flex;
+  gap: 18px;
+  flex-wrap: wrap;
+  padding-top: 8px;
+}
+
+
+.da-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  margin: 0;
+}
+

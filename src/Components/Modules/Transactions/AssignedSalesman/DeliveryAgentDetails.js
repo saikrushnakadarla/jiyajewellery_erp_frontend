@@ -7,7 +7,7 @@ import baseURL from "./../../../../Url/NodeBaseURL";
 const Item = ({ label, value, fullWidth = false }) => (
   <div
     style={{
-      minWidth: 0, // lets long text wrap inside the cell instead of overlapping
+      minWidth: 0,
       gridColumn: fullWidth ? "1 / -1" : "auto",
     }}
   >
@@ -29,6 +29,14 @@ const Item = ({ label, value, fullWidth = false }) => (
   </div>
 );
 
+const formatMoney = (value) => {
+  if (value === null || value === undefined || value === "") return "";
+  const n = Number(value);
+  return Number.isNaN(n) ? "" : `₹${n.toLocaleString("en-IN")}`;
+};
+
+const formatList = (value) => (value ? value.split(",").join(", ") : "");
+
 const DeliveryAgentDetails = ({ formData, setFormData, onNext, onCancel }) => {
   const [agents, setAgents] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -42,7 +50,7 @@ const DeliveryAgentDetails = ({ formData, setFormData, onNext, onCancel }) => {
           data.filter((a) => (a.status || "").toLowerCase() === "active")
         );
       } catch (error) {
-        console.error("Error fetching delivery agents:", error);
+        console.error("Error fetching logistic partners:", error);
         setAgents([]);
       } finally {
         setLoading(false);
@@ -77,15 +85,24 @@ const DeliveryAgentDetails = ({ formData, setFormData, onNext, onCancel }) => {
     {
       value: "",
       label: loading
-        ? "Loading delivery agents..."
+        ? "Loading logistic partners..."
         : agents.length === 0
-        ? "No delivery agents available"
-        : "Select Delivery Agent",
+        ? "No logistic partners available"
+        : "Select Logistic Partner",
     },
-    ...agents.map((a) => ({ value: String(a.id), label: a.full_name })),
+    ...agents.map((a) => ({
+      value: String(a.id),
+      label: a.partner_type ? `${a.full_name} (${a.partner_type})` : a.full_name,
+    })),
   ];
 
-  const agent = formData.delivery_agent_details;
+  // Prefer the fresh record from the fetched list; fall back to the stored copy
+  const agent =
+    (formData.delivery_agent_id &&
+      agents.find((a) => String(a.id) === String(formData.delivery_agent_id))) ||
+    formData.delivery_agent_details ||
+    null;
+
   const photo = agent ? getImageUrl(agent.profile_photo) : null;
 
   const fullAddress = agent
@@ -99,7 +116,7 @@ const DeliveryAgentDetails = ({ formData, setFormData, onNext, onCancel }) => {
       <Row className="align-items-end">
         <Col xs={12} md={4}>
           <InputField
-            label="Delivery Agent *"
+            label="Logistic Partner *"
             name="delivery_agent_id"
             type="select"
             value={formData.delivery_agent_id || ""}
@@ -123,7 +140,7 @@ const DeliveryAgentDetails = ({ formData, setFormData, onNext, onCancel }) => {
             alignItems: "flex-start",
           }}
         >
-          {/* Photo */}
+          {/* Logo */}
           <div style={{ width: "72px", height: "72px", flexShrink: 0 }}>
             {photo ? (
               <img
@@ -132,9 +149,10 @@ const DeliveryAgentDetails = ({ formData, setFormData, onNext, onCancel }) => {
                 style={{
                   width: "72px",
                   height: "72px",
-                  objectFit: "cover",
-                  borderRadius: "50%",
+                  objectFit: "contain",
+                  borderRadius: "8px",
                   border: "2px solid #a36e29",
+                  background: "#fff",
                 }}
                 onError={(e) => {
                   e.target.onerror = null;
@@ -146,7 +164,7 @@ const DeliveryAgentDetails = ({ formData, setFormData, onNext, onCancel }) => {
                 style={{
                   width: "72px",
                   height: "72px",
-                  borderRadius: "50%",
+                  borderRadius: "8px",
                   background: "#a36e29",
                   color: "#fff",
                   fontSize: "26px",
@@ -160,7 +178,7 @@ const DeliveryAgentDetails = ({ formData, setFormData, onNext, onCancel }) => {
             )}
           </div>
 
-          {/* Details grid: equal columns, no overlap */}
+          {/* Details grid */}
           <div
             style={{
               flex: 1,
@@ -170,34 +188,26 @@ const DeliveryAgentDetails = ({ formData, setFormData, onNext, onCancel }) => {
               gap: "12px 24px",
             }}
           >
-            <Item label="Agent Code" value={agent.agent_code} />
-            <Item label="Full Name" value={agent.full_name} />
-            <Item label="Mobile" value={agent.mobile_number} />
-            <Item label="Alternate Number" value={agent.alternate_number} />
-            <Item label="Email" value={agent.email} />
-            <Item label="Employee Type" value={agent.employee_type} />
+            <Item label="Partner Code" value={agent.agent_code} />
+            <Item label="Partner Name" value={agent.full_name} />
+            <Item label="Partner Type" value={agent.partner_type} />
             <Item label="Status" value={agent.status} />
-            <Item label="Joining Date" value={agent.joining_date} />
+            <Item label="Contact Person" value={agent.contact_person} />
+            <Item label="Mobile" value={agent.mobile_number} />
+            <Item label="Email" value={agent.email} />
+            <Item label="Service Type" value={formatList(agent.service_type)} />
+            <Item label="Serviceable Areas" value={agent.serviceable_areas} />
+            <Item label="Insurance Available" value={agent.insurance_available} />
             <Item
-              label="ID Proof"
-              value={
-                agent.id_proof_type
-                  ? `${agent.id_proof_type} - ${agent.id_proof_number || ""}`
-                  : ""
-              }
+              label="Max Declared Value"
+              value={formatMoney(agent.max_declared_value)}
             />
-            <Item
-              label="Emergency Contact"
-              value={
-                agent.emergency_contact_name
-                  ? `${agent.emergency_contact_name} (${
-                      agent.emergency_contact_number || "-"
-                    })`
-                  : ""
-              }
-            />
-            {/* Address takes the full row so it never squeezes other fields */}
             <Item label="Address" value={fullAddress} fullWidth />
+            <Item
+              label="Tracking URL"
+              value={agent.tracking_url_template}
+              fullWidth
+            />
           </div>
         </div>
       )}

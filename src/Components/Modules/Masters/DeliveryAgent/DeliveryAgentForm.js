@@ -1,4 +1,4 @@
-// DeliveryAgentForm.js
+// DeliveryAgentForm.js  (Logistic Partner Form)
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Row, Col } from 'react-bootstrap';
@@ -8,33 +8,23 @@ import InputField from '../../../Pages/InputField/InputField';
 import './DeliveryAgent.css';
 import baseURL from '../../../../Url/NodeBaseURL';
 
-const MIN_YEAR = 1900;
-const MAX_YEAR = 2100;
-
-const isValidDateYear = (value) => {
-  if (!value) return true;
-  const [yearPart] = value.split('-');
-  if (!/^\d{1,4}$/.test(yearPart)) return false;
-  const yearNum = Number(yearPart);
-  if (yearPart.length === 4 && (yearNum < MIN_YEAR || yearNum > MAX_YEAR)) return false;
-  return true;
-};
+const SERVICE_TYPES = ['Express', 'Standard', 'Same Day'];
 
 const initialForm = {
   full_name: '',
+  partner_type: '',
+  contact_person: '',
   mobile_number: '',
-  alternate_number: '',
   email: '',
   address: '',
   city: '',
   state: '',
   pincode: '',
-  joining_date: '',
-  employee_type: 'Permanent',
-  id_proof_type: '',
-  id_proof_number: '',
-  emergency_contact_name: '',
-  emergency_contact_number: '',
+  serviceable_areas: '',
+  service_type: [],            // array in UI, comma-joined on save
+  tracking_url_template: '',
+  insurance_available: 'No',
+  max_declared_value: '',
   status: 'Active',
 };
 
@@ -43,48 +33,48 @@ function DeliveryAgentForm() {
   const { id } = useParams();
 
   const [formData, setFormData] = useState(initialForm);
-  const [agentCode, setAgentCode] = useState('');
+  const [partnerCode, setPartnerCode] = useState('');
   const [isSaving, setIsSaving] = useState(false);
 
   const [imagePreview, setImagePreview] = useState(null);
-  const [newProfilePhoto, setNewProfilePhoto] = useState(null);
-  const [photoRemoved, setPhotoRemoved] = useState(false);
+  const [newLogo, setNewLogo] = useState(null);
+  const [logoRemoved, setLogoRemoved] = useState(false);
   const fileInputRef = useRef(null);
 
-  // Load agent when editing
+  // Load partner when editing
   useEffect(() => {
     if (!id) return;
-    const loadAgent = async () => {
+    const load = async () => {
       try {
         const res = await fetch(`${baseURL}/get/delivery-agents/${id}`);
         if (!res.ok) throw new Error('Not found');
         const r = await res.json();
-        setAgentCode(r.agent_code);
+        setPartnerCode(r.agent_code);
         setFormData({
           full_name: r.full_name || '',
+          partner_type: r.partner_type || '',
+          contact_person: r.contact_person || '',
           mobile_number: r.mobile_number || '',
-          alternate_number: r.alternate_number || '',
           email: r.email || '',
           address: r.address || '',
           city: r.city || '',
           state: r.state || '',
           pincode: r.pincode || '',
-          joining_date: r.joining_date || '',
-          employee_type: r.employee_type || 'Permanent',
-          id_proof_type: r.id_proof_type || '',
-          id_proof_number: r.id_proof_number || '',
-          emergency_contact_name: r.emergency_contact_name || '',
-          emergency_contact_number: r.emergency_contact_number || '',
+          serviceable_areas: r.serviceable_areas || '',
+          service_type: r.service_type ? r.service_type.split(',') : [],
+          tracking_url_template: r.tracking_url_template || '',
+          insurance_available: r.insurance_available || 'No',
+          max_declared_value: r.max_declared_value ?? '',
           status: r.status || 'Active',
         });
         if (r.profile_photo) setImagePreview(`${baseURL}${r.profile_photo}`);
       } catch (err) {
-        console.error('Error fetching delivery agent:', err);
-        Swal.fire({ icon: 'error', title: 'Error', text: 'Could not load delivery agent.', confirmButtonColor: '#a36e29' })
+        console.error('Error fetching logistic partner:', err);
+        Swal.fire({ icon: 'error', title: 'Error', text: 'Could not load logistic partner.', confirmButtonColor: '#a36e29' })
           .then(() => navigate('/deliveryagenttable'));
       }
     };
-    loadAgent();
+    load();
   }, [id, navigate]);
 
   const handleChange = (e) => {
@@ -96,29 +86,27 @@ function DeliveryAgentForm() {
         v = value.toUpperCase();
         break;
       case 'mobile_number':
-      case 'alternate_number':
-      case 'emergency_contact_number':
         v = value.replace(/\D/g, '').slice(0, 10);
         break;
       case 'pincode':
         v = value.replace(/\D/g, '').slice(0, 6);
         break;
-      case 'joining_date':
-        if (!isValidDateYear(value)) return;
-        break;
-      case 'id_proof_type':
-        // changing the type invalidates the old number
-        setFormData((prev) => ({ ...prev, id_proof_type: value, id_proof_number: '' }));
-        return;
-      case 'id_proof_number':
-        if (formData.id_proof_type === 'Aadhaar') v = value.replace(/\D/g, '').slice(0, 12);
-        else if (formData.id_proof_type === 'PAN') v = value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 10);
-        else v = value.slice(0, 30);
+      case 'max_declared_value':
+        v = value.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1');
         break;
       default:
         break;
     }
     setFormData((prev) => ({ ...prev, [name]: v }));
+  };
+
+  const toggleServiceType = (type) => {
+    setFormData((prev) => ({
+      ...prev,
+      service_type: prev.service_type.includes(type)
+        ? prev.service_type.filter((t) => t !== type)
+        : [...prev.service_type, type],
+    }));
   };
 
   const fail = (text) => {
@@ -128,18 +116,22 @@ function DeliveryAgentForm() {
 
   const validateForm = () => {
     const f = formData;
-    if (!f.full_name.trim()) return fail('Agent name is required.');
+    if (!f.full_name.trim()) return fail('Partner name is required.');
+    if (!f.partner_type) return fail('Select a partner type.');
+    if (!f.contact_person.trim()) return fail('Contact person is required.');
     if (!f.mobile_number) return fail('Mobile number is required.');
     if (f.mobile_number.length !== 10) return fail('Mobile number must be exactly 10 digits.');
-    if (f.alternate_number && f.alternate_number.length !== 10) return fail('Alternate number must be exactly 10 digits.');
     if (f.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.email)) return fail('Email is not valid.');
-    if (f.pincode && f.pincode.length !== 6) return fail('Pincode must be exactly 6 digits.');
-    if (!f.joining_date) return fail('Joining date is required.');
-    if (!isValidDateYear(f.joining_date)) return fail('Joining date year must be between 1900 and 2100.');
-    if (f.id_proof_number && !f.id_proof_type) return fail('Select an ID proof type.');
-    if (f.id_proof_type === 'Aadhaar' && f.id_proof_number && f.id_proof_number.length !== 12) return fail('Aadhaar must be 12 digits.');
-    if (f.id_proof_type === 'PAN' && f.id_proof_number && !/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(f.id_proof_number)) return fail('PAN format is invalid (e.g. ABCDE1234F).');
-    if (f.emergency_contact_number && f.emergency_contact_number.length !== 10) return fail('Emergency contact must be exactly 10 digits.');
+    if (!f.address.trim()) return fail('Address is required.');
+    if (!f.city.trim()) return fail('City is required.');
+    if (!f.state.trim()) return fail('State is required.');
+    if (!f.pincode || f.pincode.length !== 6) return fail('Pincode must be exactly 6 digits.');
+    if (!f.serviceable_areas.trim()) return fail('Serviceable areas are required.');
+    if (f.service_type.length === 0) return fail('Select at least one service type.');
+    if (f.tracking_url_template) {
+      if (!/^https?:\/\/\S+$/i.test(f.tracking_url_template)) return fail('Tracking URL must start with http:// or https://');
+      if (!f.tracking_url_template.includes('{awb}')) return fail('Tracking URL must contain the {awb} placeholder.');
+    }
     return true;
   };
 
@@ -154,8 +146,8 @@ function DeliveryAgentForm() {
       Swal.fire({ icon: 'error', title: 'Invalid File Type', text: 'Please select a valid image file.', confirmButtonColor: '#a36e29' });
       return;
     }
-    setNewProfilePhoto(file);
-    setPhotoRemoved(false);
+    setNewLogo(file);
+    setLogoRemoved(false);
     const reader = new FileReader();
     reader.onloadend = () => setImagePreview(reader.result);
     reader.readAsDataURL(file);
@@ -163,8 +155,8 @@ function DeliveryAgentForm() {
 
   const removeImage = () => {
     setImagePreview(null);
-    setNewProfilePhoto(null);
-    setPhotoRemoved(true);
+    setNewLogo(null);
+    setLogoRemoved(true);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
@@ -175,9 +167,12 @@ function DeliveryAgentForm() {
     setIsSaving(true);
     try {
       const body = new FormData();
-      Object.keys(formData).forEach((key) => body.append(key, formData[key] ?? ''));
-      if (newProfilePhoto) body.append('profile_photo', newProfilePhoto);
-      if (id && photoRemoved && !newProfilePhoto) body.append('remove_photo', 'true');
+      Object.keys(formData).forEach((key) => {
+        const val = key === 'service_type' ? formData.service_type.join(',') : formData[key];
+        body.append(key, val ?? '');
+      });
+      if (newLogo) body.append('profile_photo', newLogo);
+      if (id && logoRemoved && !newLogo) body.append('remove_photo', 'true');
       if (!id) body.append('created_by', localStorage.getItem('userId') || '');
 
       const res = await fetch(
@@ -185,14 +180,14 @@ function DeliveryAgentForm() {
         { method: id ? 'PUT' : 'POST', body }
       );
       const result = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(result.message || 'Failed to save delivery agent');
+      if (!res.ok) throw new Error(result.message || 'Failed to save logistic partner');
 
       await Swal.fire({
         icon: 'success',
         title: 'Success!',
         text: id
-          ? 'Delivery agent updated successfully!'
-          : `Delivery agent created successfully! Agent code: ${result.agent_code}`,
+          ? 'Logistic partner updated successfully!'
+          : `Logistic partner created successfully! Partner code: ${result.agent_code}`,
         confirmButtonColor: '#a36e29',
       });
       navigate('/deliveryagenttable');
@@ -204,108 +199,36 @@ function DeliveryAgentForm() {
     }
   };
 
-  const idProofPlaceholder =
-    formData.id_proof_type === 'Aadhaar' ? '12-digit Aadhaar number'
-    : formData.id_proof_type === 'PAN' ? 'e.g. ABCDE1234F'
-    : 'Enter ID number';
-
   return (
     <div className="main-container">
       <div className="da-master-container">
-        <h2>{id ? `Edit Delivery Agent${agentCode ? ` (${agentCode})` : ''}` : 'Add Delivery Agent'}</h2>
+        <h2>{id ? `Edit Logistic Partner${partnerCode ? ` (${partnerCode})` : ''}` : 'Add Logistic Partner'}</h2>
 
         <form className="da-master-form" onSubmit={handleSubmit}>
           {/* Basic information */}
           <div className="da-section-title">Basic information</div>
           <Row>
             <Col md={6}>
-              <InputField label="Agent Name *" name="full_name" value={formData.full_name} onChange={handleChange} required placeholder="Enter agent name" />
+              <InputField label="Partner Name *" name="full_name" value={formData.full_name} onChange={handleChange} required placeholder="e.g. BLUE DART" />
             </Col>
-            <Col md={6}>
-              <InputField label="Email" name="email" type="email" value={formData.email} onChange={handleChange} placeholder="Enter email" />
-            </Col>
-            <Col md={6}>
-              <InputField label="Mobile *" name="mobile_number" value={formData.mobile_number} onChange={handleChange} required placeholder="10-digit mobile number" />
-            </Col>
-            <Col md={6}>
-              <InputField label="Alternate Number" name="alternate_number" value={formData.alternate_number} onChange={handleChange} placeholder="Optional" />
-            </Col>
-            <Col md={12}>
-              <label className="input-label">Address</label>
-              <textarea
-                className="form-control da-textarea"
-                name="address"
-                rows={2}
-                value={formData.address}
-                onChange={handleChange}
-                placeholder="Residential address"
-              />
-            </Col>
-            <Col md={4} className="mt-3">
-              <InputField label="City" name="city" value={formData.city} onChange={handleChange} placeholder="Enter city" />
-            </Col>
-            <Col md={4} className="mt-3">
-              <InputField label="State" name="state" value={formData.state} onChange={handleChange} placeholder="Enter state" />
-            </Col>
-            <Col md={4} className="mt-3">
-              <InputField label="Pincode" name="pincode" value={formData.pincode} onChange={handleChange} placeholder="6-digit pincode" />
-            </Col>
-          </Row>
-
-          {/* Employment information */}
-          <div className="da-section-title">Employment</div>
-          <Row>
-            <Col md={4}>
+            <Col md={3}>
               <InputField
-                label="Joining Date *"
-                name="joining_date"
-                type="date"
-                value={formData.joining_date}
+                label="Partner Type *"
+                name="partner_type"
+                type="select"
+                value={formData.partner_type}
                 onChange={handleChange}
-                min={`${MIN_YEAR}-01-01`}
-                max={`${MAX_YEAR}-12-31`}
                 required
-              />
-            </Col>
-            <Col md={4}>
-              <InputField
-                label="Employee Type"
-                name="employee_type"
-                type="select"
-                value={formData.employee_type}
-                onChange={handleChange}
                 options={[
-                  { value: 'Permanent', label: 'Permanent' },
-                  { value: 'Temporary', label: 'Temporary' },
-                  { value: 'Contract', label: 'Contract' },
+                  { value: '', label: 'Select type' },
+                  { value: 'Courier', label: 'Courier' },
+                  { value: 'Transport', label: 'Transport' },
+                  { value: '3PL', label: '3PL' },
+                  { value: 'Local Delivery', label: 'Local Delivery' },
                 ]}
               />
             </Col>
-            <Col md={4}>
-              <InputField
-                label="ID Proof Type"
-                name="id_proof_type"
-                type="select"
-                value={formData.id_proof_type}
-                onChange={handleChange}
-                options={[
-                  { value: '', label: 'None' },
-                  { value: 'Aadhaar', label: 'Aadhaar' },
-                  { value: 'PAN', label: 'PAN' },
-                  { value: 'Other', label: 'Other' },
-                ]}
-              />
-            </Col>
-            <Col md={4}>
-              <InputField
-                label="ID Proof Number"
-                name="id_proof_number"
-                value={formData.id_proof_number}
-                onChange={handleChange}
-                placeholder={idProofPlaceholder}
-              />
-            </Col>
-            <Col md={4}>
+            <Col md={3}>
               <InputField
                 label="Status"
                 name="status"
@@ -320,30 +243,125 @@ function DeliveryAgentForm() {
             </Col>
           </Row>
 
-          {/* Emergency contact */}
-          <div className="da-section-title">Emergency contact</div>
+          {/* Contact */}
+          <div className="da-section-title">Contact details</div>
           <Row>
-            <Col md={6}>
-              <InputField label="Contact Name" name="emergency_contact_name" value={formData.emergency_contact_name} onChange={handleChange} placeholder="Name of contact person" />
+            <Col md={4}>
+              <InputField label="Contact Person *" name="contact_person" value={formData.contact_person} onChange={handleChange} required placeholder="Primary contact name" />
             </Col>
-            <Col md={6}>
-              <InputField label="Contact Number" name="emergency_contact_number" value={formData.emergency_contact_number} onChange={handleChange} placeholder="10-digit number" />
+            <Col md={4}>
+              <InputField label="Mobile *" name="mobile_number" value={formData.mobile_number} onChange={handleChange} required placeholder="10-digit mobile number" />
+            </Col>
+            <Col md={4}>
+              <InputField label="Email" name="email" type="email" value={formData.email} onChange={handleChange} placeholder="Enter email" />
             </Col>
           </Row>
 
-          {/* Profile photo */}
-          <div className="da-section-title">Profile photo</div>
+          {/* Address */}
+          <div className="da-section-title">Address</div>
+          <Row>
+            <Col md={12}>
+              <label className="input-label">Address *</label>
+              <textarea
+                className="form-control da-textarea"
+                name="address"
+                rows={2}
+                value={formData.address}
+                onChange={handleChange}
+                placeholder="Office address"
+                required
+              />
+            </Col>
+            <Col md={4} className="mt-3">
+              <InputField label="City *" name="city" value={formData.city} onChange={handleChange} required placeholder="Enter city" />
+            </Col>
+            <Col md={4} className="mt-3">
+              <InputField label="State *" name="state" value={formData.state} onChange={handleChange} required placeholder="Enter state" />
+            </Col>
+            <Col md={4} className="mt-3">
+              <InputField label="Pincode *" name="pincode" value={formData.pincode} onChange={handleChange} required placeholder="6-digit pincode" />
+            </Col>
+          </Row>
+
+          {/* Service coverage */}
+          <div className="da-section-title">Service coverage</div>
+          <Row>
+            <Col md={6}>
+              <InputField
+                label="Serviceable Areas *"
+                name="serviceable_areas"
+                value={formData.serviceable_areas}
+                onChange={handleChange}
+                required
+                placeholder="Comma separated, e.g. Hyderabad, Andhra Pradesh, Pan India"
+              />
+            </Col>
+            <Col md={6}>
+              <label className="input-label">Service Type *</label>
+              <div className="da-checkbox-group">
+                {SERVICE_TYPES.map((t) => (
+                  <label key={t} className="da-checkbox">
+                    <input
+                      type="checkbox"
+                      checked={formData.service_type.includes(t)}
+                      onChange={() => toggleServiceType(t)}
+                    />
+                    <span>{t}</span>
+                  </label>
+                ))}
+              </div>
+            </Col>
+            <Col md={12} className="mt-3">
+              <InputField
+                label="Tracking URL Template"
+                name="tracking_url_template"
+                value={formData.tracking_url_template}
+                onChange={handleChange}
+                placeholder="https://track.example.com/?awb={awb}"
+              />
+            </Col>
+          </Row>
+
+          {/* Insurance (jewellery) */}
+          <div className="da-section-title">Insurance</div>
+          <Row>
+            <Col md={6}>
+              <InputField
+                label="Insurance Available"
+                name="insurance_available"
+                type="select"
+                value={formData.insurance_available}
+                onChange={handleChange}
+                options={[
+                  { value: 'No', label: 'No' },
+                  { value: 'Yes', label: 'Yes' },
+                ]}
+              />
+            </Col>
+            <Col md={6}>
+              <InputField
+                label="Max Declared Value (₹)"
+                name="max_declared_value"
+                value={formData.max_declared_value}
+                onChange={handleChange}
+                placeholder="Maximum insured value per shipment"
+              />
+            </Col>
+          </Row>
+
+          {/* Logo */}
+          <div className="da-section-title">Partner logo</div>
           <div className="da-photo-section">
             <input type="file" ref={fileInputRef} style={{ display: 'none' }} onChange={handleImageUpload} accept="image/*" />
             <button type="button" className="da-upload-btn" onClick={() => fileInputRef.current.click()}>
-              <FaUpload /> Upload photo
+              <FaUpload /> Upload logo
             </button>
             <span className="da-optional-text">Optional, up to 5 MB</span>
 
             {imagePreview && (
               <div className="da-photo-preview">
-                <img src={imagePreview} alt="Profile preview" onError={(e) => { e.target.onerror = null; e.target.style.display = 'none'; }} />
-                <button type="button" className="da-remove-photo-btn" onClick={removeImage} aria-label="Remove photo">
+                <img src={imagePreview} alt="Logo preview" onError={(e) => { e.target.onerror = null; e.target.style.display = 'none'; }} />
+                <button type="button" className="da-remove-photo-btn" onClick={removeImage} aria-label="Remove logo">
                   <FaTrash />
                 </button>
               </div>

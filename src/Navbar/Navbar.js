@@ -266,7 +266,7 @@ function Navbar() {
                     isActive("/deliveryagenttable") || isActive("/deliveryagentmaster")
                   }
                 >
-                  Delivery Agent Master
+                  Logistic Partner
                 </Link>
                   <Link
                     to="/salesmantable"
