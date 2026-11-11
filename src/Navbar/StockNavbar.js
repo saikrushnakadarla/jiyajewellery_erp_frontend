@@ -12,8 +12,9 @@ import { FiBell } from 'react-icons/fi';
 import Swal from "sweetalert2";
 import logo from "./jiya_logo.png";
 import "./StockNavbar.css";
-import { Badge, Dropdown } from "react-bootstrap";
+import { Badge, Dropdown, Modal, Button } from "react-bootstrap";
 import baseURL from "../Url/NodeBaseURL";
+import WarehouseNotificationModal, { parseNotificationMessage, splitCustomer } from "./WarehouseNotificationModel";
 
 function StockNavbar() {
   const [isOpen, setIsOpen] = useState(false);
@@ -25,6 +26,12 @@ function StockNavbar() {
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [notificationDropdownOpen, setNotificationDropdownOpen] = useState(false);
+
+  // NEW: Today's visits (current warehouse only) + visit details modal
+  const [todayVisits, setTodayVisits] = useState([]);
+  const [selectedCustomer, setSelectedCustomer] = useState(null);
+  // NEW: notification details modal
+  const [selectedNotification, setSelectedNotification] = useState(null);
 
   // ==========================================================
   // NO AuthContext — this module reads userId / userName
@@ -132,6 +139,113 @@ function StockNavbar() {
     }
   };
 
+  // ==========================================================
+  // NEW: helpers for Today's Visits + Visit Details modal
+  // ==========================================================
+  const formatDateTime = (dateString) => {
+    if (!dateString) return 'N/A';
+    const d = new Date(dateString);
+    return (
+      d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }) +
+      ' at ' +
+      d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })
+    );
+  };
+
+  const formatTimeOnly = (dateString) =>
+    dateString
+      ? new Date(dateString).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })
+      : '';
+
+  // unique salesman names for a customer's visits
+  const getSalesmanNames = (c) => {
+    const names = [...new Set((c?.visits || []).map(v => v.salesman_name).filter(Boolean))];
+    return names.length ? names.join(', ') : 'Not Assigned';
+  };
+
+  const getStatusBadgeColor = (status) => {
+    switch (status?.toLowerCase()) {
+      case 'scheduled': return 'primary';
+      case 'available': return 'success';
+      case 'not available': return 'danger';
+      default: return 'secondary';
+    }
+  };
+
+  // Today's scheduled visits, filtered by the CURRENT warehouse only
+  const fetchTodayVisits = async (stockPointId) => {
+    try {
+      if (!stockPointId) {
+        setTodayVisits([]);
+        return;
+      }
+
+      const scheduleRes = await fetch(`${baseURL}/api/visit-logs-warehouse-schedule`);
+      if (!scheduleRes.ok) throw new Error('Failed to fetch schedule visits');
+      const scheduleData = await scheduleRes.json();
+
+      // Account details only used to get a nicer customer name; not fatal if it fails
+      let accountData = [];
+      try {
+        const accountRes = await fetch(`${baseURL}/get/account-details`);
+        if (accountRes.ok) accountData = await accountRes.json();
+      } catch (e) {
+        console.warn('⚠️ Could not load account details for navbar visits:', e);
+      }
+
+      const now = new Date();
+      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
+      const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+
+      const todays = (Array.isArray(scheduleData) ? scheduleData : []).filter(v => {
+        // same warehouse only (Number() avoids string/number mismatch)
+        if (!v.warehouse_id || Number(v.warehouse_id) !== Number(stockPointId)) return false;
+        if (v.status !== 'scheduled' || !v.scheduled_date) return false;
+        const d = new Date(v.scheduled_date);
+        return d >= todayStart && d <= todayEnd;
+      });
+
+      const grouped = {};
+      todays.forEach(v => {
+        const acc = (Array.isArray(accountData) ? accountData : []).find(a => a.customer_id === v.customer_id);
+        // one entry per customer + salesman + scheduled time, so each salesman is listed separately
+        const key = `${v.customer_account_id || v.customer_id}|${v.salesman_id || 'none'}|${new Date(v.scheduled_date).getTime()}`;
+
+        if (!grouped[key]) {
+          grouped[key] = {
+            customer_account_id: v.customer_account_id,
+            customer_id: v.customer_id,
+            customer_name: acc?.account_name || v.customer_name || 'Unknown Customer',
+            visits: []
+          };
+        }
+
+        grouped[key].visits.push({
+          id: v.id,
+          barcode: v.barcode,
+          product_name: v.product_name || null,
+          category: v.category || null,
+          scheduled_date: v.scheduled_date,
+          status: v.status,
+          salesman_id: v.salesman_id,
+          salesman_name: v.salesman_name,
+          salesman_photo: v.salesman_photo || null,
+          customer_status: v.customer_status || 'Scheduled',
+          reschedule_date: v.reschedule_date || null
+        });
+      });
+
+      // earliest first
+      const list = Object.values(grouped).sort(
+        (a, b) => new Date(a.visits[0].scheduled_date) - new Date(b.visits[0].scheduled_date)
+      );
+      setTodayVisits(list);
+    } catch (error) {
+      console.error('❌ Error fetching today visits (navbar):', error);
+      setTodayVisits([]);
+    }
+  };
+
   // Refresh notifications function that can be called externally
   const refreshNotifications = async () => {
     let stockPointId = currentStockPointIdRef.current;
@@ -143,6 +257,7 @@ function StockNavbar() {
     if (stockPointId) {
       console.log('🔄 Manually refreshing notifications...');
       await fetchWarehouseNotifications(stockPointId);
+      await fetchTodayVisits(stockPointId); // NEW
     }
   };
 
@@ -160,12 +275,13 @@ function StockNavbar() {
     setDisplayName(getCurrentStockPoint());
   }, []);
 
-  // Resolve stock point id once, then fetch + poll notifications
+  // Resolve stock point id once, then fetch + poll notifications (and today's visits)
   useEffect(() => {
     const init = async () => {
       const stockPointId = await resolveCurrentStockPointId();
       currentStockPointIdRef.current = stockPointId;
       await fetchWarehouseNotifications(stockPointId);
+      await fetchTodayVisits(stockPointId); // NEW
 
       // Clear any existing interval
       if (intervalRef.current) {
@@ -174,6 +290,7 @@ function StockNavbar() {
 
       intervalRef.current = setInterval(() => {
         fetchWarehouseNotifications(currentStockPointIdRef.current);
+        fetchTodayVisits(currentStockPointIdRef.current); // NEW
       }, 30000);
     };
 
@@ -260,6 +377,41 @@ function StockNavbar() {
     if (msg.includes('Cancelled')) return '❌';
     if (msg.includes('Updated')) return '🔄';
     return '🔔';
+  };
+
+  // NEW: open notification details + mark as read (badge count drops immediately)
+  const openNotification = (n) => {
+    setSelectedNotification(n);
+    setNotificationDropdownOpen(false);
+    if (!n.is_read) markAsRead(n.id);
+  };
+
+  // NEW: short, readable preview lines for the dropdown card
+  const getNotificationPreview = (n) => {
+    const { intro, fields, items } = parseNotificationMessage(n.message);
+    const get = (label) => fields.find(f => f.label.toLowerCase() === label)?.value;
+    const parts = [];
+    const customer = get('customer');
+    const date = get('date');
+    const time = get('time');
+    const sales = get('salesperson') || get('salesman');
+    if (sales) parts.push(`🧑‍💼 ${sales === 'Not assigned yet' ? 'Not assigned' : sales}`);
+    if (customer) {
+      const code = splitCustomer(customer).id;
+      if (code) parts.push(`🆔 ${code}`);
+    }
+    if (date) parts.push(`📅 ${date}${time ? ' · ' + time : ''}`);
+    if (items.length) parts.push(`📦 ${items.length} product${items.length > 1 ? 's' : ''}`);
+    if (!parts.length) return { line1: intro[0] || (fields[0] ? `${fields[0].label}: ${fields[0].value}` : ''), rest: [] };
+    return { line1: intro[0] || '', rest: parts };
+  };
+
+  const getNotificationColor = (n) => {
+    const t = (n.title || '').toLowerCase();
+    if (t.includes('cancel')) return { bg: '#fee2e2', fg: '#dc2626' };
+    if (t.includes('complete') || t.includes('available')) return { bg: '#dcfce7', fg: '#16a34a' };
+    if (t.includes('update') || t.includes('reschedule') || t.includes('not available')) return { bg: '#fef3c7', fg: '#d97706' };
+    return { bg: '#fdebd0', fg: '#a36e29' };
   };
 
   const toggleMenu = () => {
@@ -440,7 +592,7 @@ function StockNavbar() {
               </div>
 
               {/* Stock Outward Sub-Dropdown */}
-              
+
                 <div
                   className="stock-navbar-sub-dropdown"
                   onMouseEnter={() => setOutwardSubDropdownOpen(true)}
@@ -586,6 +738,25 @@ function StockNavbar() {
                   {unreadCount > 99 ? '99+' : unreadCount}
                 </Badge>
               )}
+              {unreadCount === 0 && todayVisits.length > 0 && (
+                <Badge
+                  pill
+                  bg="warning"
+                  text="dark"
+                  title={`${todayVisits.length} visit${todayVisits.length > 1 ? 's' : ''} today`}
+                  style={{
+                    position: 'absolute',
+                    top: '-10px',
+                    right: '-12px',
+                    fontSize: '10px',
+                    padding: '2px 6px',
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.3)',
+                    minWidth: '18px'
+                  }}
+                >
+                  {todayVisits.length}
+                </Badge>
+              )}
             </div>
           </Dropdown.Toggle>
 
@@ -610,14 +781,14 @@ function StockNavbar() {
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
-              backgroundColor: '#f9fafb',
+              background: 'linear-gradient(135deg, #fff7ed 0%, #fdebd0 100%)',
               borderRadius: '12px 12px 0 0',
               position: 'sticky',
               top: 0,
               zIndex: 1
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <FiBell size={18} color="#3b82f6" />
+                <FiBell size={18} color="#a36e29" />
                 <strong style={{ fontSize: '15px' }}>Notifications</strong>
               </div>
               {unreadCount > 0 && (
@@ -626,7 +797,7 @@ function StockNavbar() {
                   style={{
                     fontSize: '12px',
                     textDecoration: 'none',
-                    color: '#3b82f6',
+                    color: '#a36e29',
                     fontWeight: 500,
                     background: 'none',
                     border: 'none',
@@ -637,6 +808,60 @@ function StockNavbar() {
                 </button>
               )}
             </div>
+
+            {/* ========== NEW: TODAY'S VISITS (current warehouse only) ========== */}
+            <div style={{ borderBottom: '1px solid #e5e7eb', backgroundColor: '#fffbeb' }}>
+              <div style={{
+                padding: '10px 18px',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                fontSize: '13px',
+                fontWeight: 600,
+                color: '#92400e'
+              }}>
+                <span>📅 Today's Visits</span>
+                <Badge bg="warning" text="dark" pill style={{ fontSize: '12px', minWidth: '24px', padding: '5px 8px' }}>{todayVisits.length}</Badge>
+              </div>
+
+              {todayVisits.length === 0 ? (
+                <div style={{ padding: '4px 18px 12px', fontSize: '12px', color: '#9ca3af' }}>
+                  No visits scheduled today
+                </div>
+              ) : (
+                todayVisits.map((c, idx) => (
+                  <div
+                    key={`${c.customer_account_id}-${idx}`}
+                    onClick={() => {
+                      setSelectedCustomer(c);
+                      setNotificationDropdownOpen(false);
+                    }}
+                    style={{
+                      padding: '10px 18px',
+                      cursor: 'pointer',
+                      borderTop: '1px solid #fef3c7',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      gap: '8px'
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#fef3c7')}
+                    onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                  >
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: '13px', fontWeight: 600, color: '#111827' }}>
+                        {getSalesmanNames(c)}
+                      </div>
+                      <div style={{ fontSize: '11px', color: '#6b7280' }}>
+                        🆔 {c.customer_id} · 🕐 {formatTimeOnly(c.visits[0]?.scheduled_date)} · <strong>📦 {c.visits.length} product{c.visits.length > 1 ? 's' : ''}</strong>
+                      </div>
+                    </div>
+                    <span style={{ fontSize: '11px', color: '#a36e29', whiteSpace: 'nowrap' }}>View ›</span>
+                  </div>
+                ))
+              )}
+            </div>
+            {/* ========== END TODAY'S VISITS ========== */}
 
             <div className="stock-notification-list" style={{ maxHeight: '400px', overflowY: 'auto' }}>
               {notifications.length === 0 ? (
@@ -654,81 +879,81 @@ function StockNavbar() {
                   </p>
                 </div>
               ) : (
-                notifications.map(notification => (
-                  <div
-                    key={notification.id}
-                    onClick={() => !notification.is_read && markAsRead(notification.id)}
-                    style={{
-                      padding: '14px 18px',
-                      backgroundColor: notification.is_read ? 'white' : '#eff6ff',
-                      borderBottom: '1px solid #f3f4f6',
-                      borderLeft: notification.is_read ? '4px solid transparent' : '4px solid #3b82f6',
-                      cursor: 'pointer',
-                      transition: 'all 0.2s ease'
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.backgroundColor = '#f8fafc';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.backgroundColor = notification.is_read ? 'white' : '#eff6ff';
-                    }}
-                  >
-                    <div style={{ display: 'flex', gap: '12px', width: '100%' }}>
-                      <div style={{
-                        fontSize: '20px',
-                        width: '32px',
-                        height: '32px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        flexShrink: 0
-                      }}>
-                        {getNotificationIcon(notification)}
-                      </div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
+                notifications.map(notification => {
+                  const color = getNotificationColor(notification);
+                  const preview = getNotificationPreview(notification);
+                  return (
+                    <div
+                      key={notification.id}
+                      onClick={() => openNotification(notification)}
+                      style={{
+                        padding: '12px 16px',
+                        backgroundColor: notification.is_read ? '#ffffff' : '#fff8ec',
+                        borderBottom: '1px solid #f1f5f9',
+                        borderLeft: notification.is_read ? '4px solid transparent' : '4px solid #a36e29',
+                        cursor: 'pointer',
+                        transition: 'background-color 0.2s ease'
+                      }}
+                      onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#f8fafc'; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = notification.is_read ? '#ffffff' : '#fff8ec'; }}
+                    >
+                      <div style={{ display: 'flex', gap: '12px', width: '100%' }}>
                         <div style={{
-                          fontWeight: notification.is_read ? '500' : '600',
-                          marginBottom: '4px',
-                          fontSize: '13px',
-                          color: '#111827',
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          alignItems: 'flex-start'
+                          width: '38px', height: '38px', borderRadius: '50%',
+                          backgroundColor: color.bg, color: color.fg,
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontSize: '18px', flexShrink: 0
                         }}>
-                          <span>{notification.title}</span>
-                          {!notification.is_read && (
+                          {getNotificationIcon(notification)}
+                        </div>
+
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
                             <span style={{
-                              width: '6px',
-                              height: '6px',
-                              backgroundColor: '#3b82f6',
-                              borderRadius: '50%',
-                              flexShrink: 0,
-                              marginTop: '4px'
-                            }}></span>
+                              fontSize: '13px',
+                              fontWeight: notification.is_read ? 500 : 700,
+                              color: '#111827',
+                              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'
+                            }}>
+                              {notification.title}
+                            </span>
+                            {!notification.is_read && (
+                              <span style={{
+                                width: '8px', height: '8px', backgroundColor: '#a36e29',
+                                borderRadius: '50%', flexShrink: 0
+                              }}></span>
+                            )}
+                          </div>
+
+                          {preview.line1 && (
+                            <div style={{
+                              fontSize: '12px', color: '#6b7280', marginTop: '2px',
+                              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'
+                            }}>
+                              {preview.line1}
+                            </div>
                           )}
-                        </div>
-                        <div style={{
-                          fontSize: '12px',
-                          color: '#6b7280',
-                          marginBottom: '4px',
-                          lineHeight: '1.4'
-                        }}>
-                          {notification.message}
-                        </div>
-                        <div style={{
-                          fontSize: '10px',
-                          color: '#9ca3af',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '4px'
-                        }}>
-                          <span>🕐</span>
-                          {formatRelativeTime(notification.created_at)}
+
+                          {preview.rest.length > 0 && (
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 10px', marginTop: '4px' }}>
+                              {preview.rest.map((r, i) => (
+                                <span key={i} style={{ fontSize: '11px', color: '#475569' }}>{r}</span>
+                              ))}
+                            </div>
+                          )}
+
+                          <div style={{
+                            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                            marginTop: '6px', fontSize: '10px', color: '#9ca3af'
+                          }}>
+                            <span>🕐 {formatRelativeTime(notification.created_at)}</span>
+                            <span style={{ color: '#a36e29', fontWeight: 500 }}>View details ›</span>
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
           </Dropdown.Menu>
@@ -741,6 +966,121 @@ function StockNavbar() {
           <FaSignOutAlt size={18} /> Logout
         </button>
       </div>
+
+      {/* ============ NEW: NOTIFICATION DETAILS MODAL ============ */}
+      <WarehouseNotificationModal
+        show={!!selectedNotification}
+        onHide={() => setSelectedNotification(null)}
+        notification={selectedNotification}
+        warehouseName={displayName}
+      />
+
+      {/* ============ NEW: VISIT DETAILS MODAL (vertical layout) ============ */}
+      <Modal
+        show={!!selectedCustomer}
+        onHide={() => setSelectedCustomer(null)}
+        centered
+        scrollable
+        contentClassName="border-0"
+      >
+        <Modal.Header closeButton closeVariant="white" style={{ backgroundColor: '#a36e29', color: '#fff' }}>
+          <Modal.Title style={{ fontSize: '18px', color: '#fff' }}>
+            📅 Visit Details
+          </Modal.Title>
+        </Modal.Header>
+        <Modal.Body style={{ backgroundColor: '#f8fafc' }}>
+          {selectedCustomer && (() => {
+            const first = selectedCustomer.visits[0] || {};
+            const photo = (selectedCustomer.visits.find(v => v.salesman_photo) || {}).salesman_photo;
+            const multiSales = new Set(selectedCustomer.visits.map(v => v.salesman_name || '')).size > 1;
+            const labelStyle = { fontSize: '12px', color: '#64748b', marginBottom: '2px' };
+            const valueStyle = { fontSize: '14px', color: '#1e293b', fontWeight: 500 };
+            return (
+              <>
+                {/* Summary card */}
+                <div style={{
+                  background: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px',
+                  padding: '16px', marginBottom: '16px', display: 'flex', gap: '14px', alignItems: 'center'
+                }}>
+                  {photo ? (
+                    <img
+                      src={photo.startsWith('http') ? photo : `${baseURL}${photo}`}
+                      alt=""
+                      style={{ width: 56, height: 56, borderRadius: '50%', objectFit: 'cover', border: '2px solid #a36e29' }}
+                    />
+                  ) : (
+                    <div style={{
+                      width: 56, height: 56, borderRadius: '50%', background: '#fdebd0',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 26
+                    }}>🧑‍💼</div>
+                  )}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={labelStyle}>Salesperson</div>
+                    <div style={{ fontSize: '17px', fontWeight: 700, color: '#1e293b' }}>
+                      {getSalesmanNames(selectedCustomer)}
+                    </div>
+                    <div style={{ fontSize: '13px', color: '#64748b', marginTop: '4px' }}>
+                      🆔 {selectedCustomer.customer_id} · 🕐 {formatDateTime(first.scheduled_date)}
+                    </div>
+                  </div>
+                  <Badge bg="warning" text="dark" pill>
+                    {selectedCustomer.visits.length} item{selectedCustomer.visits.length > 1 ? 's' : ''}
+                  </Badge>
+                </div>
+
+                {/* Products — one card per item, stacked vertically */}
+                {selectedCustomer.visits.map((v, i) => (
+                  <div key={v.id} style={{
+                    background: '#fff', border: '1px solid #e2e8f0', borderLeft: '4px solid #a36e29',
+                    borderRadius: '10px', padding: '14px 16px', marginBottom: '12px'
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                      <span style={{ fontSize: '13px', color: '#94a3b8', fontWeight: 600 }}>
+                        #{i + 1} &nbsp;<Badge bg="dark">{v.barcode}</Badge>
+                      </span>
+                      <Badge bg={getStatusBadgeColor(v.customer_status)}>{v.customer_status}</Badge>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px 16px' }}>
+                      <div>
+                        <div style={labelStyle}>Product</div>
+                        <div style={valueStyle}>{v.product_name || '—'}</div>
+                      </div>
+                      <div>
+                        <div style={labelStyle}>Category</div>
+                        <div style={valueStyle}>{v.category || '—'}</div>
+                      </div>
+                      {multiSales && (
+                        <div style={{ gridColumn: '1 / -1' }}>
+                          <div style={labelStyle}>Salesperson</div>
+                          <div style={valueStyle}>
+                            {v.salesman_id ? (v.salesman_name || `ID: ${v.salesman_id}`) : <Badge bg="secondary">Not Assigned</Badge>}
+                          </div>
+                        </div>
+                      )}
+                      <div style={{ gridColumn: '1 / -1' }}>
+                        <div style={labelStyle}>Scheduled Date &amp; Time</div>
+                        <div style={valueStyle}>
+                          {v.reschedule_date ? (
+                            <>
+                              <span className="text-decoration-line-through text-muted">{formatDateTime(v.scheduled_date)}</span><br />
+                              <span style={{ color: '#d97706' }}>Rescheduled: {formatDateTime(v.reschedule_date)}</span>
+                            </>
+                          ) : formatDateTime(v.scheduled_date)}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </>
+            );
+          })()}
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setSelectedCustomer(null)}>Close</Button>
+        </Modal.Footer>
+      </Modal>
+      {/* ============ END VISIT DETAILS MODAL ============ */}
 
       {/* Add pulse animation style */}
       <style>{`
