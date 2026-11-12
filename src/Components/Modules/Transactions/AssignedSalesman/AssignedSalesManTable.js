@@ -73,75 +73,75 @@ const AssignedSalesmanTable = () => {
   };
 
   // Updated to show Salesman Status badge instead of regular status
-  const getSalesmanStatusBadge = (status) => {
-    const statusColors = {
-      'pending': { color: '#ffc107', text: 'Pending' },
-      'accepted': { color: '#28a745', text: 'Accepted' },
-      'rejected': { color: '#dc3545', text: 'Rejected' },
-      'completed': { color: '#17a2b8', text: 'Completed' }
-    };
-    const statusInfo = statusColors[status] || { color: '#6c757d', text: status || 'N/A' };
-    return (
-      <span style={{
-        backgroundColor: statusInfo.color,
-        color: 'white',
-        padding: '3px 8px',
-        borderRadius: '4px',
-        fontSize: '11px',
-        fontWeight: 'bold'
-      }}>
-        {statusInfo.text}
-      </span>
-    );
-  };
+  // const getSalesmanStatusBadge = (status) => {
+  //   const statusColors = {
+  //     'pending': { color: '#ffc107', text: 'Pending' },
+  //     'accepted': { color: '#28a745', text: 'Accepted' },
+  //     'rejected': { color: '#dc3545', text: 'Rejected' },
+  //     'completed': { color: '#17a2b8', text: 'Completed' }
+  //   };
+  //   const statusInfo = statusColors[status] || { color: '#6c757d', text: status || 'N/A' };
+  //   return (
+  //     <span style={{
+  //       backgroundColor: statusInfo.color,
+  //       color: 'white',
+  //       padding: '3px 8px',
+  //       borderRadius: '4px',
+  //       fontSize: '11px',
+  //       fontWeight: 'bold'
+  //     }}>
+  //       {statusInfo.text}
+  //     </span>
+  //   );
+  // };
 
   // NEW: Logistic Partner (delivery agent) status badge
   // delivery_status is NULL when the assignment was made "Without Delivery Agent"
-  const getLogisticStatusBadge = (status) => {
-    if (!status) {
-      return <span style={{ color: '#6c757d', fontSize: '12px' }}>N/A</span>;
-    }
-    const statusColors = {
-      'pending': { color: '#ffc107', text: 'Pending' },
-      'received': { color: '#28a745', text: 'Received' }
-    };
-    const statusInfo = statusColors[status] || { color: '#6c757d', text: status };
-    return (
-      <span style={{
-        backgroundColor: statusInfo.color,
-        color: 'white',
-        padding: '3px 8px',
-        borderRadius: '4px',
-        fontSize: '11px',
-        fontWeight: 'bold'
-      }}>
-        {statusInfo.text}
-      </span>
-    );
-  };
+  // const getLogisticStatusBadge = (status) => {
+  //   if (!status) {
+  //     return <span style={{ color: '#6c757d', fontSize: '12px' }}>N/A</span>;
+  //   }
+  //   const statusColors = {
+  //     'pending': { color: '#ffc107', text: 'Pending' },
+  //     'received': { color: '#28a745', text: 'Received' }
+  //   };
+  //   const statusInfo = statusColors[status] || { color: '#6c757d', text: status };
+  //   return (
+  //     <span style={{
+  //       backgroundColor: statusInfo.color,
+  //       color: 'white',
+  //       padding: '3px 8px',
+  //       borderRadius: '4px',
+  //       fontSize: '11px',
+  //       fontWeight: 'bold'
+  //     }}>
+  //       {statusInfo.text}
+  //     </span>
+  //   );
+  // };
 
   // Keep the old status badge for cases where we might need it
-  const getStatusBadge = (status) => {
-    const statusColors = {
-      'pending': { color: '#ffc107', text: 'Pending' },
-      'in_transit': { color: '#17a2b8', text: 'In Transit' },
-      'completed': { color: '#28a745', text: 'Completed' },
-      'cancelled': { color: '#dc3545', text: 'Cancelled' }
-    };
-    const statusInfo = statusColors[status] || { color: '#6c757d', text: status };
-    return (
-      <span style={{
-        backgroundColor: statusInfo.color,
-        color: 'white',
-        padding: '3px 8px',
-        borderRadius: '4px',
-        fontSize: '11px',
-        fontWeight: 'bold'
-      }}>
-        {statusInfo.text}
-      </span>
-    );
-  };
+  // const getStatusBadge = (status) => {
+  //   const statusColors = {
+  //     'pending': { color: '#ffc107', text: 'Pending' },
+  //     'in_transit': { color: '#17a2b8', text: 'In Transit' },
+  //     'completed': { color: '#28a745', text: 'Completed' },
+  //     'cancelled': { color: '#dc3545', text: 'Cancelled' }
+  //   };
+  //   const statusInfo = statusColors[status] || { color: '#6c757d', text: status };
+  //   return (
+  //     <span style={{
+  //       backgroundColor: statusInfo.color,
+  //       color: 'white',
+  //       padding: '3px 8px',
+  //       borderRadius: '4px',
+  //       fontSize: '11px',
+  //       fontWeight: 'bold'
+  //     }}>
+  //       {statusInfo.text}
+  //     </span>
+  //   );
+  // };
 
   const columns = React.useMemo(
     () => [
@@ -189,17 +189,17 @@ const AssignedSalesmanTable = () => {
         Header: 'Total Net Wt',
         accessor: 'total_net_weight',
       },
-      {
-        Header: 'Salesman Status',
-        accessor: 'salesman_status',
-        Cell: ({ value }) => getSalesmanStatusBadge(value),
-      },
+      // {
+      //   Header: 'Salesman Status',
+      //   accessor: 'salesman_status',
+      //   Cell: ({ value }) => getSalesmanStatusBadge(value),
+      // },
       // NEW: Logistic Partner Status (after Salesman Status)
-      {
-        Header: 'Logistic Partner Status',
-        accessor: 'delivery_status',
-        Cell: ({ value }) => getLogisticStatusBadge(value),
-      },
+      // {
+      //   Header: 'Logistic Partner Status',
+      //   accessor: 'delivery_status',
+      //   Cell: ({ value }) => getLogisticStatusBadge(value),
+      // },
       {
         Header: 'Actions',
         id: 'actions',
@@ -400,12 +400,12 @@ const AssignedSalesmanTable = () => {
                     <td><strong>Salesman Mobile</strong></td>
                     <td>{transferDetails.transfer_details.salesman_mobile || 'N/A'}</td>
                   </tr>
-                  <tr>
+                  {/* <tr>
                     <td><strong>Salesman Status</strong></td>
                     <td>{getSalesmanStatusBadge(transferDetails.transfer_details.salesman_status)}</td>
-                  </tr>
+                  </tr> */}
                   {/* NEW: Logistic Partner details + status (after Salesman Status) */}
-                  <tr>
+                  {/* <tr>
                     <td><strong>Logistic Partner</strong></td>
                     <td>
                       {transferDetails.transfer_details.delivery_agent_name
@@ -420,7 +420,7 @@ const AssignedSalesmanTable = () => {
                   <tr>
                     <td><strong>Logistic Partner Status</strong></td>
                     <td>{getLogisticStatusBadge(transferDetails.transfer_details.delivery_status)}</td>
-                  </tr>
+                  </tr> */}
                   <tr>
                     <td><strong>Remarks</strong></td>
                     <td>{transferDetails.transfer_details.remarks || 'N/A'}</td>

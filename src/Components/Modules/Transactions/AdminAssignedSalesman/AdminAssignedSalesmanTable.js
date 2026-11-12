@@ -92,6 +92,34 @@ const AdminAssignedSalesmanTable = () => {
     );
   };
 
+  // Logistic Partner (delivery agent) status badge
+  // delivery_status is NULL when the assignment was made "Without Delivery Agent"
+  const getLogisticStatusBadge = (status) => {
+    if (!status) {
+      return <span style={{ color: '#6c757d', fontSize: '12px' }}>N/A</span>;
+    }
+    const statusColors = {
+      'pending': { color: '#ffc107', text: 'Pending' },
+      'received': { color: '#28a745', text: 'Received' }
+    };
+    const statusInfo = statusColors[status] || { color: '#6c757d', text: status };
+    return (
+      <span style={{
+        backgroundColor: statusInfo.color,
+        color: 'white',
+        padding: '3px 8px',
+        borderRadius: '4px',
+        fontSize: '11px',
+        fontWeight: 'bold',
+        display: 'inline-block',
+        minWidth: '70px',
+        textAlign: 'center'
+      }}>
+        {statusInfo.text}
+      </span>
+    );
+  };
+
   // ---------- Search filter (used by hierarchical view) ----------
   const filteredData = useMemo(() => {
     const term = (searchText || '').toString().trim().toLowerCase();
@@ -103,6 +131,7 @@ const AdminAssignedSalesmanTable = () => {
         t.to_salesman_name,
         t.salesman_mobile,
         t.salesman_status,
+        t.delivery_status,
       ]
         .filter(Boolean)
         .some((v) => v.toString().toLowerCase().includes(term))
@@ -209,6 +238,11 @@ const AdminAssignedSalesmanTable = () => {
         Header: 'Salesman Status',
         accessor: 'salesman_status',
         Cell: ({ value }) => getSalesmanStatusBadge(value),
+      },
+      {
+        Header: 'Logistic Partner Status',
+        accessor: 'delivery_status',
+        Cell: ({ value }) => getLogisticStatusBadge(value),
       },
       {
         Header: 'Actions',
@@ -491,14 +525,15 @@ const AdminAssignedSalesmanTable = () => {
                     <th style={{ width: '60px' }}>Qty</th>
                     <th style={{ width: '90px' }}>Gross Wt</th>
                     <th style={{ width: '90px' }}>Net Wt</th>
-                    <th style={{ width: '110px' }}>Status</th>
+                    <th style={{ width: '110px' }}>Salesman Status</th>
+                    <th style={{ width: '140px' }}>Logistic Partner Status</th>
                     <th style={{ width: '90px' }}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {Object.keys(hierarchicalData).length === 0 && (
                     <tr>
-                      <td colSpan="10" className="text-center text-muted" style={{ padding: '20px' }}>
+                      <td colSpan="11" className="text-center text-muted" style={{ padding: '20px' }}>
                         No assigned transfers found
                       </td>
                     </tr>
@@ -518,7 +553,7 @@ const AdminAssignedSalesmanTable = () => {
                               {isStockPointOpen(fromStockPoint) ? <FaChevronDown /> : <FaChevronRight />}
                             </button>
                           </td>
-                          <td colSpan="9" style={{ textAlign: 'left' }}>
+                          <td colSpan="10" style={{ textAlign: 'left' }}>
                             <div className="d-flex align-items-center">
                               <FaWarehouse className="location-icon from-stock-icon" />
                               <strong>{fromStockPoint}</strong>
@@ -544,7 +579,7 @@ const AdminAssignedSalesmanTable = () => {
                                       {isSalesmanOpen(fromStockPoint, salesman) ? <FaChevronDown /> : <FaChevronRight />}
                                     </button>
                                   </td>
-                                  <td colSpan="9" style={{ textAlign: 'left' }}>
+                                  <td colSpan="10" style={{ textAlign: 'left' }}>
                                     <div className="d-flex align-items-center">
                                       <FaUserTie className="location-icon to-salesman-icon" />
                                       <strong>→ {salesman}</strong>
@@ -580,6 +615,7 @@ const AdminAssignedSalesmanTable = () => {
                                         <td>{transfer.total_gross_weight}</td>
                                         <td>{transfer.total_net_weight}</td>
                                         <td>{getSalesmanStatusBadge(transfer.salesman_status)}</td>
+                                        <td>{getLogisticStatusBadge(transfer.delivery_status)}</td>
                                         <td>
                                           <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
                                             <FaEye
@@ -657,6 +693,22 @@ const AdminAssignedSalesmanTable = () => {
                   <tr>
                     <td><strong>Salesman Status</strong></td>
                     <td>{getSalesmanStatusBadge(transferDetails.transfer_details.salesman_status)}</td>
+                  </tr>
+                  <tr>
+                    <td><strong>Logistic Partner</strong></td>
+                    <td>
+                      {transferDetails.transfer_details.delivery_agent_name
+                        ? `${transferDetails.transfer_details.delivery_agent_name}${
+                            transferDetails.transfer_details.delivery_agent_code
+                              ? ` (${transferDetails.transfer_details.delivery_agent_code})`
+                              : ''
+                          }`
+                        : 'N/A'}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td><strong>Logistic Partner Status</strong></td>
+                    <td>{getLogisticStatusBadge(transferDetails.transfer_details.delivery_status)}</td>
                   </tr>
                   <tr>
                     <td><strong>Remarks</strong></td>
