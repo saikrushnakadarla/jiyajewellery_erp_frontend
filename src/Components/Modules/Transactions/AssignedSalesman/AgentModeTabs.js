@@ -24,7 +24,7 @@ const AssignmentModeTabs = ({ mode, onChange }) => {
       </Nav.Item>
       <Nav.Item>
         <Nav.Link eventKey="agent" style={tabStyle(mode === "agent")}>
-          With Delivery Agent
+          With Logistic Partner
         </Nav.Link>
       </Nav.Item>
     </Nav>
